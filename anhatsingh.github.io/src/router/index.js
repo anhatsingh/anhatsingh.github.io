@@ -19,6 +19,11 @@ const routes = [
     component: () =>
       import(/* webpackChunkName: "about" */ "../views/AboutView.vue"),
   },
+  {
+    path: "/contraints",
+    name: "testing",
+    component: () => import("../components/ContrainedView.vue")
+  },
 ];
 
 const router = new VueRouter({
