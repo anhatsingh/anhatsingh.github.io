@@ -14,8 +14,12 @@ import { entityPath, type Portfolio } from "./types";
   1. Nothing overlaps. Entries are packed into rows so that no row ever holds
      two things at the same time — the standard greedy interval packing. Where
      life ran in parallel, the track forks, which is what a network graph is
-     for. The number of rows is therefore the busiest moment, not a fixed set
-     of categories.
+     for.
+
+     Packing runs per section rather than across everything, so a section's
+     entries stay together vertically the way a Gantt chart groups its rows.
+     A section is therefore as tall as its own busiest moment, and the reader
+     can find all the jobs without hunting between certificates.
 
   2. Every entry has its own colour. Colouring by category would put four
      concurrent jobs in one indistinguishable colour, which defeats the point
@@ -42,6 +46,27 @@ export const KIND_DASH: Record<ItemKind, string> = {
   projects: "1 7",
   certifications: "",
   testimonials: "",
+};
+
+/** Top-to-bottom order of the bands. Longest-running kinds first. */
+export const KIND_ORDER: ItemKind[] = [
+  "education",
+  "experience",
+  "projects",
+  "certifications",
+  "testimonials",
+];
+
+/*
+  Two label sets on purpose. The caption names one entry — "Project · Nov 2024"
+  — while a band heads a whole group of them, so it reads plural.
+*/
+export const KIND_GROUP_LABELS: Record<ItemKind, string> = {
+  education: "Education",
+  experience: "Experience",
+  projects: "Projects",
+  certifications: "Certificates",
+  testimonials: "Recommendations",
 };
 
 export const KIND_LABELS: Record<ItemKind, string> = {
@@ -78,9 +103,21 @@ export interface GraphItem {
   hue: number;
 }
 
+/** A section's band: which rows it occupies, in display order. */
+export interface Group {
+  kind: ItemKind;
+  label: string;
+  /** First global row of this band. */
+  firstLane: number;
+  /** Rows this band needs — its own busiest concurrency. */
+  lanes: number;
+}
+
 export interface Graph {
   items: GraphItem[];
-  /** How many rows the packing needed — i.e. the busiest concurrency. */
+  /** Bands, top to bottom. Only sections with entries appear. */
+  groups: Group[];
+  /** Total rows across every band. */
   lanes: number;
   /** Absolute month index of column 0. */
   originMonth: number;
@@ -196,7 +233,7 @@ export function buildGraph(portfolio: Portfolio, { now, labelCols }: BuildOption
   const collected = collectItems(portfolio, now);
 
   if (!collected.length) {
-    return { items: [], lanes: 0, originMonth: now, totalMonths: 0, yearTicks: [] };
+    return { items: [], groups: [], lanes: 0, originMonth: now, totalMonths: 0, yearTicks: [] };
   }
 
   const first = Math.min(...collected.map((i) => i.startMonth));
@@ -207,32 +244,57 @@ export function buildGraph(portfolio: Portfolio, { now, labelCols }: BuildOption
   const totalMonths = last - originMonth + 1;
 
   /*
-    Greedy first-fit packing. Entries are already sorted by start, so walking
-    them in order and dropping each into the first row that has come free is
-    optimal in the number of rows used.
+    Hues are assigned over the whole set, in date order, before the split into
+    sections — so neighbouring entries differ sharply wherever they end up,
+    rather than each band restarting from the same corner of the wheel.
+  */
+  const hues = new Map(collected.map((item, index) => [item.id, (index * GOLDEN_ANGLE) % 360]));
+
+  /*
+    Greedy first-fit packing, run once per section. Entries are already sorted
+    by start, so walking them in order and dropping each into the first row
+    that has come free is optimal in the number of rows used.
 
     `laneNextFree[i]` is the first column in row i that nothing occupies.
   */
-  const laneNextFree: number[] = [];
+  const items: GraphItem[] = [];
+  const groups: Group[] = [];
+  let firstLane = 0;
 
-  const items: GraphItem[] = collected.map((item, index) => {
-    const startCol = item.startMonth - originMonth;
-    const endCol = item.endMonth - originMonth;
+  for (const kind of KIND_ORDER) {
+    const inKind = collected.filter((i) => i.kind === kind);
+    if (!inKind.length) continue;
 
-    // Reserve room for the label after the bar, plus a column of air, so two
-    // entries on one row can't have their text collide even when the bars
-    // themselves are comfortably apart.
-    const occupiedTo = endCol + (labelCols ? labelCols(item.label) : 0) + 1;
+    const laneNextFree: number[] = [];
 
-    let lane = laneNextFree.findIndex((free) => free <= startCol);
-    if (lane === -1) {
-      lane = laneNextFree.length;
-      laneNextFree.push(0);
+    for (const item of inKind) {
+      const startCol = item.startMonth - originMonth;
+      const endCol = item.endMonth - originMonth;
+
+      // Reserve room for the label after the bar, plus a column of air, so two
+      // entries on one row can't have their text collide even when the bars
+      // themselves are comfortably apart.
+      const occupiedTo = endCol + (labelCols ? labelCols(item.label) : 0) + 1;
+
+      let lane = laneNextFree.findIndex((free) => free <= startCol);
+      if (lane === -1) {
+        lane = laneNextFree.length;
+        laneNextFree.push(0);
+      }
+      laneNextFree[lane] = occupiedTo + 1;
+
+      items.push({
+        ...item,
+        startCol,
+        endCol,
+        lane: firstLane + lane,
+        hue: hues.get(item.id) ?? 0,
+      });
     }
-    laneNextFree[lane] = occupiedTo + 1;
 
-    return { ...item, startCol, endCol, lane, hue: (index * GOLDEN_ANGLE) % 360 };
-  });
+    groups.push({ kind, label: KIND_GROUP_LABELS[kind], firstLane, lanes: laneNextFree.length });
+    firstLane += laneNextFree.length;
+  }
 
   const yearTicks: Array<{ col: number; label: string }> = [];
   for (let m = 0; m < totalMonths; m++) {
@@ -241,7 +303,7 @@ export function buildGraph(portfolio: Portfolio, { now, labelCols }: BuildOption
     }
   }
 
-  return { items, lanes: laneNextFree.length, originMonth, totalMonths, yearTicks };
+  return { items, groups, lanes: firstLane, originMonth, totalMonths, yearTicks };
 }
 
 /** "Mar 2021 — Present" for the caption. */

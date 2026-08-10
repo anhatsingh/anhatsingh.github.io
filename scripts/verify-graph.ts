@@ -10,7 +10,15 @@
   Run: npx tsx scripts/verify-graph.ts
 */
 
-import { buildGraph, collectItems, itemRange, KIND_DASH, KIND_LABELS } from "../lib/content/graph";
+import {
+  buildGraph,
+  collectItems,
+  itemRange,
+  KIND_DASH,
+  KIND_LABELS,
+  KIND_GROUP_LABELS,
+  KIND_ORDER,
+} from "../lib/content/graph";
 import type { Portfolio } from "../lib/content/types";
 
 let failures = 0;
@@ -175,6 +183,67 @@ console.log("\n── nothing overlaps ──");
   check("entries that never overlap share one branch", g.lanes === 1, `${g.lanes} lanes`);
 }
 
+console.log("\n── sections are stacked bands ──");
+{
+  /*
+    Gantt-style grouping: a section's rows must be contiguous and in the
+    declared order. If bands interleaved, "all the jobs" would be scattered
+    among certificates and the grouping would buy nothing.
+  */
+  const g = buildGraph(portfolio, { now: NOW });
+
+  check("only sections with entries get a band",
+    g.groups.length === new Set(g.items.map((i) => i.kind)).size,
+    g.groups.map((x) => x.kind).join(", "));
+
+  check("bands follow the declared order",
+    g.groups.map((x) => x.kind).join(",") ===
+      KIND_ORDER.filter((k) => g.items.some((i) => i.kind === k)).join(","),
+    g.groups.map((x) => x.kind).join(","));
+
+  check("bands are contiguous and start at row 0",
+    g.groups.every((x, i) =>
+      x.firstLane === (i === 0 ? 0 : g.groups[i - 1].firstLane + g.groups[i - 1].lanes)));
+
+  check("total rows is the sum of the bands",
+    g.lanes === g.groups.reduce((n, x) => n + x.lanes, 0), `${g.lanes}`);
+
+  // The actual grouping guarantee.
+  for (const group of g.groups) {
+    const rows = g.items.filter((i) => i.kind === group.kind).map((i) => i.lane);
+    const ok = rows.every((r) => r >= group.firstLane && r < group.firstLane + group.lanes);
+    check(`${group.kind} sits entirely inside its own band`, ok,
+      `rows ${Math.min(...rows)}-${Math.max(...rows)} vs band ${group.firstLane}-${group.firstLane + group.lanes - 1}`);
+  }
+
+  check("no row holds two different sections",
+    g.items.every((a) => g.items.every((b) => a.lane !== b.lane || a.kind === b.kind)));
+
+  check("every band is at least one row tall", g.groups.every((x) => x.lanes >= 1));
+  // A band heads a group, so it reads plural; the caption names one entry.
+  check("bands are labelled in the plural",
+    g.groups.every((x) => x.label === KIND_GROUP_LABELS[x.kind]),
+    g.groups.map((x) => x.label).join(", "));
+}
+{
+  // Packing is per section, so a busy section must not make a quiet one taller.
+  const mixed = {
+    ...portfolio, education: [], certifications: [], testimonials: [],
+    projects: [{ slug: "solo", name: "Solo", summary: "", description: "", tech: [],
+      featured: false, started: "2020-01", ended: "2020-06", body: [], showInBlogList: false }],
+    experience: [
+      job("a", "2022-01", "2023-01"), job("b", "2022-01", "2023-01"), job("c", "2022-01", "2023-01"),
+    ],
+  } as unknown as Portfolio;
+
+  const g = buildGraph(mixed, { now: M(2024, 1) });
+  const exp = g.groups.find((x) => x.kind === "experience")!;
+  const proj = g.groups.find((x) => x.kind === "projects")!;
+  check("a busy section is as tall as its own concurrency", exp.lanes === 3, `${exp.lanes}`);
+  check("a quiet section stays one row", proj.lanes === 1, `${proj.lanes}`);
+  check("total is the sum, not the global maximum", g.lanes === 4, `${g.lanes}`);
+}
+
 console.log("\n── label reservation ──");
 {
   /*
@@ -219,13 +288,17 @@ console.log("\n── colours ──");
   check("two entries of the same kind differ in colour",
     sameKind.length < 2 || sameKind[0].hue !== sameKind[1].hue);
 
-  // Golden-angle stepping keeps consecutive entries far apart, which is the
-  // reason for using it over an even division of the wheel.
-  const gaps = g.items.slice(1).map((i, n) => {
-    const d = Math.abs(i.hue - g.items[n].hue);
+  /*
+    Hues are assigned in date order, before entries are split into bands — so
+    the property to check is that entries adjacent *in time* differ sharply.
+    Adjacency in g.items is now band order, which is a different thing.
+  */
+  const byDate = [...g.items].sort((a, b) => a.startMonth - b.startMonth);
+  const gaps = byDate.slice(1).map((i, n) => {
+    const d = Math.abs(i.hue - byDate[n].hue);
     return Math.min(d, 360 - d);
   });
-  check("consecutive entries are far apart on the wheel",
+  check("entries adjacent in time are far apart on the wheel",
     gaps.every((d) => d > 60), `min gap ${Math.min(...gaps).toFixed(0)}°`);
 }
 

@@ -30,6 +30,10 @@ import type { Portfolio } from "@/lib/content/types";
   terminates in a second node where its end is actually known; an ongoing role
   simply runs on, since its end month is today's date rather than a fact.
 
+  Sections are stacked bands, Gantt-style, with their names in a gutter that
+  doesn't scroll — otherwise you scroll out to 2024 and can no longer tell
+  which band you're looking at.
+
   Not gitgraph.js: that library lays commits out in sequence with no time axis,
   so a fixed month scale is the one thing it can't express. It is also
   unmaintained — last published 2022, and the `gitgraph.js` package is flagged
@@ -119,7 +123,28 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
         </li>
       </ul>
 
-      <div className="mt-4 overflow-x-auto rounded-[var(--radius)] border border-hairline bg-surface p-3">
+      <div className="mt-4 flex rounded-[var(--radius)] border border-hairline bg-surface">
+        {/*
+          Section gutter. Outside the scroll container so it stays put, and
+          sized from the same constants as the SVG so a name always sits
+          against its own band.
+        */}
+        <div className="shrink-0 border-r border-hairline py-3 pl-4 pr-3" aria-hidden="true">
+          <div style={{ height: TOP - LANE_H / 2 }} />
+          {graph.groups.map((group) => (
+            <div
+              key={group.kind}
+              className="flex items-center"
+              style={{ height: group.lanes * LANE_H }}
+            >
+              <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-widest text-muted">
+                {group.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="min-w-0 flex-1 overflow-x-auto p-3">
         <svg
           width={width}
           height={height}
@@ -128,6 +153,24 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
           aria-label={`Timeline of ${graph.items.length} dated entries from ${graph.yearTicks[0]?.label} to now, one dot per month, ${graph.lanes} parallel branches at the busiest point.`}
           style={{ display: "block" }}
         >
+          {/*
+            Alternating band tints, so a section reads as one block even where
+            its rows are sparse. Drawn first, behind everything.
+          */}
+          {graph.groups.map((group, i) =>
+            i % 2 === 1 ? (
+              <rect
+                key={group.kind}
+                x={0}
+                y={TOP + group.firstLane * LANE_H - LANE_H / 2}
+                width={width}
+                height={group.lanes * LANE_H}
+                fill="var(--graph-trunk)"
+                opacity={0.28}
+              />
+            ) : null,
+          )}
+
           {/* Year gridlines, with the axis along the bottom. */}
           {graph.yearTicks.map(({ col, label }) => (
             <g key={label}>
@@ -251,6 +294,7 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
             );
           })}
         </svg>
+        </div>
       </div>
 
       {/*
