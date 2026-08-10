@@ -206,6 +206,8 @@ export interface Testimonial {
   authorUrl?: string;
   authorImageUrl?: string;
   authorEmail?: string;
+  /** "YYYY-MM" when the recommendation was written. Places it on the graph. */
+  receivedAt?: string;
 }
 
 export interface Writing {

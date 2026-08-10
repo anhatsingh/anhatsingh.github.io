@@ -107,6 +107,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const portfolio = await getPortfolio();
 
+  /*
+    The current month, resolved here and passed down so the life graph's
+    "present" spans are identical on the server and in the browser. Computing
+    it inside the client component would disagree across a timezone or a month
+    boundary and hydrate with a mismatch. It refreshes with the page's own
+    60-second revalidation, which is far finer than monthly.
+  */
+  const nowDate = new Date();
+  const nowMonth = nowDate.getFullYear() * 12 + nowDate.getMonth();
+
   // Neither third party can take the page down with it — both resolve to null
   // on any failure and their sections simply don't render.
   const [githubStats, leetcodeStats] = await Promise.all([
@@ -135,7 +145,7 @@ export default async function HomePage() {
         resumeUrl={portfolio.profile.resumeUrl}
       >
         <Hero profile={portfolio.profile} />
-        <About profile={portfolio.profile} />
+        <About profile={portfolio.profile} portfolio={portfolio} nowMonth={nowMonth} />
         <Projects projects={portfolio.projects} />
         <Experience experience={portfolio.experience} />
         <GitHub stats={githubStats} />

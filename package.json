@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run verify:theme && tsx scripts/verify-blocks.ts && tsx scripts/verify-seo.ts && tsx scripts/verify-resume.ts && tsx scripts/verify-stats.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts && npm run verify:timeline && npm run verify:logos",
+    "verify": "npm run verify:theme && tsx scripts/verify-blocks.ts && tsx scripts/verify-seo.ts && tsx scripts/verify-resume.ts && tsx scripts/verify-stats.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts && npm run verify:timeline && npm run verify:logos && npm run verify:graph",
     "verify:theme": "tsx scripts/verify-theme.ts",
     "check:env": "tsx scripts/check-env.ts",
     "admin:password": "tsx scripts/admin-password.ts",
@@ -17,7 +17,8 @@
     "backfill:dates": "tsx scripts/backfill-project-dates.ts",
     "reorder:dates": "tsx scripts/reorder-by-date.ts",
     "verify:logos": "tsx scripts/verify-logos.ts",
-    "trim:logos": "tsx scripts/trim-logos.ts"
+    "trim:logos": "tsx scripts/trim-logos.ts",
+    "verify:graph": "tsx scripts/verify-graph.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",

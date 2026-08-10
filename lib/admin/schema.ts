@@ -354,6 +354,7 @@ export const ADMIN_TABLES: TableSpec[] = [
     key: "testimonials",
     label: "Testimonials",
     titleField: "author_name",
+    dateField: "received_at",
     fields: [
       SLUG_FIELD,
       { name: "quote", label: "Quote", type: "textarea", required: true },
@@ -367,6 +368,12 @@ export const ADMIN_TABLES: TableSpec[] = [
         type: "url",
         upload: true,
         help: "Shown beside the quote. Falls back to their initials.",
+      },
+      {
+        name: "received_at",
+        label: "Received",
+        type: "text",
+        help: "YYYY-MM. Places this on the graph in the About section.",
       },
       {
         name: "author_email",

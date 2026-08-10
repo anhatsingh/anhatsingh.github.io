@@ -5,7 +5,8 @@ import { Section } from "./section";
 import { defaultAvatar } from "@/components/ui/default-avatar";
 import { DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
-import type { Profile } from "@/lib/content/types";
+import { LifeGraph } from "./life-graph";
+import type { Portfolio, Profile } from "@/lib/content/types";
 
 /*
   About: portrait plus the full bio.
@@ -15,7 +16,15 @@ import type { Profile } from "@/lib/content/types";
   screen. Moving it here gives the photo somewhere to be and lets the hero land
   on the headline and the chatbot alone.
 */
-export function About({ profile }: { profile: Profile }) {
+export function About({
+  profile,
+  portfolio,
+  nowMonth,
+}: {
+  profile: Profile;
+  portfolio: Portfolio;
+  nowMonth: number;
+}) {
   // Empty avatar_url falls back to the bundled, content-hashed default.
   const portrait = profile.avatarUrl?.trim() || defaultAvatar;
   const resume = resumeLinks(profile.resumeUrl);
@@ -86,6 +95,10 @@ export function About({ profile }: { profile: Profile }) {
           )}
         </div>
       </div>
+
+      {/* Below the bio, deliberately: the graph is the payoff for having read
+          who he is, not the first thing thrown at a visitor. */}
+      <LifeGraph portfolio={portfolio} now={nowMonth} />
     </Section>
   );
 }

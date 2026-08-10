@@ -53,7 +53,7 @@ async function buildFakeExport(): Promise<Buffer> {
   dir.file(
     "Recommendations_Received.csv",
     `First Name,Last Name,Company,Job Title,Text,Creation Date,Status\n` +
-      `Jasleen,Kaur,Valtech,Software Engineer,"Ships carefully, explains clearly.",Jan 2024,VISIBLE\n` +
+      `Jasleen,Kaur,Valtech,Software Engineer,"Ships carefully, explains clearly.","06/25/24, 03:08 PM",VISIBLE\n` +
       `Aashish,Trikha,Busineswise,Co-Founder,"Not yet accepted.",Feb 2024,PENDING`,
   );
 
@@ -83,6 +83,13 @@ async function main() {
   check("empty → null", normalizeDate("") === null);
   check("undefined → null", normalizeDate(undefined) === null);
   check("'December 2020' → 2020-12", normalizeDate("December 2020") === "2020-12");
+  // Recommendations use a format nothing else in the archive does.
+  check("'06/25/24, 03:08 PM' → 2024-06", normalizeDate("06/25/24, 03:08 PM") === "2024-06",
+    String(normalizeDate("06/25/24, 03:08 PM")));
+  check("'06/18/26, 03:21 PM' → 2026-06", normalizeDate("06/18/26, 03:21 PM") === "2026-06");
+  check("a 4-digit year in that format still works", normalizeDate("12/01/2023") === "2023-12",
+    String(normalizeDate("12/01/2023")));
+  check("month 13 is rejected rather than wrapping", normalizeDate("13/01/24") === "13/01/24");
 
   console.log("\n── slugify ──");
   check(
@@ -153,6 +160,8 @@ async function main() {
   check("the imported one is the visible one", result.testimonials[0]?.author_name === "Jasleen Kaur");
   check("PENDING is reported as skipped, not silently dropped",
     result.skipped.some((s) => s.file === "Recommendations_Received.csv" && s.rows === 1));
+  check("the recommendation's date is captured for the timeline",
+    result.testimonials[0]?.received_at === "2024-06", String(result.testimonials[0]?.received_at));
   check("author title and company carried",
     result.testimonials[0]?.author_title === "Software Engineer" &&
       result.testimonials[0]?.author_company === "Valtech");

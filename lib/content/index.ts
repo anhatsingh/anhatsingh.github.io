@@ -174,6 +174,7 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       authorUrl: r.author_url ?? undefined,
       authorImageUrl: r.author_image_url ?? undefined,
       authorEmail: r.author_email ?? undefined,
+      receivedAt: r.received_at ?? undefined,
     })) as Testimonial[],
     writing: (writing.data ?? []).map(mapWriting),
   };

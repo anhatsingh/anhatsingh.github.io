@@ -67,6 +67,22 @@
   --logo-ink: #151a23;
   --logo-edge: #00000014;
 
+
+  /*
+    Branch colours for the life graph in About.
+
+    Picked to stay distinguishable side by side and to survive the two most
+    common colour-vision deficiencies — no red/green pair carries meaning on
+    its own, and each branch is labelled in the legend as well as coloured.
+    Light-mode values are darkened so a 2px line on a pale ground still reads.
+  */
+  --graph-education: #7c3aed;
+  --graph-experience: #0d7490;
+  --graph-projects: #b45309;
+  --graph-certifications: #be185d;
+  --graph-testimonials: #15803d;
+  --graph-trunk: #0000001f;
+
   --radius: 4px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -95,6 +111,13 @@
 
   --callout-bg: #06232b;
   --callout-border: #22d3ee66;
+
+  --graph-education: #a78bfa;
+  --graph-experience: #22d3ee;
+  --graph-projects: #fbbf24;
+  --graph-certifications: #f472b6;
+  --graph-testimonials: #4ade80;
+  --graph-trunk: #ffffff26;
 }
 
 /*
@@ -126,6 +149,13 @@
 
     --callout-bg: #06232b;
     --callout-border: #22d3ee66;
+
+    --graph-education: #a78bfa;
+    --graph-experience: #22d3ee;
+    --graph-projects: #fbbf24;
+    --graph-certifications: #f472b6;
+    --graph-testimonials: #4ade80;
+    --graph-trunk: #ffffff26;
   }
 }
 

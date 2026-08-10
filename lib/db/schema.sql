@@ -148,6 +148,7 @@ create table if not exists testimonials (
   author_url     text,
   author_image_url text,
   author_email   text,
+  received_at    text,
   sort_order     int not null default 0,
   is_published   boolean not null default true,
   updated_at     timestamptz not null default now()
@@ -297,6 +298,10 @@ alter table experience     add column if not exists short_summary text not null 
 -- A recommendation carries more weight when you can see who wrote it.
 alter table testimonials   add column if not exists author_image_url text;
 alter table testimonials   add column if not exists author_email text;
+
+-- When the recommendation was written. LinkedIn's export carries it, and
+-- without it a testimonial has no place on a dated timeline.
+alter table testimonials   add column if not exists received_at text;
 
 -- ---------------------------------------------------------------------
 -- Retrieval (pgvector)

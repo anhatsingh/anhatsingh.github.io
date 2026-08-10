@@ -71,6 +71,7 @@ export interface ImportedTestimonial {
   author_name: string;
   author_title: string | null;
   author_company: string | null;
+  received_at: string | null;
 }
 
 export interface ImportedVolunteering {
@@ -129,6 +130,21 @@ export function normalizeDate(value: string | undefined): string | null {
 
   const yearOnly = trimmed.match(/^(\d{4})$/);
   if (yearOnly) return yearOnly[1];
+
+  /*
+    Recommendations are stamped "06/25/24, 03:08 PM" — a different format from
+    every other date in the archive. Two-digit years are read as 20xx, which is
+    safe here: LinkedIn launched in 2003 and the field didn't exist before that.
+  */
+  // 4-digit branch first: alternation is ordered, and \d{2} would match
+  // the "20" of "2023" and read the year as 2020.
+  const slashed = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})(?!\d)/);
+  if (slashed) {
+    const month = Number(slashed[1]);
+    const rawYear = slashed[3];
+    const year = rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear);
+    if (month >= 1 && month <= 12) return `${year}-${String(month).padStart(2, "0")}`;
+  }
 
   return trimmed;
 }
@@ -312,6 +328,7 @@ export async function parseLinkedInExport(file: File | Blob): Promise<ImportResu
         author_name: name,
         author_title: row["Job Title"]?.trim() || null,
         author_company: row["Company"]?.trim() || null,
+        received_at: normalizeDate(row["Creation Date"]),
       });
     }
     if (hidden) {
