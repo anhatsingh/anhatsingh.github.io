@@ -109,6 +109,11 @@ export type ImportPayload = Partial<Record<ImportableTable, Record<string, unkno
  * Upsert rather than insert is what makes re-importing safe: running a fresh
  * export six months later updates the rows that changed instead of creating a
  * second copy of every job.
+ *
+ * Only the columns present in each row are written, so fields the export
+ * doesn't know about survive a re-import untouched — logo_url in particular,
+ * since LinkedIn's archive contains no logo URLs and hand-added logos would
+ * otherwise be wiped every time Anhat re-syncs.
  */
 export async function importLinkedIn(
   payload: ImportPayload,

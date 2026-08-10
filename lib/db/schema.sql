@@ -41,6 +41,7 @@ create table if not exists experience (
   role        text not null,
   company     text not null,
   company_url text,
+  logo_url    text,
   start_date  text not null,
   end_date    text,
   location    text,
@@ -87,6 +88,7 @@ create table if not exists education (
   start_year  text,
   end_year    text,
   note        text,
+  logo_url    text,
   sort_order  int not null default 0,
   is_published boolean not null default true,
   updated_at  timestamptz not null default now()
@@ -99,6 +101,7 @@ create table if not exists certifications (
   issuer         text not null,
   issue_date     text,
   credential_url text,
+  logo_url       text,
   sort_order     int not null default 0,
   is_published   boolean not null default true,
   updated_at     timestamptz not null default now()
@@ -158,6 +161,18 @@ create table if not exists chat_cache (
 
 create index if not exists chat_cache_hash_idx on chat_cache (question_hash);
 create index if not exists contact_messages_created_idx on contact_messages (created_at desc);
+
+-- ---------------------------------------------------------------------
+-- Migrations
+-- ---------------------------------------------------------------------
+-- `create table if not exists` above is a no-op on a database that already
+-- exists, so it will NOT add columns introduced after the first run. Anything
+-- added later needs an explicit alter here. These are idempotent, so re-running
+-- the whole file is always safe.
+
+alter table experience     add column if not exists logo_url text;
+alter table education      add column if not exists logo_url text;
+alter table certifications add column if not exists logo_url text;
 
 -- ---------------------------------------------------------------------
 -- Row Level Security

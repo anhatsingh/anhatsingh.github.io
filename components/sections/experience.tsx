@@ -1,6 +1,7 @@
 "use client";
 
 import { Highlightable, Section } from "./section";
+import { LogoPlate } from "@/components/ui/logo-plate";
 import { itemId, type Experience as ExperienceItem } from "@/lib/content/types";
 
 /** "2024-03" → "2024". Dates are stored loosely so admin entry stays painless. */
@@ -23,26 +24,32 @@ export function Experience({ experience }: { experience: ExperienceItem[] }) {
               </p>
 
               <div className="mt-2 md:mt-0">
-                <h3 className="font-display text-2xl">
-                  {e.role}
-                  <span className="text-muted"> · </span>
-                  {e.companyUrl ? (
-                    <a
-                      href={e.companyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline"
-                    >
-                      {e.company}
-                    </a>
-                  ) : (
-                    <span className="text-accent">{e.company}</span>
-                  )}
-                </h3>
+                <div className="flex items-start gap-3">
+                  <LogoPlate src={e.logoUrl} name={e.company} />
 
-                {e.location && (
-                  <p className="mt-1 font-mono text-xs text-muted">{e.location}</p>
-                )}
+                  <div className="min-w-0">
+                    <h3 className="font-display text-2xl leading-tight">
+                      {e.role}
+                    </h3>
+                    <p className="mt-0.5">
+                      {e.companyUrl ? (
+                        <a
+                          href={e.companyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline"
+                        >
+                          {e.company}
+                        </a>
+                      ) : (
+                        <span className="text-accent">{e.company}</span>
+                      )}
+                      {e.location && (
+                        <span className="font-mono text-xs text-muted"> · {e.location}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
 
                 <p className="mt-3 max-w-2xl leading-relaxed">{e.summary}</p>
 

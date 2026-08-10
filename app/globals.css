@@ -46,6 +46,19 @@
   --callout-bg: #ecfeff;
   --callout-border: #0e749047;
 
+  /*
+    Logo plates are INTENTIONALLY theme-invariant — no dark override below.
+
+    Company and university logos are overwhelmingly dark ink on transparent,
+    drawn for light backgrounds. Rendered straight onto a black page, half of
+    them disappear. Sitting every logo on the same white plate guarantees
+    legibility for any logo Anhat pastes in, without asking him to source a
+    dark-mode variant that usually doesn't exist.
+  */
+  --logo-plate: #ffffff;
+  --logo-ink: #151a23;
+  --logo-edge: #00000014;
+
   --radius: 4px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }

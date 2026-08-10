@@ -1,6 +1,7 @@
 "use client";
 
 import { Highlightable, Section } from "./section";
+import { LogoPlate } from "@/components/ui/logo-plate";
 import { itemId, type Certification, type Education as EducationItem } from "@/lib/content/types";
 
 export function Education({
@@ -20,16 +21,19 @@ export function Education({
             <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">Education</h3>
             {education.map((e) => (
               <Highlightable key={e.slug} itemId={itemId("education", e.slug)}>
-                <article>
-                  <h4 className="font-display text-xl">{e.degree}</h4>
-                  {e.field && <p className="text-muted">{e.field}</p>}
-                  <p className="mt-1 text-accent">{e.institution}</p>
-                  {(e.startYear || e.endYear) && (
-                    <p className="mt-1 font-mono text-xs text-muted">
-                      {e.startYear} — {e.endYear ?? "Present"}
-                    </p>
-                  )}
-                  {e.note && <p className="mt-2 text-sm text-muted">{e.note}</p>}
+                <article className="flex items-start gap-3">
+                  <LogoPlate src={e.logoUrl} name={e.institution} />
+                  <div className="min-w-0">
+                    <h4 className="font-display text-xl leading-tight">{e.degree}</h4>
+                    {e.field && <p className="text-muted">{e.field}</p>}
+                    <p className="mt-1 text-accent">{e.institution}</p>
+                    {(e.startYear || e.endYear) && (
+                      <p className="mt-1 font-mono text-xs text-muted">
+                        {e.startYear} — {e.endYear ?? "Present"}
+                      </p>
+                    )}
+                    {e.note && <p className="mt-2 text-sm text-muted">{e.note}</p>}
+                  </div>
                 </article>
               </Highlightable>
             ))}
@@ -43,22 +47,25 @@ export function Education({
             </h3>
             {certifications.map((c) => (
               <Highlightable key={c.slug} itemId={itemId("education", c.slug)}>
-                <article>
-                  <h4 className="font-display text-xl">{c.name}</h4>
-                  <p className="mt-1 text-accent">{c.issuer}</p>
-                  {c.issueDate && (
-                    <p className="mt-1 font-mono text-xs text-muted">{c.issueDate}</p>
-                  )}
-                  {c.credentialUrl && (
-                    <a
-                      href={c.credentialUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-block font-mono text-xs uppercase tracking-widest text-accent hover:underline"
-                    >
-                      Verify →
-                    </a>
-                  )}
+                <article className="flex items-start gap-3">
+                  <LogoPlate src={c.logoUrl} name={c.issuer} />
+                  <div className="min-w-0">
+                    <h4 className="font-display text-xl leading-tight">{c.name}</h4>
+                    <p className="mt-1 text-accent">{c.issuer}</p>
+                    {c.issueDate && (
+                      <p className="mt-1 font-mono text-xs text-muted">{c.issueDate}</p>
+                    )}
+                    {c.credentialUrl && (
+                      <a
+                        href={c.credentialUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-block font-mono text-xs uppercase tracking-widest text-accent hover:underline"
+                      >
+                        Verify →
+                      </a>
+                    )}
+                  </div>
                 </article>
               </Highlightable>
             ))}

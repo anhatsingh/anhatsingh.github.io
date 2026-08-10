@@ -28,6 +28,7 @@ function mapExperience(r: Record<string, unknown>): Experience {
     role: r.role as string,
     company: r.company as string,
     companyUrl: (r.company_url as string) ?? undefined,
+    logoUrl: (r.logo_url as string) ?? undefined,
     startDate: r.start_date as string,
     endDate: (r.end_date as string) ?? null,
     location: (r.location as string) ?? undefined,
@@ -118,6 +119,7 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       startYear: r.start_year ?? undefined,
       endYear: r.end_year ?? undefined,
       note: r.note ?? undefined,
+      logoUrl: r.logo_url ?? undefined,
     })) as Education[],
     certifications: (certifications.data ?? []).map((r) => ({
       slug: r.slug,
@@ -125,6 +127,7 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       issuer: r.issuer,
       issueDate: r.issue_date ?? undefined,
       credentialUrl: r.credential_url ?? undefined,
+      logoUrl: r.logo_url ?? undefined,
     })) as Certification[],
     testimonials: (testimonials.data ?? []).map((r) => ({
       slug: r.slug,

@@ -69,6 +69,8 @@ export interface Experience {
   role: string;
   company: string;
   companyUrl?: string;
+  /** Company logo. Optional — falls back to a monogram plate. */
+  logoUrl?: string;
   /** ISO date or "YYYY-MM". Rendered as a year range. */
   startDate: string;
   /** null means "present". */
@@ -105,6 +107,8 @@ export interface Education {
   startYear?: string;
   endYear?: string;
   note?: string;
+  /** Institution logo. Optional — falls back to a monogram plate. */
+  logoUrl?: string;
 }
 
 export interface Certification {
@@ -113,6 +117,8 @@ export interface Certification {
   issuer: string;
   issueDate?: string;
   credentialUrl?: string;
+  /** Issuer logo. Optional — falls back to a monogram plate. */
+  logoUrl?: string;
 }
 
 export interface Testimonial {

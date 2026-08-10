@@ -53,6 +53,31 @@ Until Supabase is configured the site serves `lib/content/seed.ts`. Replace that
 placeholder content from `/admin` — experience, projects and testimonials are all
 invented.
 
+### Logos
+
+Experience, Education and Certifications each take an optional logo URL, editable
+from `/admin`. Any HTTPS image works — `next.config.ts` allows all HTTPS hosts,
+since these URLs are admin-authored rather than user-submitted.
+
+Easiest source is Google's favicon service, which works for essentially any
+company or university:
+
+```
+https://www.google.com/s2/favicons?domain=stripe.com&sz=128
+```
+
+Wikimedia also works, but only at its pre-generated thumbnail widths — a made-up
+width 400s. Grab the exact URL from the page rather than editing the `NNNpx-`
+segment by hand.
+
+Leave the field blank and you get a monogram plate instead, so rows stay aligned
+whether or not a logo exists. Every logo sits on a white plate in both themes,
+deliberately: most real logos are dark ink on transparent and would disappear on
+the dark background otherwise.
+
+Re-importing from LinkedIn never clears a logo — the export contains no logo
+URLs, and the upsert only writes the columns it actually has.
+
 ### 3. GitHub stats — `GH_STATS_PAT`
 
 A classic PAT with **no scopes** is enough for public data. Add `read:user` if you
