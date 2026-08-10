@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+/*
+  BLUEPRINT & EMBER
+  =================
+  Every colour lives on bare `:root` first, so a viewer with no explicit theme
+  choice still gets a complete palette. The dark block only *overrides* tokens —
+  it never introduces one. That rule is what keeps a stray colour from being
+  undefined in one mode.
+
+  Light is the base because it degrades more safely: if a token were ever missed,
+  the page reads as unstyled-but-legible rather than black-on-black.
+*/
+
+:root {
+  --bg: #faf9f7;
+  --surface: #ffffff;
+  --elevated: #f2efea;
+  --text: #151a23;
+  --muted: #5b6472;
+  --hairline: #e4e0d9;
+
+  --accent: #c9430f; /* darkened from ember so it clears AA on cream */
+  --accent-soft: #e65320;
+  --accent-ink: #ffffff; /* text sitting on top of --accent */
+
+  --grid: #151a230f;
+  --glow: #e653201a;
+
+  /* #00873d read nicer but landed at 4.40:1 on --bg, just under AA. */
+  --success: #007a37;
+  --danger: #c1121f;
+
+  /* Callout bubbles the chatbot pins onto matched content */
+  --callout-bg: #fff6f1;
+  --callout-border: #e6532059;
+
+  --radius: 4px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --elevated: #1e1e1e;
+  --text: #ededed;
+  --muted: #8a8a8a;
+  --hairline: #252526;
+
+  --accent: #e65320;
+  --accent-soft: #ff8566;
+  --accent-ink: #0d0d0d;
+
+  --grid: #e6532014;
+  --glow: #e6532033;
+
+  --success: #00c758;
+  --danger: #fb2c36;
+
+  --callout-bg: #17100c;
+  --callout-border: #e6532066;
+}
+
+/*
+  System-preference fallback. Guarded with :not([data-theme="light"]) so an
+  explicit light choice still wins over a dark OS setting.
+*/
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --surface: #0d0d0d;
+    --elevated: #1e1e1e;
+    --text: #ededed;
+    --muted: #8a8a8a;
+    --hairline: #252526;
+
+    --accent: #e65320;
+    --accent-soft: #ff8566;
+    --accent-ink: #0d0d0d;
+
+    --grid: #e6532014;
+    --glow: #e6532033;
+
+    --success: #00c758;
+    --danger: #fb2c36;
+
+    --callout-bg: #17100c;
+    --callout-border: #e6532066;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-hairline: var(--hairline);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-callout-bg: var(--callout-bg);
+  --color-callout-border: var(--callout-border);
+
+  --font-display: var(--font-instrument-serif);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Sections scrolled to by the chatbot must clear the sticky header. */
+  scroll-padding-top: 6rem;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* --- Signature surfaces ---------------------------------------------- */
+
+/*
+  The blueprint grid. Two 1px gradients crossed. Sits on a fixed layer behind
+  everything so it doesn't scroll-shift, with a radial mask so it fades out
+  toward the bottom rather than ending on a hard line.
+*/
+.blueprint-grid {
+  background-image:
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    linear-gradient(var(--grid) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 40%, transparent 100%);
+}
+
+.ember-glow {
+  background: radial-gradient(circle at 20% 15%, var(--glow), transparent 45%);
+}
+
+.ember-gradient-text {
+  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- Motion ----------------------------------------------------------- */
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-caret {
+  animation: blink 1.1s steps(1) infinite;
+}
+
+.animate-rise {
+  animation: slide-in-up 0.5s var(--ease) both;
+}
+
+/*
+  Honour reduced-motion globally. The chatbot's scroll behaviour is handled
+  separately in JS (it checks the same media query before choosing smooth vs
+  instant), because scroll-behavior alone doesn't cover programmatic scrollIntoView
+  on every engine.
+*/
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- Focus ------------------------------------------------------------ */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Sections receive focus programmatically when the chatbot navigates. That
+   should move screen-reader position without painting a stray outline. */
+[tabindex="-1"]:focus {
+  outline: none;
+}

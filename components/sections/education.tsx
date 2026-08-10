@@ -1,0 +1,70 @@
+"use client";
+
+import { Highlightable, Section } from "./section";
+import { itemId, type Certification, type Education as EducationItem } from "@/lib/content/types";
+
+export function Education({
+  education,
+  certifications,
+}: {
+  education: EducationItem[];
+  certifications: Certification[];
+}) {
+  if (!education.length && !certifications.length) return null;
+
+  return (
+    <Section id="education" eyebrow="05 — Education" title="Where I learned it">
+      <div className="grid gap-10 md:grid-cols-2">
+        {education.length > 0 && (
+          <div className="space-y-6">
+            <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">Education</h3>
+            {education.map((e) => (
+              <Highlightable key={e.slug} itemId={itemId("education", e.slug)}>
+                <article>
+                  <h4 className="font-display text-xl">{e.degree}</h4>
+                  {e.field && <p className="text-muted">{e.field}</p>}
+                  <p className="mt-1 text-accent">{e.institution}</p>
+                  {(e.startYear || e.endYear) && (
+                    <p className="mt-1 font-mono text-xs text-muted">
+                      {e.startYear} — {e.endYear ?? "Present"}
+                    </p>
+                  )}
+                  {e.note && <p className="mt-2 text-sm text-muted">{e.note}</p>}
+                </article>
+              </Highlightable>
+            ))}
+          </div>
+        )}
+
+        {certifications.length > 0 && (
+          <div className="space-y-6">
+            <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
+              Certifications
+            </h3>
+            {certifications.map((c) => (
+              <Highlightable key={c.slug} itemId={itemId("education", c.slug)}>
+                <article>
+                  <h4 className="font-display text-xl">{c.name}</h4>
+                  <p className="mt-1 text-accent">{c.issuer}</p>
+                  {c.issueDate && (
+                    <p className="mt-1 font-mono text-xs text-muted">{c.issueDate}</p>
+                  )}
+                  {c.credentialUrl && (
+                    <a
+                      href={c.credentialUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block font-mono text-xs uppercase tracking-widest text-accent hover:underline"
+                    >
+                      Verify →
+                    </a>
+                  )}
+                </article>
+              </Highlightable>
+            ))}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
