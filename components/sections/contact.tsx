@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Section } from "./section";
 import { useChatDock } from "@/components/chat/chat-provider";
-import type { Profile } from "@/lib/content/types";
+import { socialLinks, type Profile } from "@/lib/content/types";
 
 type State = "idle" | "sending" | "sent" | "error";
 
@@ -11,6 +11,7 @@ export function Contact({ profile }: { profile: Profile }) {
   const { send } = useChatDock();
   const [state, setState] = useState<State>("idle");
   const [problem, setProblem] = useState("");
+  const socials = socialLinks(profile);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -73,32 +74,49 @@ export function Contact({ profile }: { profile: Profile }) {
                 <dd>{profile.location}</dd>
               </div>
             )}
-            {profile.socials.github && (
+            {socials.github && (
               <div className="flex gap-3">
                 <dt className="w-20 shrink-0 text-muted">github</dt>
                 <dd>
                   <a
-                    href={profile.socials.github}
+                    href={socials.github}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent hover:underline"
                   >
-                    @{profile.githubUsername ?? "github"}
+                    @{profile.githubUsername}
                   </a>
                 </dd>
               </div>
             )}
-            {profile.socials.linkedin && (
+            {socials.leetcode && (
               <div className="flex gap-3">
-                <dt className="w-20 shrink-0 text-muted">linkedin</dt>
+                <dt className="w-20 shrink-0 text-muted">leetcode</dt>
                 <dd>
                   <a
-                    href={profile.socials.linkedin}
+                    href={socials.leetcode}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent hover:underline"
                   >
-                    anhat-singh
+                    @{profile.leetcodeUsername}
+                  </a>
+                </dd>
+              </div>
+            )}
+            {socials.linkedin && (
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-muted">linkedin</dt>
+                <dd>
+                  <a
+                    href={socials.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    {/* Derived from the URL rather than hardcoded — the handle
+                        used to be the literal string "anhat-singh". */}
+                    {socials.linkedin.replace(/\/$/, "").split("/").pop()}
                   </a>
                 </dd>
               </div>

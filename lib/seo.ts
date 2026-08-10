@@ -1,4 +1,4 @@
-import type { Portfolio } from "@/lib/content/types";
+import { socialLinks, type Portfolio } from "@/lib/content/types";
 
 /*
   SEO helpers.
@@ -68,7 +68,13 @@ export function buildPersonJsonLd(portfolio: Portfolio, avatarUrl: string) {
 
   // sameAs is the entity-resolution signal. Only include profiles that are
   // genuinely the same person — a wrong link here actively confuses the graph.
-  const sameAs = [profile.socials.github, profile.socials.linkedin, profile.socials.twitter].filter(
+  //
+  // Read through socialLinks() rather than profile.socials: the stored jsonb is
+  // empty for rows created through the admin form, and reading it directly
+  // silently emitted sameAs: [] — dropping the one field that connects this
+  // domain to the GitHub and LinkedIn profiles.
+  const links = socialLinks(profile);
+  const sameAs = [links.github, links.linkedin, links.leetcode, links.twitter].filter(
     (url): url is string => Boolean(url),
   );
 

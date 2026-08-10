@@ -31,6 +31,8 @@ create table if not exists profile (
   open_to_work    boolean not null default true,
   github_username text,
   leetcode_username text,
+  linkedin_url    text,
+  twitter_url     text,
   socials         jsonb not null default '{}'::jsonb,
   updated_at      timestamptz not null default now(),
   -- Enforces the singleton: only one row can ever exist.
@@ -174,6 +176,8 @@ create index if not exists contact_messages_created_idx on contact_messages (cre
 
 alter table profile        add column if not exists avatar_url text;
 alter table profile        add column if not exists leetcode_username text;
+alter table profile        add column if not exists linkedin_url text;
+alter table profile        add column if not exists twitter_url text;
 alter table experience     add column if not exists logo_url text;
 alter table education      add column if not exists logo_url text;
 alter table certifications add column if not exists logo_url text;

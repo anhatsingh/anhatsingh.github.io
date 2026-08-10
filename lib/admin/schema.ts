@@ -72,7 +72,13 @@ export const ADMIN_TABLES: TableSpec[] = [
         required: true,
         help: "The big serif line in the hero.",
       },
-      { name: "tagline", label: "Tagline", type: "text", help: "Small mono line above it." },
+      {
+        name: "tagline",
+        label: "Tagline",
+        type: "text",
+        required: true,
+        help: "Small mono line above the headline. Also used as your job title in search results.",
+      },
       { name: "bio", label: "Bio", type: "textarea", required: true },
       { name: "location", label: "Location", type: "text" },
       { name: "email", label: "Email", type: "email", required: true },
@@ -89,12 +95,29 @@ export const ADMIN_TABLES: TableSpec[] = [
         help: "Google Drive share link. Make sure it's set to 'anyone with the link'.",
       },
       { name: "open_to_work", label: "Open to work", type: "boolean" },
-      { name: "github_username", label: "GitHub username", type: "text" },
+      {
+        name: "github_username",
+        label: "GitHub username",
+        type: "text",
+        help: "Handle only. This drives the GitHub button AND the stats section.",
+      },
       {
         name: "leetcode_username",
         label: "LeetCode username",
         type: "text",
-        help: "Handle only, not the URL. Blank hides the section.",
+        help: "Handle only, not the URL. Blank hides the section and the button.",
+      },
+      {
+        name: "linkedin_url",
+        label: "LinkedIn URL",
+        type: "url",
+        help: "Full profile URL, e.g. https://linkedin.com/in/anhat-singh",
+      },
+      {
+        name: "twitter_url",
+        label: "X / Twitter URL",
+        type: "url",
+        help: "Optional. Full profile URL.",
       },
     ],
   },
@@ -272,10 +295,14 @@ export function coerceRow(spec: TableSpec, form: FormData): Record<string, unkno
           .filter(Boolean);
         break;
       default: {
-        const value = String(raw ?? "").trim();
-        // Empty optional fields become NULL rather than "", so the site's
-        // `field ? render() : null` checks behave.
-        row[field.name] = value === "" && !field.required ? null : value;
+        // Empty text becomes "", never null.
+        //
+        // Several columns are `text not null default ''` (tagline, summary,
+        // description, category…). Sending null for a blank optional field
+        // violated the constraint and the save failed. "" satisfies it and is
+        // equally falsy, so every `field ? render() : null` check in the UI
+        // behaves identically either way.
+        row[field.name] = String(raw ?? "").trim();
       }
     }
   }

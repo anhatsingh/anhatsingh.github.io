@@ -1,12 +1,13 @@
 "use client";
 
 import { HeroChatPanel } from "@/components/chat/hero-chat-panel";
-import { DownloadIcon, GitHubIcon, LinkedInIcon } from "@/components/ui/icons";
+import { DownloadIcon, GitHubIcon, LeetCodeIcon, LinkedInIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
-import type { Profile } from "@/lib/content/types";
+import { socialLinks, type Profile } from "@/lib/content/types";
 
 export function Hero({ profile }: { profile: Profile }) {
   const resume = resumeLinks(profile.resumeUrl);
+  const socials = socialLinks(profile);
 
   return (
     <section id="hero" className="flex min-h-[88vh] flex-col justify-center py-20">
@@ -55,9 +56,9 @@ export function Hero({ profile }: { profile: Profile }) {
             Download CV
           </a>
         )}
-        {profile.socials.github && (
+        {socials.github && (
           <a
-            href={profile.socials.github}
+            href={socials.github}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
@@ -66,15 +67,26 @@ export function Hero({ profile }: { profile: Profile }) {
             GitHub
           </a>
         )}
-        {profile.socials.linkedin && (
+        {socials.linkedin && (
           <a
-            href={profile.socials.linkedin}
+            href={socials.linkedin}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
           >
             <LinkedInIcon className="h-4 w-4" />
             LinkedIn
+          </a>
+        )}
+        {socials.leetcode && (
+          <a
+            href={socials.leetcode}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
+          >
+            <LeetCodeIcon className="h-4 w-4" />
+            LeetCode
           </a>
         )}
       </div>

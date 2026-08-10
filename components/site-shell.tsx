@@ -6,7 +6,23 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UIControlProvider, useUIControl } from "@/components/ui-control";
 import { DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
-import { NAVIGABLE_SECTIONS, SECTION_LABELS } from "@/lib/content/types";
+import type { SectionId } from "@/lib/content/types";
+
+/*
+  The header lists FOUR sections, not every navigable one.
+
+  Every section the chatbot can reach used to appear here, which meant nine
+  links competing with the one control that matters — Download CV. A visitor
+  scanning a portfolio wants the work, the history, and a way to get in touch;
+  the rest they'll find by scrolling, and the chatbot can jump to any of them
+  on request regardless of whether it's listed.
+*/
+const HEADER_LINKS: Array<{ id: SectionId; label: string }> = [
+  { id: "about", label: "About" },
+  { id: "projects", label: "Work" },
+  { id: "experience", label: "Experience" },
+  { id: "contact", label: "Contact" },
+];
 
 /*
   Page chrome + the split-layout mechanics.
@@ -29,16 +45,16 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
           <span className="text-accent">.</span>
         </a>
 
-        <nav aria-label="Sections" className="hidden items-center gap-5 md:flex">
-          {NAVIGABLE_SECTIONS.filter((s) => s !== "github").map((s) => (
+        <nav aria-label="Sections" className="hidden items-center gap-6 md:flex">
+          {HEADER_LINKS.map((link) => (
             <a
-              key={s}
-              href={`#${s}`}
+              key={link.id}
+              href={`#${link.id}`}
               className={`font-mono text-xs uppercase tracking-widest transition-colors hover:text-accent ${
-                focusedSection === s ? "text-accent" : "text-muted"
+                focusedSection === link.id ? "text-accent" : "text-muted"
               }`}
             >
-              {SECTION_LABELS[s]}
+              {link.label}
             </a>
           ))}
         </nav>

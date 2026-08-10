@@ -38,11 +38,10 @@ export const seedPortfolio: Portfolio = {
     openToWork: true,
     githubUsername: "anhatsingh",
     leetcodeUsername: "anhatsingh",
-    socials: {
-      github: "https://github.com/anhatsingh",
-      linkedin: "https://linkedin.com/in/anhat-singh/",
-      email: "mailto:anhatsingh2001@gmail.com",
-    },
+    linkedinUrl: "https://linkedin.com/in/anhat-singh/",
+    // GitHub, LeetCode and email links are derived from the fields above by
+    // socialLinks(), so there's nothing to duplicate here.
+    socials: {},
   },
 
   experience: [

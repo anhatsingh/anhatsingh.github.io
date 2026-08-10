@@ -51,6 +51,7 @@ export const SECTION_LABELS: Record<SectionId, string> = {
 export interface Socials {
   github?: string;
   linkedin?: string;
+  leetcode?: string;
   twitter?: string;
   email?: string;
 }
@@ -63,8 +64,10 @@ export interface Profile {
   bio: string;
   location?: string;
   email: string;
-  /** LeetCode handle. Section hides itself when unset. */
+  /** LeetCode handle. Section and button hide themselves when unset. */
   leetcodeUsername?: string;
+  linkedinUrl?: string;
+  twitterUrl?: string;
   /** Portrait. Shown in About and as the assistant's avatar in chat. */
   avatarUrl?: string;
   /** Google Drive share link, editable from admin. */
@@ -160,6 +163,34 @@ export interface Portfolio {
   certifications: Certification[];
   testimonials: Testimonial[];
   writing: Writing[];
+}
+
+/**
+ * The profile's outbound links, derived rather than stored.
+ *
+ * Previously these came from a `socials` jsonb column that the admin form never
+ * exposed — so it stayed `{}` and the GitHub and LinkedIn buttons never
+ * appeared no matter what you typed. Now GitHub and LeetCode are built from the
+ * usernames you already set (the same ones that drive the stats sections), and
+ * LinkedIn/X are their own fields. One place to set each thing.
+ *
+ * The stored `socials` object is still honoured as a fallback so existing rows
+ * and the seed keep working.
+ */
+export function socialLinks(profile: Profile): Socials {
+  const stored = profile.socials ?? {};
+
+  return {
+    github: profile.githubUsername
+      ? `https://github.com/${profile.githubUsername}`
+      : stored.github,
+    leetcode: profile.leetcodeUsername
+      ? `https://leetcode.com/u/${profile.leetcodeUsername}/`
+      : stored.leetcode,
+    linkedin: profile.linkedinUrl?.trim() || stored.linkedin,
+    twitter: profile.twitterUrl?.trim() || stored.twitter,
+    email: profile.email ? `mailto:${profile.email}` : stored.email,
+  };
 }
 
 /* --- Addressing ------------------------------------------------------- */
