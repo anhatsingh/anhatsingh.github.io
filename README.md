@@ -47,7 +47,31 @@ and a retired id means a dead chatbot.
    `SUPABASE_SERVICE_ROLE_KEY`.
 4. Set `ADMIN_EMAILS` to your email. **An empty value locks everyone out** —
    that's deliberate, so a partially-configured deploy can't become an open door.
-5. Visit `/admin`, sign in by magic link.
+5. Set an admin password: `npm run admin:password`
+6. Visit `/admin`, sign in on the **Password** tab.
+
+#### Why password and not magic link
+
+Supabase's built-in mailer is capped at roughly **two auth emails per hour** on the
+free tier. That's low enough that one mistyped address locks you out for an hour —
+and the password-*reset* email is throttled by the same limit, so the usual escape
+hatch is also shut.
+
+`npm run admin:password` talks to the Supabase Admin API with the service-role key
+and sets the password directly. No email is involved, so nothing can be rate
+limited. It creates the user if it doesn't exist, updates the password if it does,
+and marks the address confirmed either way. The prompt is hidden, so the password
+never reaches your shell history.
+
+Magic link still works and is still on the login page — it's just no longer the
+only way in.
+
+**If you'd rather fix the root cause:** point Supabase at your own SMTP. You already
+have a Resend key, and Resend's free tier is 3,000 emails/month rather than two an
+hour. In Supabase: Project Settings → Authentication → SMTP Settings, host
+`smtp.resend.com`, port `465`, username `resend`, password = your Resend API key,
+sender = an address on a domain you've verified in Resend. That lifts the cap for
+every auth email, not just sign-in.
 
 Until Supabase is configured the site serves `lib/content/seed.ts`. Replace that
 placeholder content from `/admin` — experience, projects and testimonials are all
