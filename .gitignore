@@ -27,3 +27,6 @@ next-env.d.ts
 # next dev agent files
 AGENTS.md
 CLAUDE.md
+
+# LinkedIn data exports — personal data, never commit
+*LinkedInDataExport*.zip
