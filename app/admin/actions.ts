@@ -7,6 +7,9 @@ import { entityPath, type EntityType } from "@/lib/content/types";
 import { getAdminSession, getSupabaseServerClient } from "@/lib/supabase/auth";
 import { getServiceClient } from "@/lib/supabase/server";
 import { uploadImage, type UploadResult } from "@/lib/storage";
+import { draftFromParagraph, type Draft, type DraftResult } from "@/lib/ai/author";
+import { getPortfolio } from "@/lib/content";
+import type { Block } from "@/lib/content/blocks";
 
 /*
   All admin mutations.
@@ -179,6 +182,96 @@ export async function uploadMedia(formData: FormData): Promise<UploadResult> {
   if (!(file instanceof File)) return { ok: false, error: "No file received." };
 
   return uploadImage(file);
+}
+
+/**
+ * Asks the model for a draft. Writes nothing.
+ *
+ * The existing skill list is passed in so the model reuses established
+ * spellings rather than inventing a third variant of "PyTorch".
+ */
+export async function requestDraft(input: {
+  entityType: "experience" | "projects" | "skills" | "certifications" | "posts";
+  title: string;
+  paragraph: string;
+  prompt?: string;
+}): Promise<DraftResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const { skills } = await getPortfolio();
+  return draftFromParagraph({ ...input, existingSkills: skills });
+}
+
+/**
+ * Writes the parts of a draft the human ticked.
+ *
+ * Everything is optional and applied independently, because the review panel
+ * lets each piece be accepted or rejected on its own. New skills are created
+ * only when explicitly included — the isNew flag exists so that decision is
+ * always deliberate rather than a side effect of a typo.
+ */
+export async function applyDraft(input: {
+  tableKey: string;
+  rowId: string;
+  summary?: string;
+  highlights?: string[];
+  body?: Block[];
+  tech?: string[];
+  newSkills?: Array<{ name: string; slug: string; category: string }>;
+}): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const spec = getTableSpec(input.tableKey);
+  if (!spec) return { ok: false, error: "Unknown section." };
+
+  const db = getServiceClient();
+  if (!db) return { ok: false, error: "Supabase isn't configured." };
+
+  // Only send columns that exist on this table — skills have no highlights,
+  // certifications have no tech.
+  const columns = new Set(spec.fields.map((f) => f.name));
+  const patch: Record<string, unknown> = {};
+  if (input.summary !== undefined && columns.has("summary")) patch.summary = input.summary;
+  if (input.highlights !== undefined && columns.has("highlights")) patch.highlights = input.highlights;
+  if (input.body !== undefined && columns.has("body")) patch.body = input.body;
+  if (input.tech !== undefined && columns.has("tech")) patch.tech = input.tech;
+
+  if (Object.keys(patch).length) {
+    const { error } = await db.from(spec.table).update(patch).eq("id", input.rowId);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  if (input.newSkills?.length) {
+    // Upsert on slug so re-applying a draft can't create duplicates, and an
+    // existing skill's category isn't clobbered.
+    const { error } = await db.from("skills").upsert(
+      input.newSkills.map((s) => ({
+        slug: s.slug,
+        name: s.name,
+        category: s.category || "Other",
+        sort_order: 900,
+      })),
+      { onConflict: "slug", ignoreDuplicates: true },
+    );
+    if (error) return { ok: false, error: `Skills: ${error.message}` };
+  }
+
+  const { data: row } = await db
+    .from(spec.table)
+    .select("slug")
+    .eq("id", input.rowId)
+    .maybeSingle();
+  revalidateFor(input.tableKey, row?.slug);
+
+  return { ok: true };
 }
 
 /** Tables the LinkedIn importer is allowed to touch. */

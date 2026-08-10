@@ -2,9 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { deleteRow, saveRow } from "@/app/admin/actions";
+import { AiDraftPanel } from "./ai-draft-panel";
 import { BlockEditor } from "./block-editor";
 import { ImageField } from "./image-field";
 import type { TableSpec } from "@/lib/admin/schema";
+import type { EntityType } from "@/lib/content/types";
+
+/** Admin tables whose rows have a detail page the AI can draft. */
+const DRAFTABLE: Record<string, EntityType> = {
+  experience: "experience",
+  projects: "projects",
+  skills: "skills",
+  certifications: "certifications",
+  writing: "posts",
+};
 
 /*
   One generic form, driven by the field schema. Every section reuses it, so
@@ -155,6 +166,18 @@ export function RowForm({
           </div>
         );
       })}
+
+      {/* Only on saved rows: the panel writes by id, so there has to be one.
+          Creating the row first also means a discarded draft costs nothing. */}
+      {id && DRAFTABLE[spec.key] && (
+        <AiDraftPanel
+          entityType={DRAFTABLE[spec.key]}
+          tableKey={spec.key}
+          rowId={id}
+          title={String(row?.[spec.titleField] ?? "")}
+          currentSummary={String(row?.summary ?? "")}
+        />
+      )}
 
       {problem && <p className="text-sm text-danger">{problem}</p>}
       {saved && <p className="text-sm text-success">Saved.</p>}
