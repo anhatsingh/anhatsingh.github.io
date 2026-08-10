@@ -50,6 +50,35 @@ export interface ImportedCertification {
   issuer: string;
   issue_date: string | null;
   credential_url: string | null;
+  /** Long-form detail. Belongs in the page body, not squeezed into `issuer`. */
+  description?: string;
+}
+
+export interface ImportedProject {
+  slug: string;
+  name: string;
+  summary: string;
+  description: string;
+  repo_url: string | null;
+  live_url: string | null;
+  started: string | null;
+}
+
+export interface ImportedTestimonial {
+  slug: string;
+  quote: string;
+  author_name: string;
+  author_title: string | null;
+  author_company: string | null;
+}
+
+export interface ImportedVolunteering {
+  slug: string;
+  role: string;
+  company: string;
+  start_date: string;
+  end_date: string | null;
+  summary: string;
 }
 
 export interface ImportResult {
@@ -59,6 +88,11 @@ export interface ImportResult {
   education: ImportedEducation[];
   skills: ImportedSkill[];
   certifications: ImportedCertification[];
+  projects: ImportedProject[];
+  testimonials: ImportedTestimonial[];
+  volunteering: ImportedVolunteering[];
+  /** Files present in the archive that this parser deliberately ignores. */
+  skipped: Array<{ file: string; rows: number; why: string }>;
   /** Files we looked for but didn't find — surfaced so a partial export is obvious. */
   missing: string[];
 }
@@ -138,6 +172,10 @@ export async function parseLinkedInExport(file: File | Blob): Promise<ImportResu
     education: [],
     skills: [],
     certifications: [],
+    projects: [],
+    testimonials: [],
+    volunteering: [],
+    skipped: [],
     missing,
   };
 
@@ -217,6 +255,142 @@ export async function parseLinkedInExport(file: File | Blob): Promise<ImportResu
         credential_url: row["Url"]?.trim() || null,
       });
     }
+  }
+
+  /*
+    Projects. The biggest omission in the original importer — a Basic export
+    carries them, and they're the section a recruiter reads after experience.
+  */
+  const projectsCsv = await read("Projects.csv");
+  if (projectsCsv) {
+    for (const row of parseCsv<Record<string, string>>(projectsCsv)) {
+      const title = row["Title"]?.trim();
+      if (!title) continue;
+
+      const url = row["Url"]?.trim() || null;
+      const description = row["Description"]?.trim() ?? "";
+      const isRepo = url ? /^https?:\/\/(www\.)?github\.com\//i.test(url) : false;
+
+      result.projects.push({
+        slug: slugify(title),
+        name: title,
+        // First sentence as the card line; the rest stays in description.
+        summary: description.split(/(?<=[.!?])\s/)[0]?.slice(0, 200) ?? "",
+        description,
+        repo_url: isRepo ? url : null,
+        live_url: url && !isRepo ? url : null,
+        started: normalizeDate(row["Started On"]),
+      });
+    }
+  }
+
+  /*
+    Recommendations. Only VISIBLE ones — a PENDING recommendation hasn't been
+    accepted on LinkedIn and isn't shown there, so publishing it here would put
+    words in someone's mouth they haven't agreed to display.
+  */
+  const recsCsv = await read("Recommendations_Received.csv");
+  if (recsCsv) {
+    let hidden = 0;
+    for (const row of parseCsv<Record<string, string>>(recsCsv)) {
+      const text = row["Text"]?.trim();
+      const first = row["First Name"]?.trim() ?? "";
+      const last = row["Last Name"]?.trim() ?? "";
+      if (!text || !(first || last)) continue;
+
+      if ((row["Status"] ?? "").trim().toUpperCase() !== "VISIBLE") {
+        hidden++;
+        continue;
+      }
+
+      const name = `${first} ${last}`.trim();
+      result.testimonials.push({
+        slug: slugify(name),
+        quote: text,
+        author_name: name,
+        author_title: row["Job Title"]?.trim() || null,
+        author_company: row["Company"]?.trim() || null,
+      });
+    }
+    if (hidden) {
+      result.skipped.push({
+        file: "Recommendations_Received.csv",
+        rows: hidden,
+        why: "not VISIBLE on LinkedIn — accept it there first",
+      });
+    }
+  }
+
+  /* Honors and test scores both land in certifications — it's the section that
+     already renders "things awarded by someone else". */
+  const honorsCsv = await read("Honors.csv");
+  if (honorsCsv) {
+    for (const row of parseCsv<Record<string, string>>(honorsCsv)) {
+      const title = row["Title"]?.trim();
+      if (!title) continue;
+      result.certifications.push({
+        slug: slugify(title),
+        name: title,
+        // LinkedIn has no issuer field for honours, and putting the whole
+        // description here renders a paragraph where a name belongs.
+        issuer: "Honour",
+        issue_date: normalizeDate(row["Issued On"]),
+        credential_url: null,
+        description: row["Description"]?.trim() || undefined,
+      });
+    }
+  }
+
+  const scoresCsv = await read("TestScores.csv");
+  if (scoresCsv) {
+    for (const row of parseCsv<Record<string, string>>(scoresCsv)) {
+      const name = row["Name"]?.trim();
+      if (!name) continue;
+      const score = row["Score"]?.trim();
+      result.certifications.push({
+        slug: slugify(name),
+        name: score ? `${name} — ${score}` : name,
+        issuer: "Test score",
+        issue_date: normalizeDate(row["Tested On"]),
+        credential_url: null,
+        description: row["Description"]?.trim() || undefined,
+      });
+    }
+  }
+
+  /*
+    Volunteering maps onto experience because that's the only table shaped for
+    a dated role at an organisation — but it is imported UNPUBLISHED. Dropping
+    six society roles into a work timeline unannounced would misrepresent it.
+  */
+  const volCsv = await read("Volunteering.csv");
+  if (volCsv) {
+    for (const row of parseCsv<Record<string, string>>(volCsv)) {
+      const role = row["Role"]?.trim();
+      const company = row["Company Name"]?.trim();
+      if (!role || !company) continue;
+      result.volunteering.push({
+        slug: slugify(role, company),
+        role,
+        company,
+        start_date: normalizeDate(row["Started On"]) ?? "",
+        end_date: normalizeDate(row["Finished On"]),
+        summary: row["Description"]?.trim() ?? "",
+      });
+    }
+  }
+
+  // Seen and deliberately left alone, reported so it's a choice not an oversight.
+  for (const [file, why] of [
+    ["Courses.csv", "university course codes — too granular for a portfolio"],
+    ["Rich_Media.csv", "attachments from LinkedIn posts, not articles"],
+    ["SavedJobAlerts.csv", "not portfolio content"],
+    ["Learning.csv", "LinkedIn Learning history, not credentials"],
+  ] as Array<[string, string]>) {
+    const raw = findFile(zip, file);
+    if (!raw) continue;
+    const text = await raw.async("string");
+    result.skipped.push({ file, rows: Math.max(0, parseCsv(text).length), why });
   }
 
   return result;

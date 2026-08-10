@@ -11,7 +11,8 @@
     "verify:theme": "tsx scripts/verify-theme.ts",
     "check:env": "tsx scripts/check-env.ts",
     "admin:password": "tsx scripts/admin-password.ts",
-    "reindex": "tsx scripts/reindex.ts"
+    "reindex": "tsx scripts/reindex.ts",
+    "bootstrap:linkedin": "tsx scripts/bootstrap-linkedin.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",

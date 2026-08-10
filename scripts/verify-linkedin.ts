@@ -43,6 +43,31 @@ async function buildFakeExport(): Promise<Buffer> {
   dir.file("Skills.csv", `Name\nPython\nPyTorch\nPython\nRAG`);
 
   dir.file(
+    "Projects.csv",
+    `Title,Description,Url,Started On,Finished On\n` +
+      `Web-Differential Engine,"Watches a page and reports what changed.",https://github.com/anhatsingh/Web-Differential-Engine,Nov 2020,\n` +
+      `Course Compass,"Recommends electives, no repo.",,Sep 2023,`,
+  );
+
+  // One VISIBLE and one PENDING — the pending one must not be imported.
+  dir.file(
+    "Recommendations_Received.csv",
+    `First Name,Last Name,Company,Job Title,Text,Creation Date,Status\n` +
+      `Jasleen,Kaur,Valtech,Software Engineer,"Ships carefully, explains clearly.",Jan 2024,VISIBLE\n` +
+      `Aashish,Trikha,Busineswise,Co-Founder,"Not yet accepted.",Feb 2024,PENDING`,
+  );
+
+  dir.file("Honors.csv", `Title,Description,Issued On\nAcademic Distinction,"CGPA above 9.5.",Dec 2023`);
+  dir.file(
+    "TestScores.csv",
+    `Tested On,Name,Description,Score\nJan 2015,National Cyber Olympiad,"Conducted by SOF.",97 Percentile`,
+  );
+  dir.file(
+    "Volunteering.csv",
+    `Company Name,Role,Cause,Started On,Finished On,Description\nGDSC - GNDU,Team Lead - Web Development,Education,Aug 2020,Jul 2021,"Ran the web track."`,
+  );
+
+  dir.file(
     "Certifications.csv",
     `Name,Url,Authority,Started On,Finished On,License Number\n` +
       `Deep Learning Specialization,https://coursera.org/verify/abc,Coursera,Jan 2023,,ABC123`,
@@ -97,14 +122,56 @@ async function main() {
   );
 
   check("duplicate skills deduped (4 rows → 3)", result.skills.length === 3, `got ${result.skills.length}`);
-  check("1 certification parsed", result.certifications.length === 1);
+  // Honours and test scores share this table, so assert the mix, not a count —
+  // a bare number would have to be edited every time a new source is added.
+  check(
+    "certifications hold the real cert plus the honour and the test score",
+    result.certifications.length === 3,
+    result.certifications.map((c) => c.issuer).join(", "),
+  );
+  const realCert = result.certifications.find((c) => c.issuer === "Coursera");
   check(
     "certification issuer + url",
-    result.certifications[0].issuer === "Coursera" &&
-      result.certifications[0].credential_url === "https://coursera.org/verify/abc",
+    realCert?.credential_url === "https://coursera.org/verify/abc",
   );
 
   check("nothing reported missing for a full archive", result.missing.length === 0, result.missing.join(", "));
+
+  console.log("\n── projects ──");
+  check("2 projects parsed", result.projects.length === 2, `got ${result.projects.length}`);
+  const repoProject = result.projects.find((p) => p.name.startsWith("Web-Differential"));
+  check("a GitHub url lands in repo_url, not live_url",
+    repoProject?.repo_url?.includes("github.com") === true && repoProject?.live_url === null);
+  const noRepo = result.projects.find((p) => p.name === "Course Compass");
+  check("a project with no url keeps both null", noRepo?.repo_url === null && noRepo?.live_url === null);
+  check("summary is the first sentence, not the whole description",
+    repoProject?.summary.endsWith("changed.") === true, repoProject?.summary);
+
+  console.log("\n── recommendations ──");
+  check("only VISIBLE recommendations import", result.testimonials.length === 1,
+    result.testimonials.map((t) => t.author_name).join(", "));
+  check("the imported one is the visible one", result.testimonials[0]?.author_name === "Jasleen Kaur");
+  check("PENDING is reported as skipped, not silently dropped",
+    result.skipped.some((s) => s.file === "Recommendations_Received.csv" && s.rows === 1));
+  check("author title and company carried",
+    result.testimonials[0]?.author_title === "Software Engineer" &&
+      result.testimonials[0]?.author_company === "Valtech");
+
+  console.log("\n── honours and test scores ──");
+  const honour = result.certifications.find((c) => c.name === "Academic Distinction");
+  check("honour imported", Boolean(honour));
+  check("issuer stays a short label, not the description",
+    honour?.issuer === "Honour", honour?.issuer);
+  check("the long text is carried separately for the page body",
+    honour?.description?.includes("CGPA") === true);
+  const score = result.certifications.find((c) => c.name.includes("National Cyber Olympiad"));
+  check("test score name includes the score", score?.name.includes("97 Percentile") === true, score?.name);
+
+  console.log("\n── volunteering ──");
+  check("1 volunteering role parsed", result.volunteering.length === 1);
+  check("role and organisation both captured",
+    result.volunteering[0]?.role === "Team Lead - Web Development" &&
+      result.volunteering[0]?.company === "GDSC - GNDU");
 
   console.log("\n── partial archive (Skills only) ──");
   const partial = new JSZip();
