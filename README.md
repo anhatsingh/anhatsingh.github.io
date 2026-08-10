@@ -249,6 +249,19 @@ Sections don't know the chatbot exists — they register an id and subscribe to
 
 ---
 
+## Analytics
+
+`@vercel/analytics` and `@vercel/speed-insights` are wired in `app/layout.tsx`.
+Both are cookieless and store no personal data, so no consent banner is needed,
+and both are inert outside a Vercel deployment — they inject client-side on
+mount, so they won't appear in server HTML locally. Enable each in the Vercel
+dashboard under the project's Analytics tab.
+
+Separately, every question asked of the chatbot is logged to `chat_questions`
+and grouped by frequency on the admin dashboard. Question text only — no IP, no
+session id, no fingerprint. Recurring questions are the fastest signal for what
+content is missing.
+
 ## LinkedIn
 
 There is no automatic sync, and this isn't an oversight.

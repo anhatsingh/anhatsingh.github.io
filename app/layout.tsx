@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
@@ -74,6 +76,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
+        {/* Both are cookieless and store no personal data, so no consent banner
+            is required. Each is inert outside a Vercel deployment, so local dev
+            and any other host are unaffected. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

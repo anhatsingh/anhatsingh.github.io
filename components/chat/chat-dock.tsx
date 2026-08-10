@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useChatDock } from "./chat-provider";
 import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
+import { FitReport } from "./fit-report";
 import { useUIControl } from "@/components/ui-control";
 import type { ToolOutcome } from "@/lib/chat/tools";
 
@@ -29,6 +30,7 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
     label = `highlighted ${outcome.items.length} item${outcome.items.length > 1 ? "s" : ""}`;
   else if (outcome.action === "resume") label = "opened resume";
   else if (outcome.action === "clear") label = "cleared focus";
+  else if (outcome.action === "fit") label = "assessed fit";
 
   if (!label) return null;
 
@@ -55,6 +57,18 @@ function MessageParts({ message }: { message: UIMessage }) {
 
         if (isToolUIPart(part) && part.state === "output-available") {
           const outcome = part.output as ToolOutcome;
+
+          if (outcome?.ok === true && outcome.action === "fit") {
+            return (
+              <FitReport
+                key={i}
+                verdict={outcome.verdict}
+                matches={outcome.matches}
+                gaps={outcome.gaps}
+                summary={outcome.summary}
+              />
+            );
+          }
 
           if (outcome?.ok === true && outcome.action === "draft") {
             return (
@@ -84,7 +98,7 @@ function MessageParts({ message }: { message: UIMessage }) {
 const STARTERS = [
   "What has Anhat built with RAG?",
   "Walk me through his best project",
-  "Is he a fit for an LLM infra role?",
+  "Paste a job description →",
   "I'd like to reach out",
 ];
 

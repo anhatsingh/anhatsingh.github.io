@@ -53,7 +53,7 @@ function serializeStats(stats: LiveStats): string {
         `Total contributions: ${g.totalContributions}` +
         (g.restrictedContributions > 0 ? ` (plus ${g.restrictedContributions} in private repos)` : "") +
         `\nCommits: ${g.commits} | Pull requests opened: ${g.pullRequests} | Code reviews: ${g.reviews} | Issues: ${g.issues}` +
-        `\nPRs merged all-time: ${g.mergedPrs}, of which ${g.externalMergedPrs} were into repositories he does not own` +
+        `\nPRs merged all-time: ${g.mergedPrs}. ${g.externalMergedPrs} of those were into team repositories he does not own (mostly his employer's private codebase — this is collaboration and shipping rate, NOT open-source contribution, and must never be described as open source). Genuinely open-source merged PRs into public repos owned by others: ${g.openSourceMergedPrs}.` +
         `\nRepositories contributed to: ${g.reposContributedTo} | Public repos: ${g.publicRepos} | Followers: ${g.followers}` +
         `\nYears on GitHub: ${g.yearsOnGitHub}` +
         (languages ? `\nLanguages by volume of code written: ${languages}` : "") +

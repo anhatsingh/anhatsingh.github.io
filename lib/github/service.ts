@@ -53,7 +53,10 @@ export interface GitHubStats {
   followers: number;
   yearsOnGitHub: number;
   mergedPrs: number;
+  /** Merged into repositories he doesn't own — mostly team/employer repos. */
   externalMergedPrs: number;
+  /** Merged into PUBLIC repositories he doesn't own. Actual open source. */
+  openSourceMergedPrs: number;
   weeks: ContributionDay[][];
   languages: Array<{ name: string; color: string; percent: number }>;
   /** How many repositories fed the language chart, and how many were private. */
@@ -179,9 +182,14 @@ export async function getGitHubStats(
       from: from.toISOString(),
       to: to.toISOString(),
     }),
-    gql<{ all: { issueCount: number }; external: { issueCount: number } }>(MERGED_PRS_QUERY, {
+    gql<{
+      all: { issueCount: number };
+      external: { issueCount: number };
+      openSource: { issueCount: number };
+    }>(MERGED_PRS_QUERY, {
       all: `author:${username} type:pr is:merged`,
       external: `author:${username} type:pr is:merged -user:${username}`,
+      openSource: `author:${username} type:pr is:merged is:public -user:${username}`,
     }),
   ]);
 
@@ -243,6 +251,7 @@ export async function getGitHubStats(
     ),
     mergedPrs: prs?.all.issueCount ?? 0,
     externalMergedPrs: prs?.external.issueCount ?? 0,
+    openSourceMergedPrs: prs?.openSource.issueCount ?? 0,
     weeks: cc.contributionCalendar.weeks.map((w) =>
       w.contributionDays.map((d) => ({
         date: d.date,

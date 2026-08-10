@@ -7,6 +7,7 @@ import { DirectContextProvider } from "@/lib/chat/context";
 import { buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, clientIp, trimHistory } from "@/lib/chat/guards";
+import { logQuestion } from "@/lib/chat/analytics";
 
 export const maxDuration = 30;
 
@@ -65,6 +66,16 @@ export async function POST(req: Request) {
   ]);
 
   const context = await new DirectContextProvider(portfolio, { github, leetcode }).getContext();
+
+  // Fire-and-forget: analytics must never delay or fail a reply.
+  const latest = incoming.at(-1);
+  if (latest?.role === "user") {
+    const text = latest.parts
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join(" ");
+    void logQuestion(text);
+  }
 
   // Wrap visitor turns so the model can distinguish content from instructions.
   const messages = trimHistory(incoming).map((m) =>

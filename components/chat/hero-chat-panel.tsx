@@ -21,7 +21,7 @@ import { useChatDock } from "./chat-provider";
 const STARTERS = [
   "What's he built with RAG?",
   "Best project?",
-  "Is he worth hiring?",
+  "Paste a job description",
   "How do I reach him?",
 ];
 

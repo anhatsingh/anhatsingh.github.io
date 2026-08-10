@@ -131,10 +131,16 @@ export default async function HomePage() {
         <Writing writing={portfolio.writing} />
         <Contact profile={portfolio.profile} />
 
-        <footer className="border-t border-hairline py-10">
+        <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-hairline py-10">
           <p className="font-mono text-xs text-muted">
             Built with Next.js. The chatbot drives the page — that part was the fun bit.
           </p>
+          <a
+            href="/how-it-works"
+            className="font-mono text-xs uppercase tracking-widest text-accent hover:underline"
+          >
+            how it works →
+          </a>
         </footer>
       </SiteShell>
     </>

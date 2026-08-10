@@ -34,6 +34,14 @@ export type ToolOutcome =
   | { ok: true; action: "clear" }
   | { ok: true; action: "resume"; url: string }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
+  | {
+      ok: true;
+      action: "fit";
+      verdict: "strong" | "partial" | "weak";
+      matches: Array<{ itemId: string; requirement: string }>;
+      gaps: string[];
+      summary: string;
+    }
   | { ok: false; error: string };
 
 export function buildTools(portfolio: Portfolio) {
@@ -124,6 +132,52 @@ export function buildTools(portfolio: Portfolio) {
         // reply that silently drops a file into Downloads is hostile. The
         // visitor can download from the preview if they want it.
         return { ok: true, action: "resume", url: resume.viewUrl };
+      },
+    }),
+
+    assessFit: tool({
+      description:
+        "Analyse a pasted job description against Anhat's actual experience. Use this whenever the visitor pastes or describes a role. Be honest — a verdict of 'weak' with real gaps is more useful to a recruiter than false enthusiasm, and overclaiming is what gets a candidate rejected at interview.",
+      inputSchema: z.object({
+        verdict: z
+          .enum(["strong", "partial", "weak"])
+          .describe("Overall fit. Judge against evidence in CONTEXT, not optimism."),
+        matches: z
+          .array(
+            z.object({
+              itemId: z
+                .string()
+                .describe("Exact id from the CONTENT INDEX that evidences this requirement."),
+              requirement: z
+                .string()
+                .max(90)
+                .describe("The requirement from the JD this item satisfies. Quote it briefly."),
+            }),
+          )
+          .max(6)
+          .describe("Requirements you can evidence. Omit anything you cannot point at."),
+        gaps: z
+          .array(z.string().max(110))
+          .max(5)
+          .describe("Requirements with no evidence in CONTEXT. State them plainly, without excuses."),
+        summary: z
+          .string()
+          .max(400)
+          .describe("Two or three sentences a hiring manager could paste into a decision."),
+      }),
+      execute: async ({ verdict, matches, gaps, summary }): Promise<ToolOutcome> => {
+        // Same id discipline as highlightItems: a fabricated reference in a fit
+        // report is worse than a missing one, because it reads as evidence.
+        const accepted = matches.filter((m) => known.has(m.itemId));
+
+        return {
+          ok: true,
+          action: "fit",
+          verdict,
+          matches: accepted,
+          gaps,
+          summary,
+        };
       },
     }),
 

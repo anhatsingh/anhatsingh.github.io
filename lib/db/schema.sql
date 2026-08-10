@@ -175,6 +175,18 @@ create table if not exists chat_cache (
   created_at    timestamptz not null default now()
 );
 
+-- What visitors actually ask. No IP, no session id, no fingerprint: the useful
+-- signal is which questions recur, and storing anything identifying would mean
+-- a privacy policy this site doesn't otherwise need.
+create table if not exists chat_questions (
+  id         uuid primary key default gen_random_uuid(),
+  question   text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table chat_questions enable row level security;
+
+create index if not exists chat_questions_created_idx on chat_questions (created_at desc);
 create index if not exists chat_cache_hash_idx on chat_cache (question_hash);
 create index if not exists contact_messages_created_idx on contact_messages (created_at desc);
 

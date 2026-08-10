@@ -50,6 +50,7 @@ const github: GitHubStats = {
   yearsOnGitHub: 9,
   mergedPrs: 409,
   externalMergedPrs: 408,
+  openSourceMergedPrs: 3,
   weeks,
   languages: [
     { name: "Jupyter Notebook", color: "#DA5B0B", percent: 39.2 },
@@ -96,7 +97,9 @@ console.log("\n── GitHub reaches the chatbot ──");
 check("contributions figure present", full.includes("3087"));
 check("private contributions surfaced", full.includes("1065"));
 check("commits / PRs / reviews present", full.includes("1561") && full.includes("345") && full.includes("83"));
-check("external merged PRs called out", /408 were into repositories he does not own/.test(full));
+check("team PRs are not described as open source", /408 of those were into team repositories/.test(full));
+check("open-source count reported separately", /open-source merged PRs into public repos owned by others: 3/.test(full));
+check("context warns the model off the open-source framing", /NOT open-source contribution/.test(full));
 check("languages included", full.includes("Jupyter Notebook"));
 check("recent repos included", full.includes("anhatsingh.github.io"));
 

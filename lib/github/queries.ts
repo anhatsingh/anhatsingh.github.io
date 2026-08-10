@@ -110,15 +110,26 @@ export const CONTRIBUTIONS_QUERY = /* GraphQL */ `
 `;
 
 /**
- * Merged-PR counts. The second number — PRs merged into repos Anhat does NOT
- * own — is the single most credible stat for someone without many stars.
+ * Merged-PR counts, split three ways — and the split matters.
+ *
+ * "Merged into repos you don't own" sounds like open source, but on this
+ * account 405 of 408 are in one private employer repository. Reporting that
+ * number under an open-source-shaped label would be misleading to a recruiter
+ * and awkward the moment anyone asks about it in an interview.
+ *
+ * So `openSource` filters on is:public as well, and the UI labels the two
+ * differently. Team throughput and open-source contribution are both worth
+ * showing; they are not the same claim.
  */
 export const MERGED_PRS_QUERY = /* GraphQL */ `
-  query MergedPrs($all: String!, $external: String!) {
+  query MergedPrs($all: String!, $external: String!, $openSource: String!) {
     all: search(query: $all, type: ISSUE, first: 1) {
       issueCount
     }
     external: search(query: $external, type: ISSUE, first: 1) {
+      issueCount
+    }
+    openSource: search(query: $openSource, type: ISSUE, first: 1) {
       issueCount
     }
   }

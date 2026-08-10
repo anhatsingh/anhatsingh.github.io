@@ -74,7 +74,13 @@ export function GitHub({ stats }: { stats: GitHubStats | null }) {
       <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
         <Stat value={formatNumber(stats.commits)} label="commits" />
         <Stat value={stats.mergedPrs} label="PRs merged" />
-        <Stat value={stats.externalMergedPrs} label="into others' repos" />
+        {/*
+          NOT labelled "open source". On this account 405 of 408 land in one
+          private employer repo — a real signal about shipping rate in a team,
+          but not a contribution claim, and a recruiter who reads it that way
+          will ask a question there's no good answer to.
+        */}
+        <Stat value={stats.externalMergedPrs} label="in team repos" />
         <Stat value={stats.reviews} label="reviews" />
         <Stat value={stats.reposContributedTo} label="repos touched" />
         <Stat value={`${stats.yearsOnGitHub}y`} label="on GitHub" />
