@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteRow, saveRow } from "@/app/admin/actions";
+import { BlockEditor } from "./block-editor";
 import { ImageField } from "./image-field";
 import type { TableSpec } from "@/lib/admin/schema";
 
@@ -95,7 +96,9 @@ export function RowForm({
               )}
             </div>
 
-            {field.upload ? (
+            {field.type === "blocks" ? (
+              <BlockEditor name={field.name} defaultValue={row?.[field.name]} />
+            ) : field.upload ? (
               <ImageField
                 id={`${spec.key}-${id ?? "new"}-${field.name}`}
                 name={field.name}

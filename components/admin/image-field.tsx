@@ -22,12 +22,20 @@ export function ImageField({
   defaultValue,
   required,
   help,
+  onValueChange,
 }: {
   id: string;
   name: string;
   defaultValue: string;
   required?: boolean;
   help?: string;
+  /**
+   * Set when the field is embedded in something that owns its own state — the
+   * block editor. Without it the value lives only in this component and the
+   * hidden form input, which is fine for a plain row but loses the value when a
+   * block re-renders.
+   */
+  onValueChange?: (url: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue);
   const [pending, startTransition] = useTransition();
@@ -49,6 +57,7 @@ export function ImageField({
         return;
       }
       setValue(result.url);
+      onValueChange?.(result.url);
       setBroken(false);
     });
   }
@@ -63,6 +72,7 @@ export function ImageField({
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
+            onValueChange?.(e.target.value);
             setBroken(false);
           }}
           required={required}
@@ -84,6 +94,7 @@ export function ImageField({
             type="button"
             onClick={() => {
               setValue("");
+              onValueChange?.("");
               setProblem("");
               setBroken(false);
             }}

@@ -1,3 +1,4 @@
+import { parseBlocks } from "@/lib/content/blocks";
 /*
   ADMIN FIELD SCHEMA
   ==================
@@ -10,7 +11,16 @@
   without becoming an injection surface.
 */
 
-export type FieldType = "text" | "textarea" | "url" | "email" | "boolean" | "number" | "list";
+export type FieldType =
+  | "text"
+  | "textarea"
+  | "url"
+  | "email"
+  | "boolean"
+  | "number"
+  | "list"
+  /** Detail-page body. Rendered by <BlockEditor>, posted as one JSON string. */
+  | "blocks";
 
 export interface Field {
   name: string;
@@ -152,6 +162,25 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "summary", label: "Summary", type: "textarea" },
       { name: "highlights", label: "Highlights", type: "list", help: "One per line." },
       { name: "tech", label: "Tech", type: "list", help: "One per line." },
+      {
+        name: "body",
+        label: "Page body",
+        type: "blocks",
+        help: "Shown on this item's own page. Leave empty and the page shows just the details above.",
+      },
+      {
+        name: "hero_image_url",
+        label: "Hero image",
+        type: "url",
+        upload: true,
+        help: "Wide image at the top of the detail page. Optional.",
+      },
+      {
+        name: "show_in_blog_list",
+        label: "Show in /blog",
+        type: "boolean",
+        help: "Off by default. Turn on only if the body reads as an article rather than a CV entry.",
+      },
       ORDER_FIELD,
       PUBLISHED_FIELD,
     ],
@@ -171,6 +200,25 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "live_url", label: "Live URL", type: "url" },
       { name: "image_url", label: "Image", type: "url", upload: true },
       { name: "featured", label: "Featured", type: "boolean" },
+      {
+        name: "body",
+        label: "Page body",
+        type: "blocks",
+        help: "Shown on this item's own page. Leave empty and the page shows just the details above.",
+      },
+      {
+        name: "hero_image_url",
+        label: "Hero image",
+        type: "url",
+        upload: true,
+        help: "Wide image at the top of the detail page. Optional.",
+      },
+      {
+        name: "show_in_blog_list",
+        label: "Show in /blog",
+        type: "boolean",
+        help: "Off by default. Turn on only if the body reads as an article rather than a CV entry.",
+      },
       ORDER_FIELD,
       PUBLISHED_FIELD,
     ],
@@ -184,6 +232,25 @@ export const ADMIN_TABLES: TableSpec[] = [
       SLUG_FIELD,
       { name: "name", label: "Name", type: "text", required: true },
       { name: "category", label: "Category", type: "text", help: "Groups the badges." },
+      {
+        name: "body",
+        label: "Page body",
+        type: "blocks",
+        help: "Shown on this item's own page. Leave empty and the page shows just the details above.",
+      },
+      {
+        name: "hero_image_url",
+        label: "Hero image",
+        type: "url",
+        upload: true,
+        help: "Wide image at the top of the detail page. Optional.",
+      },
+      {
+        name: "show_in_blog_list",
+        label: "Show in /blog",
+        type: "boolean",
+        help: "Off by default. Turn on only if the body reads as an article rather than a CV entry.",
+      },
       ORDER_FIELD,
       PUBLISHED_FIELD,
     ],
@@ -230,6 +297,25 @@ export const ADMIN_TABLES: TableSpec[] = [
         type: "url",
         help: "Optional. Square-ish works best. Leave blank for a monogram.",
       },
+      {
+        name: "body",
+        label: "Page body",
+        type: "blocks",
+        help: "Shown on this item's own page. Leave empty and the page shows just the details above.",
+      },
+      {
+        name: "hero_image_url",
+        label: "Hero image",
+        type: "url",
+        upload: true,
+        help: "Wide image at the top of the detail page. Optional.",
+      },
+      {
+        name: "show_in_blog_list",
+        label: "Show in /blog",
+        type: "boolean",
+        help: "Off by default. Turn on only if the body reads as an article rather than a CV entry.",
+      },
       ORDER_FIELD,
       PUBLISHED_FIELD,
     ],
@@ -262,13 +348,31 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "image_url", label: "Cover image", type: "url", upload: true },
       {
         name: "external_url",
-        label: "Post URL",
+        label: "External URL",
         type: "url",
-        required: true,
-        help: "Where the post actually lives — Medium, Substack, etc.",
+        help: "Where the post lives if it's published elsewhere. Leave blank to host it here.",
       },
       { name: "published_at", label: "Published", type: "text" },
       { name: "source", label: "Source", type: "text", help: "e.g. Medium" },
+      {
+        name: "body",
+        label: "Page body",
+        type: "blocks",
+        help: "Shown on this item's own page. Leave empty and the page shows just the details above.",
+      },
+      {
+        name: "hero_image_url",
+        label: "Hero image",
+        type: "url",
+        upload: true,
+        help: "Wide image at the top of the detail page. Optional.",
+      },
+      {
+        name: "show_in_blog_list",
+        label: "Show in /blog",
+        type: "boolean",
+        help: "Off by default. Turn on only if the body reads as an article rather than a CV entry.",
+      },
       ORDER_FIELD,
       PUBLISHED_FIELD,
     ],
@@ -297,6 +401,17 @@ export function coerceRow(spec: TableSpec, form: FormData): Record<string, unkno
       case "number": {
         const n = Number(raw ?? 0);
         row[field.name] = Number.isFinite(n) ? n : 0;
+        break;
+      }
+      case "blocks": {
+        // Re-parsed server-side rather than trusted: the client posts whatever
+        // JSON its state held, and parseBlocks drops anything that isn't a
+        // valid block instead of writing it to the database.
+        try {
+          row[field.name] = parseBlocks(JSON.parse(String(raw ?? "[]")));
+        } catch {
+          row[field.name] = [];
+        }
         break;
       }
       case "list":
