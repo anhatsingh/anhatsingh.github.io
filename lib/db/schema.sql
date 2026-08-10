@@ -358,8 +358,8 @@ alter table testimonials   add column if not exists received_at text;
 -- Long-form bodies don't fit in the chat prompt alongside everything else, so
 -- they're embedded and retrieved on demand. Summaries and titles stay in the
 -- prompt always, which is what stops the bot from failing to know a page exists
--- just because retrieval missed it. The vector extension is created at the top of
-this file, since `resumes` also needs it.
+-- just because retrieval missed it. The vector extension is created at the top
+-- of this file, since `resumes` also needs it too.
 
 create table if not exists content_chunks (
   id           uuid primary key default gen_random_uuid(),
