@@ -2,148 +2,122 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { buildGraph, itemRange, type GraphItem, type LaneKey } from "@/lib/content/graph";
+import { buildGraph, itemRange, KIND_LABELS, type GraphItem } from "@/lib/content/graph";
 import type { Portfolio } from "@/lib/content/types";
 
 /*
-  A git-network diagram of everything dated: education, jobs, projects,
-  certificates and recommendations, each on its own coloured branch.
+  A git network diagram of everything dated, on one continuous track that
+  scrolls sideways.
 
   One dot is one month, always. That fixed scale is the reason it's worth
-  drawing at all — a four-year degree is four times the length of a one-year
-  job on screen, and overlaps between a job and a side project are visible
-  rather than asserted.
+  drawing: a four-year degree is four times the length of a one-year job, and
+  two things that ran at once are visibly concurrent rather than merely listed
+  near each other.
 
-  Twenty-two years of that is 260-odd dots, so the track snakes: left to right,
-  drop a band, right to left. Reversing alternate rows instead of restarting on
-  the left keeps the line continuous, so time never appears to jump backwards
-  mid-graph.
+  Nothing shares a row. Overlapping entries fork onto their own branches, and
+  every entry gets its own colour — see lib/content/graph.ts, which does the
+  packing and hands back a row and a hue for each.
 
-  Geometry lives in lib/content/graph.ts and is tested there. This file is only
-  concerned with turning that plan into SVG.
+  Not gitgraph.js: that library lays commits out in sequence with no time axis,
+  so a fixed month scale is the one thing it can't express. It is also
+  unmaintained — last published 2022, and the `gitgraph.js` package is flagged
+  deprecated on npm.
 */
 
-const COL = 13; // px per month
-const LANE_H = 15; // px between branches
-const ROW_PAD = 26; // px below each band, for the year label and breathing room
-const LEFT = 34; // px reserved for year labels
+const COL = 14; // px per month
+const LANE_H = 26; // px between branches
+const TOP = 16; // px above the first branch
+const AXIS_H = 28; // px below the last branch, for the year axis
+const LABEL_PX = 6.1; // approx width of one monospace char at 10px
+const MAX_LABEL = 30; // chars before a label is truncated
 
-function laneColor(lane: LaneKey): string {
-  return `var(--graph-${lane})`;
+/** Long project titles would otherwise reserve two years of track each. */
+function short(label: string): string {
+  return label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label;
 }
 
-export function LifeGraph({
-  portfolio,
-  now,
-  monthsPerRow = 36,
-}: {
-  portfolio: Portfolio;
-  /*
-    The current month, supplied by the server rather than read from the clock
-    here. Calling new Date() during a client render would disagree with the
-    server's value across a month boundary or a timezone, and the mismatch
-    would surface as a hydration error in the middle of the SVG.
-  */
-  now: number;
-  monthsPerRow?: number;
-}) {
+/**
+ * Columns a label needs. Shared with the packer so the space reserved is
+ * exactly the space drawn — measure with one function, draw with the same one,
+ * and labels can't collide.
+ */
+function labelCols(label: string): number {
+  return Math.ceil((short(label).length * LABEL_PX + 10) / COL);
+}
+
+function colorFor(item: GraphItem): string {
+  // Saturation and lightness are theme tokens; only the hue varies per entry.
+  return `hsl(${item.hue.toFixed(1)} var(--graph-sat) var(--graph-lum))`;
+}
+
+export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: number }) {
   const [active, setActive] = useState<GraphItem | null>(null);
 
-  const graph = useMemo(
-    () => buildGraph(portfolio, { monthsPerRow, now }),
-    [portfolio, monthsPerRow, now],
-  );
+  const graph = useMemo(() => buildGraph(portfolio, { now, labelCols }), [portfolio, now]);
 
   if (!graph.items.length) return null;
 
-  const laneCount = graph.lanes.length;
-  const bandH = laneCount * LANE_H + ROW_PAD;
-  const width = LEFT + monthsPerRow * COL + 8;
-  const height = graph.rows * bandH + 12;
+  const plotH = TOP + graph.lanes * LANE_H;
+  const height = plotH + AXIS_H;
+  // Widest label overhang, so the last entry's text isn't clipped.
+  const overhang = Math.max(...graph.items.map((i) => i.endCol + labelCols(i.label))) + 2;
+  const width = Math.max(graph.totalMonths, overhang) * COL;
 
-  const byId = new Map(graph.items.map((i) => [i.id, i]));
-  const laneIndex = new Map(graph.lanes.map((l, i) => [l.key, i]));
-
-  const x = (col: number) => LEFT + col * COL + COL / 2;
-  const y = (row: number, lane: LaneKey) => row * bandH + (laneIndex.get(lane) ?? 0) * LANE_H + 14;
+  const x = (col: number) => col * COL + COL / 2;
+  const y = (lane: number) => TOP + lane * LANE_H;
 
   return (
     <div className="mt-14">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 className="font-display text-xl">The whole thing, on one track</h3>
         <p className="font-mono text-[11px] uppercase tracking-widest text-muted">
-          one dot = one month
+          one dot = one month · scroll →
         </p>
       </div>
 
-      {/* Legend doubles as the accessible key to the colours, so nothing is
-          carried by hue alone. */}
-      <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-        {graph.lanes.map((lane) => (
-          <li key={lane.key} className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: laneColor(lane.key) }}
-              aria-hidden="true"
-            />
-            <span className="font-mono text-[11px] uppercase tracking-widest text-muted">
-              {lane.label}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-5 overflow-x-auto rounded-[var(--radius)] border border-hairline bg-surface p-3">
         <svg
-          viewBox={`0 0 ${width} ${height}`}
           width={width}
           height={height}
-          className="max-w-full"
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`Timeline of ${graph.items.length} dated entries from ${graph.rowYears[0]?.label} to now, one dot per month.`}
+          aria-label={`Timeline of ${graph.items.length} dated entries from ${graph.yearTicks[0]?.label} to now, one dot per month, ${graph.lanes} parallel branches at the busiest point.`}
+          style={{ display: "block" }}
         >
-          {/* Trunk: the month grid every branch is measured against. */}
-          {graph.rowYears.map(({ row, label }) => (
-            <g key={`row-${row}`}>
+          {/* Year gridlines, with the axis along the bottom. */}
+          {graph.yearTicks.map(({ col, label }) => (
+            <g key={label}>
+              <line
+                x1={x(col) - COL / 2}
+                y1={2}
+                x2={x(col) - COL / 2}
+                y2={plotH}
+                stroke="var(--graph-trunk)"
+                strokeWidth={1}
+              />
               <text
-                x={LEFT - 8}
-                y={row * bandH + 16}
-                textAnchor="end"
+                x={x(col) - COL / 2 + 4}
+                y={plotH + 16}
                 className="fill-[var(--muted)] font-mono"
                 style={{ fontSize: 10 }}
               >
                 {label}
               </text>
-              <line
-                x1={x(0)}
-                y1={row * bandH + bandH - ROW_PAD + 6}
-                x2={x(monthsPerRow - 1)}
-                y2={row * bandH + bandH - ROW_PAD + 6}
-                stroke="var(--graph-trunk)"
-                strokeWidth={1}
-              />
-              {Array.from({ length: monthsPerRow }, (_, c) => (
-                <circle
-                  key={c}
-                  cx={x(c)}
-                  cy={row * bandH + bandH - ROW_PAD + 6}
-                  r={c % 12 === 0 ? 1.7 : 0.9}
-                  fill="var(--graph-trunk)"
-                />
-              ))}
             </g>
           ))}
 
-          {/* Branches. Drawn after the trunk so they sit above it. */}
-          {graph.segments.map((seg, i) => {
-            const item = byId.get(seg.itemId);
-            if (!item) return null;
+          {/* The month ruler every branch is measured against. */}
+          {Array.from({ length: graph.totalMonths }, (_, c) => (
+            <circle key={c} cx={x(c)} cy={plotH - 3} r={0.9} fill="var(--graph-trunk)" />
+          ))}
 
-            const cy = y(seg.row, seg.lane);
-            const x1 = x(seg.fromCol);
-            const x2 = x(seg.toCol);
+          {graph.items.map((item) => {
+            const cy = y(item.lane);
+            const x1 = x(item.startCol);
+            const x2 = x(item.endCol);
             const isActive = active?.id === item.id;
-            const color = laneColor(seg.lane);
+            const dim = active && !isActive ? 0.22 : 1;
+            const color = colorFor(item);
 
             const body = (
               <g
@@ -151,52 +125,65 @@ export function LifeGraph({
                 onMouseLeave={() => setActive(null)}
                 onFocus={() => setActive(item)}
                 onBlur={() => setActive(null)}
-                style={{ cursor: item.href ? "pointer" : "default" }}
+                style={{
+                  cursor: item.href ? "pointer" : "default",
+                  opacity: dim,
+                  transition: "opacity 120ms",
+                }}
               >
-                {/* A fat transparent hit area — a 3px line is far too thin to
-                    point at reliably. */}
-                <line
-                  x1={x1 - 4}
-                  y1={cy}
-                  x2={x2 + 4}
-                  y2={cy}
-                  stroke="transparent"
-                  strokeWidth={LANE_H}
-                  strokeLinecap="round"
+                {/* A fat transparent hit area — a single-month entry is only
+                    14px of track, far too small to point at reliably. */}
+                <rect
+                  x={x1 - 7}
+                  y={cy - LANE_H / 2}
+                  width={x2 - x1 + 14 + labelCols(item.label) * COL}
+                  height={LANE_H}
+                  fill="transparent"
                 />
-                <line
-                  x1={x1}
-                  y1={cy}
-                  x2={x2}
-                  y2={cy}
-                  stroke={color}
-                  strokeWidth={isActive ? 5 : 3}
-                  strokeLinecap="round"
-                  opacity={active && !isActive ? 0.3 : 1}
-                  style={{ transition: "stroke-width 120ms, opacity 120ms" }}
-                />
-                {/* The node marking where a thing began. */}
-                {seg.isStart && (
-                  <circle
-                    cx={seg.reversed ? x2 : x1}
-                    cy={cy}
-                    r={isActive ? 4.5 : 3.5}
-                    fill={item.isPoint ? color : "var(--bg)"}
+
+                {/* The branch itself. A point entry has no length, so the node
+                    alone carries it. */}
+                {item.endCol > item.startCol && (
+                  <line
+                    x1={x1}
+                    y1={cy}
+                    x2={x2}
+                    y2={cy}
                     stroke={color}
-                    strokeWidth={2}
-                    opacity={active && !isActive ? 0.3 : 1}
-                    style={{ transition: "r 120ms, opacity 120ms" }}
+                    strokeWidth={isActive ? 7 : 5}
+                    strokeLinecap="round"
+                    style={{ transition: "stroke-width 120ms" }}
                   />
                 )}
+
+                {/* Hollow for a span, filled for a moment. */}
+                <circle
+                  cx={x1}
+                  cy={cy}
+                  r={isActive ? 5.5 : 4.5}
+                  fill={item.isPoint ? color : "var(--surface)"}
+                  stroke={color}
+                  strokeWidth={2.5}
+                  style={{ transition: "r 120ms" }}
+                />
+
+                <text
+                  x={x2 + 9}
+                  y={cy + 3.5}
+                  className="font-mono"
+                  style={{ fontSize: 10, fill: color, fontWeight: isActive ? 700 : 400 }}
+                >
+                  {short(item.label)}
+                </text>
               </g>
             );
 
             return item.href ? (
-              <Link key={`${seg.itemId}-${i}`} href={item.href} aria-label={item.label}>
+              <Link key={item.id} href={item.href} aria-label={item.label}>
                 {body}
               </Link>
             ) : (
-              <g key={`${seg.itemId}-${i}`} tabIndex={0} aria-label={item.label}>
+              <g key={item.id} tabIndex={0} aria-label={item.label}>
                 {body}
               </g>
             );
@@ -215,7 +202,7 @@ export function LifeGraph({
           <>
             <span
               className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: laneColor(active.lane) }}
+              style={{ backgroundColor: colorFor(active) }}
               aria-hidden="true"
             />
             <span className="min-w-0">
@@ -224,13 +211,13 @@ export function LifeGraph({
                 {active.detail && <span className="text-muted"> · {active.detail}</span>}
               </span>
               <span className="block font-mono text-[11px] text-muted">
-                {itemRange(active, now)}
+                {KIND_LABELS[active.kind]} · {itemRange(active, now)}
               </span>
             </span>
           </>
         ) : (
           <span className="self-center font-mono text-[11px] uppercase tracking-widest text-muted">
-            Hover a branch
+            Hover a branch for detail
           </span>
         )}
       </div>

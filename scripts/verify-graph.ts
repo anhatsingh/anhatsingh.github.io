@@ -1,17 +1,16 @@
 /*
   Checks the layout of the life graph in the About section.
 
-  Everything here fails silently if it's wrong. A row that wraps a month early
-  draws a graph that misdates someone's career; a reversed row whose columns
-  aren't flipped draws a job running backwards through time. Neither throws,
-  and neither is obvious from a glance at the finished picture — which is
-  precisely why the geometry is a pure function with tests rather than inline
-  arithmetic in a component.
+  Everything here fails silently if it's wrong. Packing that lets two entries
+  share a row draws them on top of each other; an off-by-one in the column
+  arithmetic misdates a career by a month. Neither throws, and neither is
+  obvious from a glance at the finished picture — which is why the geometry is
+  a pure function with tests rather than arithmetic inline in a component.
 
   Run: npx tsx scripts/verify-graph.ts
 */
 
-import { buildGraph, collectItems, itemRange, LANES } from "../lib/content/graph";
+import { buildGraph, collectItems, itemRange, KIND_LABELS } from "../lib/content/graph";
 import type { Portfolio } from "../lib/content/types";
 
 let failures = 0;
@@ -23,18 +22,20 @@ function check(label: string, ok: boolean, detail = "") {
 const M = (y: number, m = 1) => y * 12 + (m - 1);
 const NOW = M(2026, 8);
 
+function job(slug: string, start: string, end: string | null) {
+  return {
+    slug, role: slug, company: "X", startDate: start, endDate: end,
+    summary: "", highlights: [], tech: [], body: [], showInBlogList: false,
+  };
+}
+
 const portfolio = {
   profile: {},
   education: [
     { slug: "btech", institution: "GNDU", degree: "B.Tech", startYear: "2017", endYear: "2021" },
     { slug: "school", institution: "School", degree: "Schooling", startYear: "2004", endYear: undefined },
   ],
-  experience: [
-    { slug: "now", role: "Founding Engineer", company: "X", startDate: "2026-04", endDate: null,
-      summary: "", highlights: [], tech: [], body: [], showInBlogList: false },
-    { slug: "past", role: "Dev", company: "Y", startDate: "2021-07", endDate: "2022-06",
-      summary: "", highlights: [], tech: [], body: [], showInBlogList: false },
-  ],
+  experience: [job("now", "2026-04", null), job("past", "2021-07", "2022-06")],
   projects: [
     { slug: "p1", name: "Thing", summary: "", description: "", tech: [], featured: false,
       started: "2020-11", ended: "2021-02", body: [], showInBlogList: false },
@@ -68,99 +69,150 @@ console.log("\n── collecting ──");
   check("a current role runs to now", current.endMonth === NOW, String(current.endMonth));
 
   const school = items.find((i) => i.id === "education:school")!;
-  // A school with a blank end year is a missing field far more often than a
-  // course someone is still enrolled in; running it to today would draw a
-  // 22-year bar across the whole graph.
+  // Running a blank end year to today would draw a 22-year bar across the
+  // whole graph; a missing field is the far likelier explanation.
   check("education with no end year does not run to today",
     school.endMonth === school.startMonth, `${school.startMonth}→${school.endMonth}`);
 
   const cert = items.find((i) => i.id === "certifications:gre")!;
   check("a certificate is a point, not a span", cert.isPoint && cert.startMonth === cert.endMonth);
-  check("a testimonial is a point too",
-    items.find((i) => i.id === "testimonials:jk")!.isPoint);
+  check("a testimonial is a point too", items.find((i) => i.id === "testimonials:jk")!.isPoint);
   check("points still carry a link where one exists", Boolean(cert.href), String(cert.href));
+  check("every kind has a caption label", items.every((i) => Boolean(KIND_LABELS[i.kind])));
 }
 
-console.log("\n── snake layout ──");
+console.log("\n── the track ──");
 {
-  const g = buildGraph(portfolio, { monthsPerRow: 36, now: NOW });
+  const g = buildGraph(portfolio, { now: NOW });
 
-  // 2004 is the earliest; origin snaps back to that January so year labels sit
-  // on the grid instead of reading "Mar 2004" down the edge.
   check("origin snaps to a January", g.originMonth % 12 === 0, String(g.originMonth % 12));
-  check("origin is the year of the earliest item", g.originMonth === M(2004), String(g.originMonth));
-  check("covers up to now", g.originMonth + g.totalMonths - 1 >= NOW);
-  check("row count covers the span",
-    g.rows === Math.ceil(g.totalMonths / 36), `${g.rows} rows for ${g.totalMonths} months`);
-  check("year labels are years", g.rowYears.every((r) => /^\d{4}$/.test(r.label)),
-    g.rowYears.map((r) => r.label).join(","));
-  check("consecutive rows are 3 years apart at 36/row",
-    Number(g.rowYears[1].label) - Number(g.rowYears[0].label) === 3);
-
-  // Every segment must land inside its row.
-  check("no segment escapes its row",
-    g.segments.every((s) => s.fromCol >= 0 && s.toCol < 36 && s.fromCol <= s.toCol),
-    g.segments.filter((s) => s.fromCol > s.toCol || s.toCol >= 36).map((s) => s.itemId).join(","));
-
-  check("odd rows are flagged reversed",
-    g.segments.every((s) => s.reversed === (s.row % 2 === 1)));
-
-  check("exactly one start node per item",
-    g.items.every((i) => g.segments.filter((s) => s.itemId === i.id && s.isStart).length === 1));
-
-  check("every lane in use is a declared lane",
-    g.segments.every((s) => LANES.some((l) => l.key === s.lane)));
+  check("origin is the year of the earliest entry", g.originMonth === M(2004));
+  check("the track reaches now", g.originMonth + g.totalMonths - 1 >= NOW);
+  check("columns are real month offsets",
+    g.items.every((i) => i.startCol === i.startMonth - g.originMonth &&
+      i.endCol === i.endMonth - g.originMonth));
+  check("no entry escapes the track",
+    g.items.every((i) => i.startCol >= 0 && i.startCol <= i.endCol && i.endCol < g.totalMonths));
 }
 
-console.log("\n── wrapping across rows ──");
-{
-  // A 4-year degree at 36 months per row must split across two bands.
-  const g = buildGraph(portfolio, { monthsPerRow: 36, now: NOW });
-  const btech = g.segments.filter((s) => s.itemId === "education:btech");
-  check("a span crossing a row boundary is split", btech.length === 2, `${btech.length} segments`);
-  check("the split pieces are on consecutive rows",
-    btech.length === 2 && Math.abs(btech[0].row - btech[1].row) === 1);
-  check("only the first piece carries the start node",
-    btech.filter((s) => s.isStart).length === 1);
-
-  // The total months drawn must equal the item's real duration, or the graph
-  // is lying about how long something took.
-  const item = g.items.find((i) => i.id === "education:btech")!;
-  const drawn = btech.reduce((n, s) => n + (s.toCol - s.fromCol + 1), 0);
-  check("no month is lost or duplicated at the seam",
-    drawn === item.endMonth - item.startMonth + 1,
-    `drew ${drawn}, span is ${item.endMonth - item.startMonth + 1}`);
-}
-
-console.log("\n── reversed rows ──");
+console.log("\n── nothing overlaps ──");
 {
   /*
-    The bug this guards: on a right-to-left row, an item starting early in the
-    row must be drawn on the RIGHT. Getting this wrong doesn't throw — it draws
-    a career running backwards, which reads as plausible until you check a date.
+    The rule this whole layout exists to enforce. Two entries sharing a row and
+    a moment would be drawn one on top of the other, silently hiding one — so
+    it's asserted exhaustively rather than spot-checked.
   */
-  const single = {
-    ...portfolio,
-    education: [], projects: [], certifications: [], testimonials: [],
+  const g = buildGraph(portfolio, { now: NOW });
+  let clashes = 0;
+  for (let a = 0; a < g.items.length; a++) {
+    for (let b = a + 1; b < g.items.length; b++) {
+      const x = g.items[a];
+      const z = g.items[b];
+      if (x.lane !== z.lane) continue;
+      if (x.startCol <= z.endCol && z.startCol <= x.endCol) clashes++;
+    }
+  }
+  check("no two entries share a row at the same time", clashes === 0, `${clashes} clashes`);
+
+  check("lane count equals the rows actually used",
+    g.lanes === new Set(g.items.map((i) => i.lane)).size, `${g.lanes} reported`);
+  check("lanes are numbered from zero with no gaps",
+    [...new Set(g.items.map((i) => i.lane))].sort((p, q) => p - q).every((l, i) => l === i));
+}
+{
+  // Four roles genuinely running at once must produce four branches — the
+  // "if anything shares a timeline, show it as a branch" case.
+  const concurrent = {
+    ...portfolio, education: [], projects: [], certifications: [], testimonials: [],
     experience: [
-      { slug: "a", role: "A", company: "X", startDate: "2004-01", endDate: "2004-02",
-        summary: "", highlights: [], tech: [], body: [], showInBlogList: false },
-      // Row 1 (reversed) starts at month 12: this begins right at its start.
-      { slug: "b", role: "B", company: "X", startDate: "2005-01", endDate: "2005-02",
-        summary: "", highlights: [], tech: [], body: [], showInBlogList: false },
+      job("a", "2022-09", "2023-09"), job("b", "2022-09", "2023-09"),
+      job("c", "2022-09", "2023-09"), job("d", "2022-09", "2023-09"),
     ],
   } as unknown as Portfolio;
 
-  const g = buildGraph(single, { monthsPerRow: 12, now: M(2005, 6) });
-  const a = g.segments.find((s) => s.itemId === "experience:a")!;
-  const b = g.segments.find((s) => s.itemId === "experience:b")!;
+  const g = buildGraph(concurrent, { now: M(2024, 1) });
+  check("four concurrent roles fork onto four branches", g.lanes === 4, `${g.lanes}`);
+  check("each is on its own row", new Set(g.items.map((i) => i.lane)).size === 4);
+}
+{
+  // Sequential entries should reuse one row rather than stacking forever.
+  const sequential = {
+    ...portfolio, education: [], projects: [], certifications: [], testimonials: [],
+    experience: [
+      job("a", "2020-01", "2020-06"), job("b", "2021-01", "2021-06"),
+      job("c", "2022-01", "2022-06"),
+    ],
+  } as unknown as Portfolio;
 
-  check("row 0 runs left to right", a.row === 0 && !a.reversed && a.fromCol === 0, `${a.fromCol}`);
-  check("row 1 is reversed", b.row === 1 && b.reversed);
-  // Months 0-1 of a reversed 12-column row occupy columns 10-11.
-  check("an item early in a reversed row is drawn at the right-hand end",
-    b.fromCol === 10 && b.toCol === 11, `cols ${b.fromCol}-${b.toCol}`);
-  check("columns are stored low-to-high even when reversed", b.fromCol <= b.toCol);
+  const g = buildGraph(sequential, { now: M(2023, 1) });
+  check("entries that never overlap share one branch", g.lanes === 1, `${g.lanes} lanes`);
+}
+
+console.log("\n── label reservation ──");
+{
+  /*
+    A label is drawn after its bar, so the packer must treat that text as
+    occupied track. Without it, two bars sit comfortably apart and their labels
+    print straight through each other.
+  */
+  const tight = {
+    ...portfolio, education: [], projects: [], certifications: [], testimonials: [],
+    experience: [job("a", "2020-01", "2020-02"), job("b", "2020-04", "2020-05")],
+  } as unknown as Portfolio;
+
+  const bare = buildGraph(tight, { now: M(2021, 1) });
+  check("without labels, two nearby bars share a row", bare.lanes === 1, `${bare.lanes}`);
+
+  const labelled = buildGraph(tight, { now: M(2021, 1), labelCols: () => 8 });
+  check("reserving label space pushes the second onto its own branch",
+    labelled.lanes === 2, `${labelled.lanes}`);
+
+  const roomy = buildGraph(
+    {
+      ...tight,
+      experience: [job("a", "2020-01", "2020-02"), job("b", "2021-06", "2021-07")],
+    } as unknown as Portfolio,
+    { now: M(2022, 1), labelCols: () => 8 },
+  );
+  check("a far-apart pair still shares a row once the label fits",
+    roomy.lanes === 1, `${roomy.lanes}`);
+}
+
+console.log("\n── colours ──");
+{
+  const g = buildGraph(portfolio, { now: NOW });
+  check("every entry gets a hue", g.items.every((i) => Number.isFinite(i.hue)));
+  check("hues stay on the wheel", g.items.every((i) => i.hue >= 0 && i.hue < 360));
+  check("no two entries share a hue",
+    new Set(g.items.map((i) => i.hue.toFixed(2))).size === g.items.length);
+
+  // Colouring by category is precisely what this replaced: entries of the same
+  // kind must not come out the same colour.
+  const sameKind = g.items.filter((i) => i.kind === "experience");
+  check("two entries of the same kind differ in colour",
+    sameKind.length < 2 || sameKind[0].hue !== sameKind[1].hue);
+
+  // Golden-angle stepping keeps consecutive entries far apart, which is the
+  // reason for using it over an even division of the wheel.
+  const gaps = g.items.slice(1).map((i, n) => {
+    const d = Math.abs(i.hue - g.items[n].hue);
+    return Math.min(d, 360 - d);
+  });
+  check("consecutive entries are far apart on the wheel",
+    gaps.every((d) => d > 60), `min gap ${Math.min(...gaps).toFixed(0)}°`);
+}
+
+console.log("\n── year ticks ──");
+{
+  const g = buildGraph(portfolio, { now: NOW });
+  check("one tick per year", g.yearTicks.length === Math.ceil(g.totalMonths / 12),
+    `${g.yearTicks.length} over ${g.totalMonths} months`);
+  check("the first tick is the origin year at column 0",
+    g.yearTicks[0].label === "2004" && g.yearTicks[0].col === 0);
+  check("ticks are 12 columns apart",
+    g.yearTicks.every((t, i) => i === 0 || t.col - g.yearTicks[i - 1].col === 12));
+  check("labels ascend by one year",
+    g.yearTicks.every((t, i) => i === 0 || Number(t.label) - Number(g.yearTicks[i - 1].label) === 1));
 }
 
 console.log("\n── ranges ──");
@@ -169,21 +221,19 @@ console.log("\n── ranges ──");
   const current = items.find((i) => i.id === "experience:now")!;
   check("a current role reads as Present", itemRange(current, NOW).endsWith("Present"),
     itemRange(current, NOW));
-  const cert = items.find((i) => i.id === "certifications:gre")!;
-  check("a point is a single month, not a range", itemRange(cert, NOW) === "Nov 2024",
-    itemRange(cert, NOW));
-  const past = items.find((i) => i.id === "experience:past")!;
-  check("a finished role shows both ends", itemRange(past, NOW) === "Jul 2021 — Jun 2022",
-    itemRange(past, NOW));
+  check("a point is a single month, not a range",
+    itemRange(items.find((i) => i.id === "certifications:gre")!, NOW) === "Nov 2024");
+  check("a finished role shows both ends",
+    itemRange(items.find((i) => i.id === "experience:past")!, NOW) === "Jul 2021 — Jun 2022");
 }
 
 console.log("\n── empty portfolio ──");
 {
   const empty = { ...portfolio, education: [], experience: [], projects: [],
     certifications: [], testimonials: [] } as unknown as Portfolio;
-  const g = buildGraph(empty, { monthsPerRow: 36, now: NOW });
+  const g = buildGraph(empty, { now: NOW });
   check("builds without throwing and reports nothing to draw",
-    g.items.length === 0 && g.rows === 0 && g.segments.length === 0);
+    g.items.length === 0 && g.lanes === 0 && g.yearTicks.length === 0);
 }
 
 console.log(failures === 0 ? "\nAll graph checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
