@@ -101,6 +101,15 @@ async function main() {
     noInterest.ok === true && noInterest.action === "resume" && noInterest.label === undefined,
   );
 
+  // Carries no payload by design — the client renders the options from data the
+  // server gave it, so nothing here can leak a variant name back to the model.
+  const roles = await run(() => call(withResume.suggestRoles, {}));
+  check(
+    "suggestRoles returns a marker, not a menu",
+    roles.ok === true && roles.action === "roleOptions" && Object.keys(roles).length === 2,
+    roles.ok === true ? Object.keys(roles).join(",") : "",
+  );
+
   const listed = await run(() => call(withResume.listResumes, {}));
   check(
     "listResumes with an empty library falls back rather than showing nothing",
@@ -110,14 +119,17 @@ async function main() {
   console.log("\n── the resume variants stay out of the prompt ──");
   {
     /*
-      The requirement is that the bot asks an open question without hinting at
-      the options. That is guaranteed structurally rather than by instruction:
-      the model is never given the variant list, so it cannot leak one — and
-      no amount of prompt-wrangling by a visitor can extract what isn't there.
+      Role suggestions are now shown — but as buttons the client renders from
+      data the server passed it, never as something the assistant says.
 
-      This test is what keeps the guarantee true as the code changes. If
-      someone later injects the variants into context "so the model can choose
-      better", this fails and says why.
+      That distinction is the point, and it is what these assertions protect.
+      The model still never receives the variant list, so it cannot name them
+      in prose, cannot be argued into listing them, and cannot invent a variant
+      that doesn't exist. suggestRoles carries no payload for exactly this
+      reason: it is a marker, not a menu.
+
+      If someone later injects the variants into context "so the model can
+      choose better", this fails and says why.
     */
     const prompt = buildSystemPrompt(seedPortfolio, serializePortfolio(seedPortfolio));
 
@@ -126,8 +138,12 @@ async function main() {
       /selectResume/.test(prompt) && /ONCE/.test(prompt),
     );
     check(
-      "the prompt forbids offering options",
-      /NEVER offer options/.test(prompt),
+      "the prompt forbids the model naming options itself",
+      /NEVER name the options yourself/.test(prompt),
+    );
+    check(
+      "suggestions are delegated to a tool, not spoken",
+      /suggestRoles/.test(prompt),
     );
     check(
       "matching is not something the model is asked to do",

@@ -23,6 +23,7 @@ import {
   buildPersonJsonLd,
   buildProjectsJsonLd,
 } from "@/lib/seo";
+import { listPublishedResumes } from "@/lib/resume/store";
 
 /*
   Regenerate at most once a minute.
@@ -117,6 +118,14 @@ export default async function HomePage() {
   const nowDate = new Date();
   const nowMonth = nowDate.getFullYear() * 12 + nowDate.getMonth();
 
+  /*
+    Variant names for the chat's role suggestions, resolved here rather than
+    handed to the model. The assistant asks an open question and emits a
+    marker; these render as controls beside its answer, so it still cannot list
+    them in prose or be talked into naming them.
+  */
+  const resumeOptions = (await listPublishedResumes().catch(() => [])).map((r) => r.label);
+
   // Neither third party can take the page down with it — both resolve to null
   // on any failure and their sections simply don't render.
   const [githubStats, leetcodeStats] = await Promise.all([
@@ -143,6 +152,7 @@ export default async function HomePage() {
         name={portfolio.profile.name}
         avatarUrl={portfolio.profile.avatarUrl}
         resumeUrl={portfolio.profile.resumeUrl}
+        resumeOptions={resumeOptions}
       >
         <Hero profile={portfolio.profile} />
         <About profile={portfolio.profile} portfolio={portfolio} nowMonth={nowMonth} />

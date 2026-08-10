@@ -113,16 +113,18 @@ export function SiteShell({
   name,
   avatarUrl,
   resumeUrl,
+  resumeOptions,
   children,
 }: {
   name: string;
   avatarUrl?: string;
   resumeUrl?: string;
+  resumeOptions?: string[];
   children: React.ReactNode;
 }) {
   return (
     <UIControlProvider>
-      <ChatProvider assistantName={name} assistantAvatar={avatarUrl}>
+      <ChatProvider assistantName={name} assistantAvatar={avatarUrl} resumeOptions={resumeOptions}>
         {/* Fixed decorative layers, behind everything, non-interactive. */}
         <div aria-hidden="true" className="aurora">
           <div className="aurora-orb aurora-orb-a" />

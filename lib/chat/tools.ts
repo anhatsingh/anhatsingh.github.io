@@ -39,6 +39,14 @@ export type ToolOutcome =
   | { ok: true; action: "navigate"; url: string; label: string; reason?: string }
   | { ok: true; action: "resume"; url: string; label?: string }
   | { ok: true; action: "resumeList"; resumes: Array<{ label: string; url: string }> }
+  /*
+    Carries no payload on purpose. It tells the client to render the role
+    suggestions it already has from the server; the model never receives the
+    variant names, so it still cannot list them in prose or be argued into
+    revealing them. The options are controls beside the answer, not something
+    the assistant said.
+  */
+  | { ok: true; action: "roleOptions" }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
   | {
       ok: true;
@@ -153,6 +161,15 @@ export function buildTools(portfolio: Portfolio) {
         "Leave focus view and return the page to its normal full-width layout. Use when the conversation moves off site content.",
       inputSchema: z.object({}),
       execute: async (): Promise<ToolOutcome> => ({ ok: true, action: "clear" }),
+    }),
+
+    suggestRoles: tool({
+      description:
+        "Show the visitor a few quick answers to pick from, right after you ask what role " +
+        "they are hiring for. Call it in the same turn as the question. It returns nothing " +
+        "for you to read — the options are rendered on screen, not spoken.",
+      inputSchema: z.object({}),
+      execute: async (): Promise<ToolOutcome> => ({ ok: true, action: "roleOptions" }),
     }),
 
     selectResume: tool({

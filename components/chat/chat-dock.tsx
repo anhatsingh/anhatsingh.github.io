@@ -6,7 +6,9 @@ import { useChatDock } from "./chat-provider";
 import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
 import { FitReport } from "./fit-report";
+import { ResumeCard } from "./resume-card";
 import { ResumeList } from "./resume-list";
+import { RoleChips } from "./role-chips";
 import { useUIControl } from "@/components/ui-control";
 import type { ToolOutcome } from "@/lib/chat/tools";
 
@@ -21,7 +23,13 @@ import type { ToolOutcome } from "@/lib/chat/tools";
   side is handled by the page shell reading `isSplit`.
 */
 
-/** Renders what the bot DID, so its agency reads as deliberate rather than spooky. */
+/*
+  Renders what the bot DID, so its agency reads as deliberate rather than spooky.
+
+  Actions with a card of their own — fit, draft, resume, resumeList,
+  roleOptions — are handled earlier and never reach here; a pill under a card
+  that already says the same thing is noise.
+*/
 function ActionPill({ outcome }: { outcome: ToolOutcome }) {
   if (outcome.ok !== true) return null;
 
@@ -29,10 +37,7 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
   if (outcome.action === "focus") label = `focused ${outcome.label}`;
   else if (outcome.action === "highlight")
     label = `highlighted ${outcome.items.length} item${outcome.items.length > 1 ? "s" : ""}`;
-  else if (outcome.action === "resume") label = "opened resume";
-  else if (outcome.action === "resumeList") label = "listed resumes";
   else if (outcome.action === "clear") label = "cleared focus";
-  else if (outcome.action === "fit") label = "assessed fit";
   else if (outcome.action === "navigate") label = `opened ${outcome.label}`;
 
   if (!label) return null;
@@ -71,6 +76,14 @@ function MessageParts({ message }: { message: UIMessage }) {
                 summary={outcome.summary}
               />
             );
+          }
+
+          if (outcome?.ok === true && outcome.action === "resume") {
+            return <ResumeCard key={part.toolCallId} url={outcome.url} label={outcome.label} />;
+          }
+
+          if (outcome?.ok === true && outcome.action === "roleOptions") {
+            return <RoleChips key={part.toolCallId} />;
           }
 
           if (outcome?.ok === true && outcome.action === "resumeList") {

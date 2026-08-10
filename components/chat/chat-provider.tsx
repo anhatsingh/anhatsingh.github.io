@@ -26,6 +26,15 @@ interface ChatContextValue {
   /** Anhat's portrait, shown on assistant messages. */
   assistantAvatar?: string;
   assistantName: string;
+  /*
+    Labels of the saved resume variants, resolved on the server and passed in.
+
+    Deliberately not routed through the model: it asks the open question and
+    emits a marker, and these are rendered as controls beside its answer. That
+    way it still cannot enumerate the variants in prose or be talked into
+    naming them, while the visitor gets something to click.
+  */
+  resumeOptions: string[];
   send: (text: string) => void;
   open: () => void;
   close: () => void;
@@ -39,9 +48,11 @@ export function ChatProvider({
   children,
   assistantName,
   assistantAvatar,
+  resumeOptions = [],
 }: {
   children: React.ReactNode;
   assistantName: string;
+  resumeOptions?: string[];
   assistantAvatar?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -88,6 +99,10 @@ export function ChatProvider({
           case "resume":
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
+          case "roleOptions":
+            // Nothing to do — the chips render from data the client already
+            // holds. Listed so the switch stays exhaustive.
+            break;
           case "resumeList":
             // Deliberately no side effect. Opening five tabs because someone
             // asked what versions exist would be hostile; the card below the
@@ -133,6 +148,7 @@ export function ChatProvider({
         isOpen,
         assistantAvatar,
         assistantName,
+        resumeOptions,
         send,
         open: () => setIsOpen(true),
         close,
