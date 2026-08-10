@@ -6,6 +6,7 @@ import { useChatDock } from "./chat-provider";
 import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
 import { FitReport } from "./fit-report";
+import { ResumeList } from "./resume-list";
 import { useUIControl } from "@/components/ui-control";
 import type { ToolOutcome } from "@/lib/chat/tools";
 
@@ -29,6 +30,7 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
   else if (outcome.action === "highlight")
     label = `highlighted ${outcome.items.length} item${outcome.items.length > 1 ? "s" : ""}`;
   else if (outcome.action === "resume") label = "opened resume";
+  else if (outcome.action === "resumeList") label = "listed resumes";
   else if (outcome.action === "clear") label = "cleared focus";
   else if (outcome.action === "fit") label = "assessed fit";
   else if (outcome.action === "navigate") label = `opened ${outcome.label}`;
@@ -69,6 +71,10 @@ function MessageParts({ message }: { message: UIMessage }) {
                 summary={outcome.summary}
               />
             );
+          }
+
+          if (outcome?.ok === true && outcome.action === "resumeList") {
+            return <ResumeList key={part.toolCallId} resumes={outcome.resumes} />;
           }
 
           if (outcome?.ok === true && outcome.action === "draft") {

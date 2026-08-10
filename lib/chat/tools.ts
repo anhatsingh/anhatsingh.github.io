@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { resumeLinks } from "@/lib/resume";
+import { matchResume } from "@/lib/resume/match";
+import { listPublishedResumes } from "@/lib/resume/store";
 import {
   entityPath,
   entityTypeForId,
@@ -35,7 +37,8 @@ export type ToolOutcome =
   | { ok: true; action: "highlight"; items: Array<{ itemId: string; note: string }> }
   | { ok: true; action: "clear" }
   | { ok: true; action: "navigate"; url: string; label: string; reason?: string }
-  | { ok: true; action: "resume"; url: string }
+  | { ok: true; action: "resume"; url: string; label?: string }
+  | { ok: true; action: "resumeList"; resumes: Array<{ label: string; url: string }> }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
   | {
       ok: true;
@@ -152,22 +155,67 @@ export function buildTools(portfolio: Portfolio) {
       execute: async (): Promise<ToolOutcome> => ({ ok: true, action: "clear" }),
     }),
 
-    openResume: tool({
+    selectResume: tool({
       description:
-        "Offer Anhat's resume. Use when the visitor asks for a CV, resume, or a document to download.",
-      inputSchema: z.object({}),
-      execute: async (): Promise<ToolOutcome> => {
-        const resume = resumeLinks(portfolio.profile.resumeUrl);
-        if (!resume) {
+        "Give the visitor Anhat's resume, tailored to the role they described. " +
+        "Call this ONLY after they have said what kind of role or work they have in mind, " +
+        "passing their answer verbatim as `interest`. If they decline to say, or just want " +
+        "the file, call it with an empty interest and they get the general one.",
+      inputSchema: z.object({
+        interest: z
+          .string()
+          .max(400)
+          .describe("What the visitor said they are hiring for, in their own words. Empty if they didn't say."),
+      }),
+      execute: async ({ interest }): Promise<ToolOutcome> => {
+        /*
+          Matching happens in here, not in the model. The model is never given
+          the list of variants, so it cannot offer a menu, cannot hint that
+          variants exist, and cannot be talked into naming them. That is a
+          structural guarantee rather than a prompt instruction — and
+          scripts/verify-tools.ts asserts the prompt stays free of them.
+        */
+        const fallback = resumeLinks(portfolio.profile.resumeUrl)?.viewUrl ?? null;
+        const match = await matchResume(interest ?? "", fallback);
+
+        if (!match.url) {
           return {
             ok: false,
-            error: "No resume link is configured yet. Tell the visitor to use the contact form instead.",
+            error: "No resume is configured yet. Tell the visitor to use the contact form instead.",
           };
         }
-        // The viewer, deliberately — the explicit buttons download, but a chat
-        // reply that silently drops a file into Downloads is hostile. The
-        // visitor can download from the preview if they want it.
-        return { ok: true, action: "resume", url: resume.viewUrl };
+
+        // Label omitted deliberately when nothing matched: naming the general
+        // resume as a variant would reveal that variants exist at all.
+        return match.how === "matched"
+          ? { ok: true, action: "resume", url: match.url, label: match.label ?? undefined }
+          : { ok: true, action: "resume", url: match.url };
+      },
+    }),
+
+    listResumes: tool({
+      description:
+        "List every resume Anhat has published, with a link to each. Use ONLY when the visitor " +
+        "explicitly asks to see all of them, or asks what versions exist.",
+      inputSchema: z.object({}),
+      execute: async (): Promise<ToolOutcome> => {
+        const resumes = await listPublishedResumes();
+
+        if (!resumes.length) {
+          const fallback = resumeLinks(portfolio.profile.resumeUrl)?.viewUrl;
+          if (!fallback) {
+            return { ok: false, error: "No resume is configured yet." };
+          }
+          return { ok: true, action: "resume", url: fallback };
+        }
+
+        // Labels and links only. Keywords describe how matching works and the
+        // postings behind them are private; neither belongs on a public page.
+        return {
+          ok: true,
+          action: "resumeList",
+          resumes: resumes.map((r) => ({ label: r.label, url: r.pdfUrl })),
+        };
       },
     }),
 

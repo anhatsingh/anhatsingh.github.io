@@ -88,6 +88,11 @@ export function ChatProvider({
           case "resume":
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
+          case "resumeList":
+            // Deliberately no side effect. Opening five tabs because someone
+            // asked what versions exist would be hostile; the card below the
+            // message carries the links.
+            break;
           case "navigate":
             // Deliberately NOT through the UIControl queue. That cooldown exists
             // to stop scroll-thrash within one page; a route change is a

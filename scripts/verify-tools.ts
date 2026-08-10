@@ -12,7 +12,7 @@
 import { buildTools, type ToolOutcome } from "../lib/chat/tools";
 import { seedPortfolio } from "../lib/content/seed";
 import { serializePortfolio } from "../lib/chat/context";
-import { wrapVisitorMessage } from "../lib/chat/prompt";
+import { buildSystemPrompt, wrapVisitorMessage } from "../lib/chat/prompt";
 import { addressableIds } from "../lib/content/types";
 
 let failures = 0;
@@ -71,8 +71,13 @@ async function main() {
     mixed.ok === true && mixed.action === "highlight" ? `kept ${mixed.items[0].itemId}` : "",
   );
 
-  console.log("\n── openResume: missing config ──");
-  const noResume = await run(() => call(tools.openResume, {}));
+  console.log("\n── selectResume: degrades to the static link ──");
+  /*
+    With no database configured these exercise the fallback path, which is the
+    one that has to hold: a visitor asking for a CV before any variant has been
+    saved must still get the file the site served before this feature existed.
+  */
+  const noResume = await run(() => call(tools.selectResume, { interest: "backend" }));
   check(
     "no resume url configured → graceful refusal, not a crash",
     noResume.ok === false,
@@ -83,8 +88,67 @@ async function main() {
     ...seedPortfolio,
     profile: { ...seedPortfolio.profile, resumeUrl: "https://drive.google.com/xyz" },
   });
-  const resumeOk = await run(() => call(withResume.openResume, {}));
+  const resumeOk = await run(() => call(withResume.selectResume, { interest: "backend engineering" }));
   check("resume url configured → returns url", resumeOk.ok === true && resumeOk.action === "resume");
+
+  // An empty interest is the "just send it" path, and must not error.
+  const noInterest = await run(() => call(withResume.selectResume, { interest: "" }));
+  check("empty interest still returns a resume", noInterest.ok === true && noInterest.action === "resume");
+
+  // Nothing matched, so naming a variant would reveal that variants exist.
+  check(
+    "an unmatched request carries no variant label",
+    noInterest.ok === true && noInterest.action === "resume" && noInterest.label === undefined,
+  );
+
+  const listed = await run(() => call(withResume.listResumes, {}));
+  check(
+    "listResumes with an empty library falls back rather than showing nothing",
+    listed.ok === true && (listed.action === "resume" || listed.action === "resumeList"),
+  );
+
+  console.log("\n── the resume variants stay out of the prompt ──");
+  {
+    /*
+      The requirement is that the bot asks an open question without hinting at
+      the options. That is guaranteed structurally rather than by instruction:
+      the model is never given the variant list, so it cannot leak one — and
+      no amount of prompt-wrangling by a visitor can extract what isn't there.
+
+      This test is what keeps the guarantee true as the code changes. If
+      someone later injects the variants into context "so the model can choose
+      better", this fails and says why.
+    */
+    const prompt = buildSystemPrompt(seedPortfolio, serializePortfolio(seedPortfolio));
+
+    check(
+      "the prompt tells the model to ask before serving",
+      /selectResume/.test(prompt) && /ONCE/.test(prompt),
+    );
+    check(
+      "the prompt forbids offering options",
+      /NEVER offer options/.test(prompt),
+    );
+    check(
+      "matching is not something the model is asked to do",
+      !/keywords/i.test(prompt),
+    );
+    // The variants live in the database, so the strongest available assertion
+    // here is that nothing resembling a variant listing is being assembled
+    // into the prompt at all.
+    check(
+      "no variant list, labels or pdf urls appear in the prompt",
+      !/resumes\s*:/i.test(prompt) && !/\.pdf/i.test(prompt) && !/variant/i.test(prompt),
+    );
+    check(
+      "the visitor is never told a tailored version was chosen",
+      /Never describe the resume you return as tailored/.test(prompt),
+    );
+    check(
+      "a refusal is honoured rather than re-asked",
+      /Never ask twice/.test(prompt),
+    );
+  }
 
   console.log("\n── draftContactMessage: never sends ──");
   const draft = await run(() =>
