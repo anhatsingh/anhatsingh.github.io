@@ -15,6 +15,13 @@
 --     server-side via service role after the human confirms in the UI.
 
 -- ---------------------------------------------------------------------
+-- Extensions
+-- ---------------------------------------------------------------------
+-- Hoisted above the tables because `resumes` declares a vector column, and on
+-- a fresh database the type has to exist before the table that uses it.
+create extension if not exists vector;
+
+-- ---------------------------------------------------------------------
 -- Tables
 -- ---------------------------------------------------------------------
 
@@ -152,6 +159,48 @@ create table if not exists testimonials (
   sort_order     int not null default 0,
   is_published   boolean not null default true,
   updated_at     timestamptz not null default now()
+);
+
+/*
+  Saved resume variants.
+
+  Each row is one compiled PDF plus the structured object it was rendered from,
+  so a variant can be re-rendered after the underlying career data changes
+  without asking the model again. `keywords` and `embedding` describe the role
+  the variant targets; the chatbot matches a visitor's stated interest against
+  them server-side.
+
+  The job description that produced a variant deliberately lives in a separate
+  table — see resume_sources.
+*/
+create table if not exists resumes (
+  id           uuid primary key default gen_random_uuid(),
+  slug         text not null unique,
+  label        text not null,
+  keywords     text[] not null default '{}',
+  pdf_url      text not null,
+  resume_json  jsonb not null default '{}'::jsonb,
+  embedding    vector(1536),
+  -- Served when a visitor's answer matches nothing well enough.
+  is_default   boolean not null default false,
+  sort_order   int not null default 0,
+  is_published boolean not null default true,
+  updated_at   timestamptz not null default now()
+);
+
+/*
+  The job description a variant was generated from.
+
+  Separate table, and deliberately NO anon policy, because RLS grants anon read
+  of every column of a published row. Keeping the JD on `resumes` would publish
+  which companies and roles Anhat is applying to — the same reasoning that keeps
+  contact_messages server-side only.
+*/
+create table if not exists resume_sources (
+  id              uuid primary key default gen_random_uuid(),
+  resume_slug     text not null references resumes(slug) on delete cascade,
+  job_description text not null,
+  created_at      timestamptz not null default now()
 );
 
 create table if not exists writing (
@@ -309,9 +358,8 @@ alter table testimonials   add column if not exists received_at text;
 -- Long-form bodies don't fit in the chat prompt alongside everything else, so
 -- they're embedded and retrieved on demand. Summaries and titles stay in the
 -- prompt always, which is what stops the bot from failing to know a page exists
--- just because retrieval missed it.
-
-create extension if not exists vector;
+-- just because retrieval missed it. The vector extension is created at the top of
+this file, since `resumes` also needs it.
 
 create table if not exists content_chunks (
   id           uuid primary key default gen_random_uuid(),
@@ -378,6 +426,8 @@ alter table education        enable row level security;
 alter table certifications   enable row level security;
 alter table testimonials     enable row level security;
 alter table writing          enable row level security;
+alter table resumes          enable row level security;
+alter table resume_sources   enable row level security;
 alter table contact_messages enable row level security;
 alter table chat_cache       enable row level security;
 
@@ -389,7 +439,7 @@ create policy "public read profile" on profile for select to anon, authenticated
 do $$
 declare t text;
 begin
-  foreach t in array array['experience','projects','skills','education','certifications','testimonials','writing']
+  foreach t in array array['experience','projects','skills','education','certifications','testimonials','writing','resumes']
   loop
     execute format('drop policy if exists "public read %1$s" on %1$I', t);
     execute format(
@@ -399,8 +449,10 @@ begin
   end loop;
 end $$;
 
--- contact_messages and chat_cache intentionally get NO anon policy:
--- all access is server-side via the service role key.
+-- contact_messages, chat_cache and resume_sources intentionally get NO anon
+-- policy: all access is server-side via the service role key. For
+-- resume_sources that is the whole point — the job descriptions there would
+-- otherwise be world-readable alongside the resumes they produced.
 
 -- ---------------------------------------------------------------------
 -- updated_at maintenance
@@ -418,7 +470,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['profile','experience','projects','skills','education','certifications','testimonials','writing']
+  foreach t in array array['profile','experience','projects','skills','education','certifications','testimonials','writing','resumes']
   loop
     execute format('drop trigger if exists touch_%1$s on %1$I', t);
     execute format(

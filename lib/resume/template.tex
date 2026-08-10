@@ -1,0 +1,107 @@
+%%
+%% Resume preamble. Static — nothing generated is ever substituted into it.
+%%
+%% The body is appended by lib/resume/render.ts, which emits only calls to the
+%% macros defined below. Keeping the preamble out of generation means a bad
+%% draft can produce a wrong resume but never a broken document.
+%%
+%% Two lines here are load-bearing for ATS and must not be removed:
+%%   \input{glyphtounicode} + \pdfgentounicode=1
+%% They embed /ToUnicode CMaps so text extraction returns real characters
+%% rather than glyph soup. They are pdfTeX primitives — this compiles with
+%% pdflatex, NOT xelatex/lualatex/tectonic, which do not have them.
+%%
+%% Seven packages from the original are dropped: marvosym, latexsym, verbatim,
+%% graphicx, color, babel, tabularx. Six were genuinely unused; `color` was
+%% used once, for \color{black} in the section rule, which only restated the
+%% default — the rule below drops it rather than keeping a package for it.
+%% marvosym in particular is the icon font, and icons extract as garbage, so
+%% not having it loaded removes the temptation.
+%%
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{helvet}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[T1]{fontenc}
+
+\pagestyle{fancy}
+\fancyhf{}          % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\renewcommand{\familydefault}{\sfdefault}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.75in}
+\addtolength{\evensidemargin}{-0.75in}
+\addtolength{\textwidth}{1.5in}
+\addtolength{\topmargin}{-.7in}
+\addtolength{\textheight}{1.25in}
+
+\urlstyle{same}
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting (avoid negative vspace to prevent overlaps)
+%
+% \bfseries, not \scshape. Helvetica has no true small-caps face, so \scshape
+% is faked by shrinking the letters after the first — and the size change makes
+% text extractors insert a space, so "Summary" came out of pdftotext as
+% "S UMMARY". Section headings are how an ATS segments a resume, so a heading
+% it cannot match is the most expensive thing on the page to get wrong.
+% Verified by scripts/verify-resume-pdf.ts.
+%
+% The original wrote [\color{black}\titlerule], which needed the color package
+% purely to restate the default. \titlerule alone draws the same black rule.
+\titleformat{\section}{
+  \bfseries\raggedright\large
+  }{}{0em}{}[\titlerule]
+
+% Ensure generated PDF is machine readable / ATS parsable
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+% Improve spacing/readability while staying ATS-friendly
+\titlespacing*{\section}{0pt}{6pt}{4pt}
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{#1}
+}
+
+\newcommand{\resumeSubheadingSingleLine}[3]{
+  \item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} | \textbf{#2} & #3 \\
+    \end{tabular*}
+}
+
+\newcommand{\resumeSubheadingSingleLineItalicStyle}[4]{
+  \item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1}, \emph{#2} | #3 & #4 \\
+    \end{tabular*}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+  \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small #1 & #2 \\
+    \end{tabular*}
+}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}, itemsep=3pt, topsep=3pt, parsep=0pt, partopsep=0pt]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+
+% Bullet list for a role/company
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=0.18in, itemsep=2pt, topsep=2pt, parsep=0pt, partopsep=0pt]}
+\newcommand{\resumeItemListEnd}{\end{itemize}}
+
+%-------------------------------------------
+\begin{document}
