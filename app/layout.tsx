@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 // Self-hosted at build time by next/font — no external request, no layout shift.
@@ -25,8 +26,14 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
-const SITE_URL = "https://anhatsingh.com";
+/*
+  Defaults only. The homepage overrides title, description, OG and canonical in
+  its own generateMetadata, derived from the live profile — so editing the
+  headline in /admin changes the search result too.
 
+  metadataBase belongs here rather than there: it's what turns the relative
+  opengraph-image path into the absolute URL crawlers require.
+*/
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -35,13 +42,14 @@ export const metadata: Metadata = {
   },
   description:
     "AI/ML engineer. This site has a chatbot that actually drives the page — ask it something and watch it find the answer for you.",
+  applicationName: "Anhat Singh",
+  referrer: "origin-when-cross-origin",
+  formatDetection: { telephone: false, address: false, email: false },
   openGraph: {
     type: "website",
     url: SITE_URL,
     siteName: "Anhat Singh",
-    title: "Anhat Singh — AI/ML Engineer",
-    description:
-      "AI/ML engineer. Ask the chatbot anything; it navigates the site to show you the answer.",
+    locale: "en_US",
   },
   twitter: { card: "summary_large_image" },
   robots: { index: true, follow: true },

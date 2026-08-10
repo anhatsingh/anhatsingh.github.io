@@ -98,6 +98,44 @@ land in the database and show up in the admin inbox.
 
 ---
 
+## SEO
+
+Aimed squarely at ranking for the name.
+
+**Structured data does the heavy lifting.** `Person` + `ProfilePage` JSON-LD, built
+from live profile data in `lib/seo.ts`. The field that matters most is `sameAs`,
+listing the GitHub and LinkedIn profiles — that's how a search engine works out
+this domain and those profiles are one entity rather than three unrelated pages.
+Without it the site is just another document containing the words "Anhat Singh".
+
+Also emitted: `knowsAbout` from skills, `alumniOf` from education,
+`hasCredential` from certifications, `worksFor` from the current role, and an
+`ItemList` of projects as `SoftwareSourceCode`.
+
+**Generated per page load, not hardcoded.** Title, description, OG tags and the
+share image all derive from the profile, so editing the headline in `/admin`
+updates the search result too.
+
+**Routes**: `/sitemap.xml`, `/robots.txt` (which disallows `/admin` and `/api`),
+`/opengraph-image` (1200x630, generated), `/icon.jpg`.
+
+**After deploying**, three things only you can do — none of them optional if the
+goal is ranking first:
+
+1. **Google Search Console** — add `anhatsingh.com`, verify via the HTML tag
+   method, paste the value into `GOOGLE_SITE_VERIFICATION`, then submit
+   `https://anhatsingh.com/sitemap.xml` and use "Request indexing" on the
+   homepage. Also worth doing at [Bing Webmaster Tools](https://www.bing.com/webmasters).
+2. **Link the site from your profiles** — GitHub profile website field, LinkedIn
+   contact info, any Medium or dev.to bio. `sameAs` claims the relationship;
+   inbound links from those profiles are what corroborate it.
+3. **Wait.** A domain with existing history re-indexes in days; ranking for a
+   name settles over weeks.
+
+No amount of markup outranks a more authoritative page for a name that isn't
+unique. What this setup guarantees is that when the site *is* the best answer,
+nothing technical is stopping it.
+
 ## Deploying
 
 1. Import the repo on [Vercel](https://vercel.com), add the env vars above.
