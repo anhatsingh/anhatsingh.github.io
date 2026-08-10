@@ -28,7 +28,7 @@ function initialsFrom(name: string): string {
 export function Avatar({
   src,
   name,
-  size = 44,
+  size = 56,
 }: {
   src?: string;
   name: string;
@@ -55,7 +55,12 @@ export function Avatar({
           className="h-full w-full object-cover"
         />
       ) : (
-        <span className="font-mono text-xs font-bold text-accent">{initialsFrom(name)}</span>
+        <span
+          className="font-mono font-bold text-accent"
+          style={{ fontSize: Math.round(size * 0.3) }}
+        >
+          {initialsFrom(name)}
+        </span>
       )}
     </div>
   );

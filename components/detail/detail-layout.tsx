@@ -111,7 +111,7 @@ export function DetailLayout({
       <main className="mx-auto max-w-3xl px-6 py-12 md:py-16">
         <article>
           <div className="flex items-start gap-4">
-            {view.logoUrl !== undefined && <LogoPlate src={view.logoUrl} name={view.subtitle ?? view.title} size={52} />}
+            {view.logoUrl !== undefined && <LogoPlate src={view.logoUrl} name={view.subtitle ?? view.title} size={80} />}
             <div className="min-w-0">
               {view.subtitle && (
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">

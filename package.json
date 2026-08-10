@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run verify:theme && tsx scripts/verify-blocks.ts && tsx scripts/verify-seo.ts && tsx scripts/verify-resume.ts && tsx scripts/verify-stats.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts && npm run verify:timeline",
+    "verify": "npm run verify:theme && tsx scripts/verify-blocks.ts && tsx scripts/verify-seo.ts && tsx scripts/verify-resume.ts && tsx scripts/verify-stats.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts && npm run verify:timeline && npm run verify:logos",
     "verify:theme": "tsx scripts/verify-theme.ts",
     "check:env": "tsx scripts/check-env.ts",
     "admin:password": "tsx scripts/admin-password.ts",
@@ -15,7 +15,9 @@
     "bootstrap:linkedin": "tsx scripts/bootstrap-linkedin.ts",
     "verify:timeline": "tsx scripts/verify-timeline.ts",
     "backfill:dates": "tsx scripts/backfill-project-dates.ts",
-    "reorder:dates": "tsx scripts/reorder-by-date.ts"
+    "reorder:dates": "tsx scripts/reorder-by-date.ts",
+    "verify:logos": "tsx scripts/verify-logos.ts",
+    "trim:logos": "tsx scripts/trim-logos.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",
@@ -41,6 +43,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "^5.9.0"
