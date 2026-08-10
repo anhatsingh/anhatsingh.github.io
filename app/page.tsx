@@ -25,6 +25,21 @@ import {
 } from "@/lib/seo";
 
 /*
+  Regenerate at most once a minute.
+
+  Without this the page inherited a 1-hour revalidate from the GitHub fetch's
+  own TTL, so a change made straight to the database took up to an hour to
+  appear. Edits through /admin were fine — those call revalidatePath and update
+  instantly — but anything out-of-band (a SQL editor, a maintenance script)
+  looked like it simply hadn't worked.
+
+  This costs at most one Supabase read per minute, and only when someone is
+  actually visiting. The GitHub and LeetCode fetches keep their own longer TTLs
+  regardless, so a faster page doesn't mean hammering third-party APIs.
+*/
+export const revalidate = 60;
+
+/*
   Server component. Content and GitHub stats are both fetched here so the page
   arrives complete — no client-side waterfall, the chatbot is guaranteed to be
   reasoning over the same snapshot the visitor sees, and every word is in the
