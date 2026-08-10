@@ -74,6 +74,12 @@ export default async function ProtectedAdminLayout({
           Repos
         </Link>
         <Link
+          href="/admin/resume"
+          className="rounded-[var(--radius)] border border-accent/40 px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-accent"
+        >
+          Generate resume
+        </Link>
+        <Link
           href="/admin/import"
           className="rounded-[var(--radius)] border border-accent/40 px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-accent"
         >

@@ -385,6 +385,46 @@ export const ADMIN_TABLES: TableSpec[] = [
       PUBLISHED_FIELD,
     ],
   },
+  /*
+    Saved resume variants. Generated on /admin/resume; this is for managing
+    them afterwards — renaming, re-keywording, deactivating.
+
+    resume_json and embedding are deliberately absent: they are written by the
+    generator and hand-editing either would put the row out of step with the
+    PDF it describes. coerceRow only writes fields declared here, so leaving
+    them out means an edit here can't touch them.
+  */
+  {
+    table: "resumes",
+    key: "resumes",
+    label: "Resumes",
+    titleField: "label",
+    fields: [
+      SLUG_FIELD,
+      { name: "label", label: "Label", type: "text", required: true },
+      {
+        name: "keywords",
+        label: "Keywords",
+        type: "list",
+        help: "One per line. Matched against what a visitor says they're hiring for.",
+      },
+      {
+        name: "pdf_url",
+        label: "PDF URL",
+        type: "url",
+        required: true,
+        help: "Written by the generator. Changing it points this variant at a different file.",
+      },
+      {
+        name: "is_default",
+        label: "Fallback",
+        type: "boolean",
+        help: "Served when nothing matches well enough. Only one row should have this.",
+      },
+      ORDER_FIELD,
+      PUBLISHED_FIELD,
+    ],
+  },
   {
     table: "writing",
     key: "writing",

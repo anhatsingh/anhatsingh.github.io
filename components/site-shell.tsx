@@ -2,6 +2,7 @@
 
 import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatProvider } from "@/components/chat/chat-provider";
+import { ResumeButton } from "@/components/chat/resume-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UIControlProvider, useUIControl } from "@/components/ui-control";
 import { DownloadIcon } from "@/components/ui/icons";
@@ -74,19 +75,17 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
             evaluate Anhat, downloading the CV is the conversion — it stays
             reachable from every scroll position rather than only in the hero.
             Label shortens to "CV" on narrow screens so it never wraps the bar.
+
+            It opens the chat rather than downloading: there are several
+            versions of the CV, and this is the moment to find out which one
+            the visitor needs. See components/chat/resume-button.tsx.
           */}
           {resume && (
-            <a
-              href={resume.downloadUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius)] bg-accent px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90"
-            >
+            <ResumeButton className="inline-flex items-center gap-1.5 rounded-[var(--radius)] bg-accent px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90">
               <DownloadIcon className="h-3 w-3" />
               <span className="hidden sm:inline">Download CV</span>
               <span className="sm:hidden">CV</span>
-            </a>
+            </ResumeButton>
           )}
 
           <ThemeToggle />

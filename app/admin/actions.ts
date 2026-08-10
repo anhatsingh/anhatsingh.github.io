@@ -19,6 +19,12 @@ import { getPortfolio } from "@/lib/content";
 import { parseBlocks, type Block } from "@/lib/content/blocks";
 import { orderByDate } from "@/lib/content/timeline";
 import { reindexEntity } from "@/lib/chat/embeddings";
+import { draftResume, draftResumeMeta } from "@/lib/ai/resume";
+import { renderResume } from "@/lib/resume/render";
+import { compileTex } from "@/lib/resume/compile";
+import { saveResume } from "@/lib/resume/store";
+import { uploadResumePdf } from "@/lib/storage";
+import type { Resume, ResumeMeta } from "@/lib/resume/schema";
 
 /*
   All admin mutations.
@@ -474,4 +480,89 @@ export async function importLinkedIn(
 
   revalidatePath("/");
   return { ok: true, counts };
+}
+
+
+/*
+  Resume generation.
+
+  Split into draft and compile deliberately, so a human reads the proposal
+  before anything is rendered or stored — the same propose-then-apply shape as
+  applyDraft. Nothing here writes until compileAndSaveResume is called.
+*/
+
+export type ResumeDraftAction =
+  | { ok: true; resume: Resume; meta: ResumeMeta; dropped: string[] }
+  | { ok: false; error: string };
+
+/** Drafts a resume and its keywords from a job description. Writes nothing. */
+export async function requestResumeDraft(jobDescription: string): Promise<ResumeDraftAction> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const portfolio = await getPortfolio();
+  const draft = await draftResume(jobDescription, portfolio);
+  if (!draft.ok) return draft;
+
+  const meta = await draftResumeMeta(draft.resume, jobDescription);
+  if (!meta.ok) {
+    // Keywords failing shouldn't throw away a good draft — the admin can write
+    // them by hand, so hand back an empty shell instead of an error.
+    return {
+      ok: true,
+      resume: draft.resume,
+      dropped: draft.dropped,
+      meta: { label: "", slug: "", keywords: [] },
+    };
+  }
+
+  return { ok: true, resume: draft.resume, meta: meta.meta, dropped: draft.dropped };
+}
+
+export type ResumeSaveAction = { ok: true; slug: string; pdfUrl: string } | { ok: false; error: string };
+
+/** Renders, compiles, stores the PDF, and saves the row. */
+export async function compileAndSaveResume(input: {
+  resume: Resume;
+  meta: ResumeMeta;
+  jobDescription: string;
+  isDefault: boolean;
+  isPublished: boolean;
+}): Promise<ResumeSaveAction> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  if (!input.meta.slug.trim() || !input.meta.label.trim()) {
+    return { ok: false, error: "Give it a label and a slug first." };
+  }
+
+  const compiled = await compileTex(renderResume(input.resume));
+  if (!compiled.ok) {
+    // The first line of a TeX log beginning with "!" is the only useful part of
+    // several thousand; compile.ts pulls it out so this can be acted on.
+    return { ok: false, error: `LaTeX: ${compiled.error}` };
+  }
+
+  const upload = await uploadResumePdf(compiled.pdf, input.meta.slug);
+  if (!upload.ok || !upload.url) return { ok: false, error: upload.error ?? "Upload failed." };
+
+  const saved = await saveResume({
+    meta: input.meta,
+    resume: input.resume,
+    pdfUrl: upload.url,
+    jobDescription: input.jobDescription,
+    isDefault: input.isDefault,
+    isPublished: input.isPublished,
+  });
+  if (!saved.ok) return { ok: false, error: saved.error };
+
+  revalidatePath("/admin/resumes");
+  revalidatePath("/");
+  return { ok: true, slug: saved.slug, pdfUrl: upload.url };
 }

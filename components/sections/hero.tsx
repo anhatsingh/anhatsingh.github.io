@@ -4,6 +4,7 @@ import { HeroChatPanel } from "@/components/chat/hero-chat-panel";
 import { BrandIcon, DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
 import { socialLinks, type Profile } from "@/lib/content/types";
+import { ResumeButton } from "@/components/chat/resume-button";
 
 export function Hero({ profile }: { profile: Profile }) {
   const resume = resumeLinks(profile.resumeUrl);
@@ -42,19 +43,10 @@ export function Hero({ profile }: { profile: Profile }) {
       */}
       <div className="mt-10 flex flex-wrap items-center gap-3">
         {resume && (
-          <a
-            href={resume.downloadUrl}
-            // `download` is ignored cross-origin, so the direct-download URL
-            // built in lib/resume.ts is what actually does the work. Kept as a
-            // hint for same-origin PDFs, where it does apply.
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90"
-          >
+          <ResumeButton className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90">
             <DownloadIcon className="h-3.5 w-3.5" />
             Download CV
-          </a>
+          </ResumeButton>
         )}
         {socials.map((link) => (
           <a

@@ -7,6 +7,7 @@ import { DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
 import { LifeGraph } from "./life-graph";
 import type { Portfolio, Profile } from "@/lib/content/types";
+import { ResumeButton } from "@/components/chat/resume-button";
 
 /*
   About: portrait plus the full bio.
@@ -82,16 +83,10 @@ export function About({
           </dl>
 
           {resume && (
-            <a
-              href={resume.downloadUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-8 inline-flex items-center gap-2 rounded-[var(--radius)] border border-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-accent-ink"
-            >
+            <ResumeButton className="mt-8 inline-flex items-center gap-2 rounded-[var(--radius)] border border-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-accent-ink">
               <DownloadIcon className="h-3.5 w-3.5" />
               Download CV
-            </a>
+            </ResumeButton>
           )}
         </div>
       </div>
