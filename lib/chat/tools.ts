@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { resumeLinks } from "@/lib/resume";
 import {
   NAVIGABLE_SECTIONS,
   SECTION_LABELS,
@@ -112,14 +113,17 @@ export function buildTools(portfolio: Portfolio) {
         "Offer Anhat's resume. Use when the visitor asks for a CV, resume, or a document to download.",
       inputSchema: z.object({}),
       execute: async (): Promise<ToolOutcome> => {
-        const url = portfolio.profile.resumeUrl;
-        if (!url) {
+        const resume = resumeLinks(portfolio.profile.resumeUrl);
+        if (!resume) {
           return {
             ok: false,
             error: "No resume link is configured yet. Tell the visitor to use the contact form instead.",
           };
         }
-        return { ok: true, action: "resume", url };
+        // The viewer, deliberately — the explicit buttons download, but a chat
+        // reply that silently drops a file into Downloads is hostile. The
+        // visitor can download from the preview if they want it.
+        return { ok: true, action: "resume", url: resume.viewUrl };
       },
     }),
 

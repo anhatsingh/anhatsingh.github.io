@@ -2,9 +2,12 @@
 
 import { HeroChatPanel } from "@/components/chat/hero-chat-panel";
 import { DownloadIcon, GitHubIcon, LinkedInIcon } from "@/components/ui/icons";
+import { resumeLinks } from "@/lib/resume";
 import type { Profile } from "@/lib/content/types";
 
 export function Hero({ profile }: { profile: Profile }) {
+  const resume = resumeLinks(profile.resumeUrl);
+
   return (
     <section id="hero" className="flex min-h-[88vh] flex-col justify-center py-20">
       <div className="flex items-center gap-3">
@@ -37,15 +40,19 @@ export function Hero({ profile }: { profile: Profile }) {
         text, so nothing depends on the SVG being announced.
       */}
       <div className="mt-10 flex flex-wrap items-center gap-3">
-        {profile.resumeUrl && (
+        {resume && (
           <a
-            href={profile.resumeUrl}
+            href={resume.downloadUrl}
+            // `download` is ignored cross-origin, so the direct-download URL
+            // built in lib/resume.ts is what actually does the work. Kept as a
+            // hint for same-origin PDFs, where it does apply.
+            download
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90"
           >
             <DownloadIcon className="h-3.5 w-3.5" />
-            Resume
+            Download CV
           </a>
         )}
         {profile.socials.github && (

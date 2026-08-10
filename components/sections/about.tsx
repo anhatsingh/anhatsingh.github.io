@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { Section } from "./section";
 import { defaultAvatar } from "@/components/ui/default-avatar";
+import { DownloadIcon } from "@/components/ui/icons";
+import { resumeLinks } from "@/lib/resume";
 import type { Profile } from "@/lib/content/types";
 
 /*
@@ -16,6 +18,7 @@ import type { Profile } from "@/lib/content/types";
 export function About({ profile }: { profile: Profile }) {
   // Empty avatar_url falls back to the bundled, content-hashed default.
   const portrait = profile.avatarUrl?.trim() || defaultAvatar;
+  const resume = resumeLinks(profile.resumeUrl);
 
   return (
     <Section id="about" eyebrow="00 — About" title="Nice to meet you">
@@ -69,14 +72,16 @@ export function About({ profile }: { profile: Profile }) {
             </div>
           </dl>
 
-          {profile.resumeUrl && (
+          {resume && (
             <a
-              href={profile.resumeUrl}
+              href={resume.downloadUrl}
+              download
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-8 inline-block rounded-[var(--radius)] border border-accent px-4 py-2 font-mono text-xs uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-accent-ink"
+              className="mt-8 inline-flex items-center gap-2 rounded-[var(--radius)] border border-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-accent-ink"
             >
-              Read the resume ↓
+              <DownloadIcon className="h-3.5 w-3.5" />
+              Download CV
             </a>
           )}
         </div>

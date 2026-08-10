@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run verify:theme && tsx scripts/verify-seo.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts",
+    "verify": "npm run verify:theme && tsx scripts/verify-seo.ts && tsx scripts/verify-resume.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts",
     "verify:theme": "tsx scripts/verify-theme.ts"
   },
   "dependencies": {

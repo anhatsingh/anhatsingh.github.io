@@ -106,7 +106,11 @@ export default async function HomePage() {
       <JsonLd data={buildPersonJsonLd(portfolio, avatarUrl)} />
       {projectsJsonLd && <JsonLd data={projectsJsonLd} />}
 
-      <SiteShell name={portfolio.profile.name} avatarUrl={portfolio.profile.avatarUrl}>
+      <SiteShell
+        name={portfolio.profile.name}
+        avatarUrl={portfolio.profile.avatarUrl}
+        resumeUrl={portfolio.profile.resumeUrl}
+      >
         <Hero profile={portfolio.profile} />
         <About profile={portfolio.profile} />
         <Projects projects={portfolio.projects} />

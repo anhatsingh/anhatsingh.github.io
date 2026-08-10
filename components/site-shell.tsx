@@ -4,6 +4,8 @@ import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatProvider } from "@/components/chat/chat-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UIControlProvider, useUIControl } from "@/components/ui-control";
+import { DownloadIcon } from "@/components/ui/icons";
+import { resumeLinks } from "@/lib/resume";
 import { NAVIGABLE_SECTIONS, SECTION_LABELS } from "@/lib/content/types";
 
 /*
@@ -15,8 +17,9 @@ import { NAVIGABLE_SECTIONS, SECTION_LABELS } from "@/lib/content/types";
   because the visitor is reading the chat at that point anyway.
 */
 
-function Header({ name }: { name: string }) {
+function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
   const { focusedSection, clearFocus } = useUIControl();
+  const resume = resumeLinks(resumeUrl);
 
   return (
     <header className="sticky top-0 z-30 border-b border-hairline bg-bg/80 backdrop-blur">
@@ -49,6 +52,27 @@ function Header({ name }: { name: string }) {
               ✕ exit focus
             </button>
           )}
+
+          {/*
+            The one filled control in the header. For a visitor who is here to
+            evaluate Anhat, downloading the CV is the conversion — it stays
+            reachable from every scroll position rather than only in the hero.
+            Label shortens to "CV" on narrow screens so it never wraps the bar.
+          */}
+          {resume && (
+            <a
+              href={resume.downloadUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius)] bg-accent px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90"
+            >
+              <DownloadIcon className="h-3 w-3" />
+              <span className="hidden sm:inline">Download CV</span>
+              <span className="sm:hidden">CV</span>
+            </a>
+          )}
+
           <ThemeToggle />
         </div>
       </div>
@@ -73,10 +97,12 @@ function Content({ children }: { children: React.ReactNode }) {
 export function SiteShell({
   name,
   avatarUrl,
+  resumeUrl,
   children,
 }: {
   name: string;
   avatarUrl?: string;
+  resumeUrl?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -90,7 +116,7 @@ export function SiteShell({
         </div>
         <div aria-hidden="true" className="grain" />
 
-        <Header name={name} />
+        <Header name={name} resumeUrl={resumeUrl} />
         <Content>{children}</Content>
         <ChatDock />
       </ChatProvider>
