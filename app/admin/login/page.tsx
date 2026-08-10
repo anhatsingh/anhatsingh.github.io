@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getBrowserClient } from "@/lib/supabase/client";
 
 /*
@@ -30,6 +30,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [state, setState] = useState<State>("idle");
   const [problem, setProblem] = useState("");
+
+  // The callback route redirects here with ?error=... when a magic link fails.
+  // Read it from location rather than useSearchParams so this page doesn't need
+  // a Suspense boundary just to show an error string.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("error");
+    if (!reason) return;
+
+    setProblem(
+      reason === "missing_code"
+        ? "That sign-in link was incomplete. Links expire — request a fresh one, or use a password."
+        : /expired|invalid/i.test(reason)
+          ? "That sign-in link has expired or was already used. Request a new one, or use a password."
+          : reason,
+    );
+    setState("error");
+
+    // Clear the query so a refresh doesn't re-show a stale error.
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

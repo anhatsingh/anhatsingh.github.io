@@ -66,6 +66,23 @@ never reaches your shell history.
 Magic link still works and is still on the login page — it's just no longer the
 only way in.
 
+#### Supabase URL configuration (required once you deploy)
+
+Supabase only honours the `emailRedirectTo` the app sends if that URL appears in
+its allowlist. Anything else is silently ignored and it falls back to **Site URL**,
+which defaults to `http://localhost:3000` — so a magic link opened from a
+production email lands on localhost.
+
+Supabase → **Authentication → URL Configuration**:
+
+| Field | Value |
+|---|---|
+| Site URL | `https://anhatsingh.com` |
+| Redirect URLs | `https://anhatsingh.com/**`<br>`https://*.vercel.app/**`<br>`http://localhost:3000/**` |
+
+Keep the localhost entry — without it, local development stops working the moment
+you set Site URL to production.
+
 **If you'd rather fix the root cause:** point Supabase at your own SMTP. You already
 have a Resend key, and Resend's free tier is 3,000 emails/month rather than two an
 hour. In Supabase: Project Settings → Authentication → SMTP Settings, host
