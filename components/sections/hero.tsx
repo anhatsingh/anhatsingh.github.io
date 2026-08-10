@@ -1,6 +1,7 @@
 "use client";
 
 import { HeroChatPanel } from "@/components/chat/hero-chat-panel";
+import { DownloadIcon, GitHubIcon, LinkedInIcon } from "@/components/ui/icons";
 import type { Profile } from "@/lib/content/types";
 
 export function Hero({ profile }: { profile: Profile }) {
@@ -29,15 +30,22 @@ export function Hero({ profile }: { profile: Profile }) {
         <HeroChatPanel />
       </div>
 
+      {/*
+        Icons sit alongside the labels rather than replacing them. A bare mark
+        would be smaller to hit and ambiguous out of context; the pairing gives
+        the recognisable shape to scan for AND keeps the accessible name in the
+        text, so nothing depends on the SVG being announced.
+      */}
       <div className="mt-10 flex flex-wrap items-center gap-3">
         {profile.resumeUrl && (
           <a
             href={profile.resumeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-[var(--radius)] bg-accent px-4 py-2 font-mono text-xs uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent-ink transition-opacity hover:opacity-90"
           >
-            Resume ↓
+            <DownloadIcon className="h-3.5 w-3.5" />
+            Resume
           </a>
         )}
         {profile.socials.github && (
@@ -45,8 +53,9 @@ export function Hero({ profile }: { profile: Profile }) {
             href={profile.socials.github}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-[var(--radius)] border border-hairline px-4 py-2 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
+            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
           >
+            <GitHubIcon className="h-4 w-4" />
             GitHub
           </a>
         )}
@@ -55,8 +64,9 @@ export function Hero({ profile }: { profile: Profile }) {
             href={profile.socials.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-[var(--radius)] border border-hairline px-4 py-2 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
+            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
           >
+            <LinkedInIcon className="h-4 w-4" />
             LinkedIn
           </a>
         )}
