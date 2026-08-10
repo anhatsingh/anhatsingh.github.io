@@ -17,6 +17,7 @@ import {
 } from "@/lib/ai/author";
 import { getPortfolio } from "@/lib/content";
 import { parseBlocks, type Block } from "@/lib/content/blocks";
+import { orderByDate } from "@/lib/content/timeline";
 import { reindexEntity } from "@/lib/chat/embeddings";
 
 /*
@@ -138,6 +139,61 @@ export async function saveRow(
 
   revalidateFor(tableKey, slug);
   reindexAfterSave(tableKey, { ...row, slug });
+  return { ok: true };
+}
+
+/**
+ * Renumbers sort_order across a table so it matches date order.
+ *
+ * This writes rather than sorting at render time, deliberately. sort_order is
+ * what every reader already honours — homepage, detail pages, sitemap, the
+ * chatbot's sense of "most recent" — so making the date the source of truth in
+ * one place and leaving sort_order stale would have those two disagree. After
+ * this runs, a single row can still be dragged out of place by editing its
+ * number, and that edit survives until this is run again.
+ *
+ * Rows with no date sink to the bottom in both directions. They have no
+ * position on a timeline, and floating them to the top in ascending order
+ * would put the least-known entries first.
+ */
+export async function reorderByDate(
+  tableKey: string,
+  direction: "asc" | "desc",
+): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const spec = getTableSpec(tableKey);
+  if (!spec) return { ok: false, error: "Unknown section." };
+  if (!spec.dateField) return { ok: false, error: `${spec.label} has no date to sort on.` };
+
+  const db = getServiceClient();
+  if (!db) return { ok: false, error: "Supabase isn't configured." };
+
+  // select("*") rather than a built column list: the client's types can't
+  // narrow a column name only known at runtime, and these tables are small.
+  const { data, error } = await db.from(spec.table).select("*");
+  if (error) return { ok: false, error: error.message };
+
+  const rows = (data ?? []) as Record<string, unknown>[];
+  if (!rows.length) return { ok: true };
+
+  // Shared with scripts/reorder-by-date.ts, and it uses the same date parser
+  // as the timeline so "2021" and "2021-06" order against each other properly
+  // rather than sorting as strings.
+  const ids = orderByDate(rows, spec.dateField, direction);
+
+  // Sequential rather than batched: an upsert would need every NOT NULL column
+  // present, and sending partial rows through it would blank them.
+  for (let i = 0; i < ids.length; i++) {
+    const { error: err } = await db.from(spec.table).update({ sort_order: i }).eq("id", ids[i]);
+    if (err) return { ok: false, error: err.message };
+  }
+
+  revalidateFor(tableKey, null);
   return { ok: true };
 }
 

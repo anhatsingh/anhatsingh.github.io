@@ -55,6 +55,11 @@ export interface TableSpec {
   singleton?: boolean;
   /** Field used as the row heading in list views. */
   titleField: string;
+  /**
+   * Column holding this table's date, if it has one. Presence of this enables
+   * the "sort by date" control, which renumbers sort_order across every row.
+   */
+  dateField?: string;
   fields: Field[];
 }
 
@@ -150,6 +155,7 @@ export const ADMIN_TABLES: TableSpec[] = [
     key: "experience",
     label: "Experience",
     titleField: "role",
+    dateField: "start_date",
     fields: [
       SLUG_FIELD,
       { name: "role", label: "Role", type: "text", required: true },
@@ -203,6 +209,7 @@ export const ADMIN_TABLES: TableSpec[] = [
     key: "projects",
     label: "Projects",
     titleField: "name",
+    dateField: "started",
     fields: [
       SLUG_FIELD,
       { name: "name", label: "Name", type: "text", required: true },
@@ -280,6 +287,7 @@ export const ADMIN_TABLES: TableSpec[] = [
     key: "education",
     label: "Education",
     titleField: "institution",
+    dateField: "start_year",
     fields: [
       SLUG_FIELD,
       { name: "institution", label: "Institution", type: "text", required: true },
@@ -304,6 +312,7 @@ export const ADMIN_TABLES: TableSpec[] = [
     key: "certifications",
     label: "Certifications",
     titleField: "name",
+    dateField: "issue_date",
     fields: [
       SLUG_FIELD,
       { name: "name", label: "Name", type: "text", required: true },
@@ -374,6 +383,7 @@ export const ADMIN_TABLES: TableSpec[] = [
     key: "writing",
     label: "Writing",
     titleField: "title",
+    dateField: "published_at",
     fields: [
       SLUG_FIELD,
       { name: "title", label: "Title", type: "text", required: true },

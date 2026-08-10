@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DateSort } from "./date-sort";
 import { RowForm } from "./row-form";
 import type { TableSpec } from "@/lib/admin/schema";
 
@@ -34,6 +35,8 @@ export function SectionEditor({
 
   return (
     <div className="space-y-4">
+      <DateSort spec={spec} count={rows.length} />
+
       {creating ? (
         <div className="rounded-[var(--radius)] border border-accent/40 bg-surface p-5">
           <div className="mb-4 flex items-center justify-between">

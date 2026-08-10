@@ -12,17 +12,45 @@ import type { Experience } from "./types";
   what the admin form asks for. A missing end date means "present".
 */
 
-/** Months since an arbitrary epoch, so two dates can be subtracted. */
+const MONTH_NAMES: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/**
+ * Months since an arbitrary epoch, so two dates can be subtracted.
+ *
+ * Accepts more than one shape on purpose. "YYYY-MM" is what the admin form
+ * asks for, but real rows also hold "2021" from LinkedIn's year-granular
+ * education dates and "Nov 1, 2015" from certification issuers. Returning null
+ * for those would not throw — it would quietly file a dated row as undated and
+ * sink it to the bottom of the section, which is exactly the kind of wrong
+ * nobody notices.
+ */
 export function monthIndex(value: string | null | undefined, fallbackNow = true): number | null {
   if (!value) return fallbackNow ? nowIndex() : null;
-  const m = value.trim().match(/^(\d{4})(?:-(\d{1,2}))?/);
-  if (!m) return null;
-  const year = Number(m[1]);
-  // A bare year is treated as January, which is the only defensible guess and
-  // matches how the year label renders.
-  const month = m[2] ? Number(m[2]) : 1;
-  if (month < 1 || month > 12) return year * 12;
-  return year * 12 + (month - 1);
+  const raw = value.trim();
+  if (!raw) return fallbackNow ? nowIndex() : null;
+
+  // "2024-03", "2024-3", "2024"
+  const iso = raw.match(/^(\d{4})(?:-(\d{1,2}))?/);
+  if (iso) {
+    const year = Number(iso[1]);
+    // A bare year is treated as January, which is the only defensible guess
+    // and matches how the year label renders.
+    const month = iso[2] ? Number(iso[2]) : 1;
+    if (month < 1 || month > 12) return year * 12;
+    return year * 12 + (month - 1);
+  }
+
+  // "Nov 2015", "November 1, 2015", "Nov 1 2015"
+  const named = raw.match(/^([A-Za-z]{3,})\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?(\d{4})$/);
+  if (named) {
+    const month = MONTH_NAMES[named[1].slice(0, 3).toLowerCase()];
+    if (month) return Number(named[2]) * 12 + (month - 1);
+  }
+
+  return null;
 }
 
 /*
@@ -94,29 +122,36 @@ export const QUARTER_GAP_PX = 26;
 export const MAX_GAP_QUARTERS = 6;
 
 /**
- * Newest first, with the gap to the next-oldest role measured for each entry.
- * Input order is not trusted — the caller's sort is a database concern and this
- * has to be right regardless.
+ * Decorates roles with duration and the gap to the one below them.
+ *
+ * The incoming order is preserved rather than re-sorted. sort_order is set in
+ * the admin panel — including by its "sort by date" control — and re-sorting
+ * here would silently override whichever direction was chosen there.
+ *
+ * Gaps are measured symmetrically between the two adjacent roles' date ranges,
+ * so they come out the same whether the list runs newest-first or oldest-first,
+ * and a hand-ordered list that isn't chronological simply shows no gaps rather
+ * than nonsense ones.
  */
 export function buildTimeline(experience: Experience[]): TimelineEntry[] {
-  const sorted = [...experience].sort((a, b) => {
-    const ai = monthIndex(a.startDate, false) ?? 0;
-    const bi = monthIndex(b.startDate, false) ?? 0;
-    return bi - ai;
-  });
+  const list = [...experience];
 
-  return sorted.map((item, i) => {
+  return list.map((item, i) => {
     const months = durationMonths(item.startDate, item.endDate);
-    const next = sorted[i + 1];
+    const next = list[i + 1];
 
     let gapQuarters = 0;
     let gapLabel: string | null = null;
 
     if (next) {
-      const thisStart = monthIndex(item.startDate, false);
-      const nextEnd = monthIndex(next.endDate);
-      if (thisStart !== null && nextEnd !== null) {
-        const gapMonths = thisStart - nextEnd - 1;
+      const aStart = monthIndex(item.startDate, false);
+      const aEnd = monthIndex(item.endDate);
+      const bStart = monthIndex(next.startDate, false);
+      const bEnd = monthIndex(next.endDate);
+
+      if (aStart !== null && aEnd !== null && bStart !== null && bEnd !== null) {
+        // Clear months between two intervals; negative when they overlap.
+        const gapMonths = Math.max(aStart, bStart) - Math.min(aEnd, bEnd) - 1;
         if (gapMonths >= 3) {
           gapQuarters = Math.min(MAX_GAP_QUARTERS, Math.round(gapMonths / 3));
           gapLabel = formatDuration(gapMonths);
@@ -154,4 +189,31 @@ export function sortProjectsByDate<T extends { started?: string; ended?: string 
     if (bi === null) return -1;
     return bi - ai;
   });
+}
+
+/**
+ * Row ids in date order, for renumbering sort_order.
+ *
+ * Shared by the admin action and scripts/reorder-by-date.ts so the two can't
+ * drift — a script that ordered rows differently from the button would be a
+ * genuinely confusing bug to chase.
+ *
+ * Undated rows sink to the bottom in both directions: they have no position on
+ * a timeline, and floating them to the top in ascending order would lead with
+ * the least-known entries.
+ */
+export function orderByDate(
+  rows: Array<Record<string, unknown>>,
+  dateField: string,
+  direction: "asc" | "desc",
+): string[] {
+  return rows
+    .map((r) => ({ id: String(r.id), at: monthIndex(r[dateField] as string, false) }))
+    .sort((a, b) => {
+      if (a.at === null && b.at === null) return 0;
+      if (a.at === null) return 1;
+      if (b.at === null) return -1;
+      return direction === "desc" ? b.at - a.at : a.at - b.at;
+    })
+    .map((r) => r.id);
 }

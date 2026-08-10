@@ -14,7 +14,8 @@
     "reindex": "tsx scripts/reindex.ts",
     "bootstrap:linkedin": "tsx scripts/bootstrap-linkedin.ts",
     "verify:timeline": "tsx scripts/verify-timeline.ts",
-    "backfill:dates": "tsx scripts/backfill-project-dates.ts"
+    "backfill:dates": "tsx scripts/backfill-project-dates.ts",
+    "reorder:dates": "tsx scripts/reorder-by-date.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",

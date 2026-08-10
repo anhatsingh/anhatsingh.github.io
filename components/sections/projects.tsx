@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Highlightable, Section } from "./section";
-import { sortProjectsByDate } from "@/lib/content/timeline";
 import { entityPath, itemId, type Project } from "@/lib/content/types";
 
 /*
@@ -13,6 +12,10 @@ import { entityPath, itemId, type Project } from "@/lib/content/types";
   repeated what the detail page already says better. So the card carries only
   what helps you choose which one to open: what it is, when, and what it was
   built with. The description lives on the project's own page.
+
+  Order comes from sort_order, set in the admin panel — there's a "sort by
+  date" control there that renumbers it. Re-sorting here would silently
+  override whatever was chosen on that screen.
 */
 
 /** "2020-11" → "2020". Projects are dated to the month at best. */
@@ -32,12 +35,10 @@ function span(p: Project): string | null {
 export function Projects({ projects }: { projects: Project[] }) {
   if (!projects.length) return null;
 
-  const ordered = sortProjectsByDate(projects);
-
   return (
     <Section id="projects" eyebrow="01 — Projects" title="Things I've built">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {ordered.map((p) => {
+        {projects.map((p) => {
           const dates = span(p);
 
           return (
