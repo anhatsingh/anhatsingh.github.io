@@ -93,6 +93,26 @@ if (process.env.GOOGLE_SITE_VERIFICATION?.trim()) {
   warn("GOOGLE_SITE_VERIFICATION not set", "Needed once, to verify the domain in Search Console.");
 }
 
+/*
+  The LaTeX compiler. Optional because lib/resume/compile.ts falls back to a
+  local pdflatex, which is what development and the verify script use — but on
+  Vercel there is no local pdflatex, so an unset URL there means resume
+  generation silently has nowhere to compile.
+*/
+const latexUrl = process.env.LATEX_SERVICE_URL?.trim();
+const latexToken = process.env.LATEX_SERVICE_TOKEN?.trim();
+if (!latexUrl) {
+  warn("LATEX_SERVICE_URL not set", "Resume generation falls back to a local pdflatex. Fine locally, broken on Vercel.");
+} else if (!/^https:\/\//.test(latexUrl)) {
+  bad("LATEX_SERVICE_URL isn't https", "The token is sent as a bearer header; don't put it on plain http.");
+} else if (!latexToken) {
+  // The service accepts anything when it has no token configured, so an
+  // unauthenticated Cloud Run URL without one is an open compile endpoint.
+  warn("LATEX_SERVICE_TOKEN not set", "The compile endpoint is public unless the service itself sets a token.");
+} else {
+  ok("LaTeX compiler", latexUrl.replace(/^https:\/\//, ""));
+}
+
 console.log("\n\x1b[1mResume link\x1b[0m");
 // Not an env var, but the same class of paste-the-wrong-thing mistake.
 const resume = resumeLinks(process.env.RESUME_URL);
