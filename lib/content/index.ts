@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getPublicClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { parseBlocks } from "./blocks";
 import { seedPortfolio } from "./seed";
 import type {
   Certification,
@@ -21,6 +22,17 @@ import type {
   chatbot can never be answering from a different snapshot than the page shows.
 */
 
+/** The three detail-page columns every entity now carries. */
+function detailFields(r: Record<string, unknown>) {
+  return {
+    // parseBlocks drops malformed entries rather than throwing, so a body
+    // written by an older schema can't take the page down.
+    body: parseBlocks(r.body),
+    showInBlogList: Boolean(r.show_in_blog_list),
+    heroImageUrl: (r.hero_image_url as string) ?? undefined,
+  };
+}
+
 /** Rows come back snake_case from Postgres; the app speaks camelCase. */
 function mapExperience(r: Record<string, unknown>): Experience {
   return {
@@ -35,6 +47,7 @@ function mapExperience(r: Record<string, unknown>): Experience {
     summary: (r.summary as string) ?? "",
     highlights: (r.highlights as string[]) ?? [],
     tech: (r.tech as string[]) ?? [],
+    ...detailFields(r),
   };
 }
 
@@ -49,6 +62,7 @@ function mapProject(r: Record<string, unknown>): Project {
     liveUrl: (r.live_url as string) ?? undefined,
     imageUrl: (r.image_url as string) ?? undefined,
     featured: Boolean(r.featured),
+    ...detailFields(r),
   };
 }
 
@@ -58,9 +72,10 @@ function mapWriting(r: Record<string, unknown>): Writing {
     title: r.title as string,
     summary: (r.summary as string) ?? "",
     imageUrl: (r.image_url as string) ?? undefined,
-    externalUrl: r.external_url as string,
+    externalUrl: (r.external_url as string) || undefined,
     publishedAt: (r.published_at as string) ?? undefined,
     source: (r.source as string) ?? undefined,
+    ...detailFields(r),
   };
 }
 
@@ -122,6 +137,7 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       slug: r.slug,
       name: r.name,
       category: r.category ?? "Other",
+      ...detailFields(r),
     })) as Skill[],
     education: (education.data ?? []).map((r) => ({
       slug: r.slug,
@@ -140,6 +156,7 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       issueDate: r.issue_date ?? undefined,
       credentialUrl: r.credential_url ?? undefined,
       logoUrl: r.logo_url ?? undefined,
+      ...detailFields(r),
     })) as Certification[],
     testimonials: (testimonials.data ?? []).map((r) => ({
       slug: r.slug,

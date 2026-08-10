@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { Highlightable, Section } from "./section";
 import { LogoPlate } from "@/components/ui/logo-plate";
-import { itemId, type Experience as ExperienceItem } from "@/lib/content/types";
+import { entityPath, itemId, type Experience as ExperienceItem } from "@/lib/content/types";
 
 /** "2024-03" → "2024". Dates are stored loosely so admin entry stays painless. */
 function year(value: string | null): string {
@@ -28,8 +29,18 @@ export function Experience({ experience }: { experience: ExperienceItem[] }) {
                   <LogoPlate src={e.logoUrl} name={e.company} />
 
                   <div className="min-w-0">
+                    {/* The role links; the company link inside it stays
+                        separate, so nesting two anchors never happens. */}
                     <h3 className="font-display text-2xl leading-tight">
-                      {e.role}
+                      <Link
+                        href={entityPath("experience", e.slug)}
+                        className="transition-colors hover:text-accent"
+                      >
+                        {e.role}
+                        <span className="ml-1.5 font-mono text-sm text-muted" aria-hidden="true">
+                          →
+                        </span>
+                      </Link>
                     </h3>
                     <p className="mt-0.5">
                       {e.companyUrl ? (

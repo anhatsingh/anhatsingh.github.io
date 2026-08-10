@@ -1,3 +1,4 @@
+import type { Block } from "./blocks";
 /*
   Content model.
 
@@ -16,6 +17,7 @@ export type SectionId =
   | "leetcode"
   | "skills"
   | "education"
+  | "certifications"
   | "testimonials"
   | "writing"
   | "contact";
@@ -43,6 +45,7 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   leetcode: "LeetCode",
   skills: "Skills",
   education: "Education & Certifications",
+  certifications: "Certifications",
   testimonials: "Testimonials",
   writing: "Writing",
   contact: "Contact",
@@ -126,6 +129,11 @@ export interface Experience {
   summary: string;
   highlights: string[];
   tech: string[];
+  /** Detail-page body. Empty array means the page shows only structured data. */
+  body: Block[];
+  /** Surfaces this page in /blog. Off by default — most entries aren't posts. */
+  showInBlogList: boolean;
+  heroImageUrl?: string;
 }
 
 export interface Project {
@@ -138,12 +146,22 @@ export interface Project {
   liveUrl?: string;
   imageUrl?: string;
   featured: boolean;
+  /** Detail-page body. Empty array means the page shows only structured data. */
+  body: Block[];
+  /** Surfaces this page in /blog. Off by default — most entries aren't posts. */
+  showInBlogList: boolean;
+  heroImageUrl?: string;
 }
 
 export interface Skill {
   slug: string;
   name: string;
   category: string;
+  /** Detail-page body. Empty array means the page shows only structured data. */
+  body: Block[];
+  /** Surfaces this page in /blog. Off by default — most entries aren't posts. */
+  showInBlogList: boolean;
+  heroImageUrl?: string;
 }
 
 export interface Education {
@@ -166,6 +184,11 @@ export interface Certification {
   credentialUrl?: string;
   /** Issuer logo. Optional — falls back to a monogram plate. */
   logoUrl?: string;
+  /** Detail-page body. Empty array means the page shows only structured data. */
+  body: Block[];
+  /** Surfaces this page in /blog. Off by default — most entries aren't posts. */
+  showInBlogList: boolean;
+  heroImageUrl?: string;
 }
 
 export interface Testimonial {
@@ -182,10 +205,16 @@ export interface Writing {
   title: string;
   summary: string;
   imageUrl?: string;
-  externalUrl: string;
+  /** Empty means the post is hosted here. Derived, never stored as a flag. */
+  externalUrl?: string;
   publishedAt?: string;
   /** e.g. "Medium", "Substack" — shown as a small source label on the card. */
   source?: string;
+  /** Detail-page body. Empty array means the page shows only structured data. */
+  body: Block[];
+  /** Surfaces this page in /blog. Off by default — most entries aren't posts. */
+  showInBlogList: boolean;
+  heroImageUrl?: string;
 }
 
 export interface Portfolio {
@@ -223,6 +252,63 @@ export function socialLinks(profile: Profile): SocialLink[] {
   }
 
   return links;
+}
+
+/* --- Entities: things with their own page ------------------------------ */
+
+/*
+  EntityType is a different axis from SectionId, and conflating them was the
+  temptation worth resisting.
+
+  SectionId answers "which block of the homepage is this?" — it drives scrolling
+  and the chatbot's focusSection. EntityType answers "does this have a page of
+  its own?" Certifications are addressable and have detail pages but are not a
+  homepage section; the hero is a homepage section but has no page.
+*/
+export type EntityType = "experience" | "projects" | "skills" | "certifications" | "posts";
+
+export const ENTITY_LABELS: Record<EntityType, string> = {
+  experience: "Experience",
+  projects: "Project",
+  skills: "Skill",
+  certifications: "Certification",
+  posts: "Writing",
+};
+
+/**
+ * The URL for an entity's detail page.
+ *
+ * Posts live under /blog rather than /posts because that's what people type and
+ * link to; everything else mirrors its table name.
+ */
+export function entityPath(type: EntityType, slug: string): string {
+  return type === "posts" ? `/blog/${slug}` : `/${type}/${slug}`;
+}
+
+/**
+ * Where on the homepage this entity lives, for the chatbot's scroll targeting.
+ * Certifications render inside the education section, so they map to it —
+ * without this, focusing a certification would set state with no element
+ * registered and silently scroll nowhere.
+ */
+export function sectionForEntity(type: EntityType): SectionId {
+  if (type === "certifications") return "education";
+  if (type === "posts") return "writing";
+  return type;
+}
+
+/** The reverse: which entity namespace an addressable id belongs to. */
+export function entityTypeForId(id: string): EntityType | null {
+  const parsed = parseItemId(id);
+  if (!parsed) return null;
+  const map: Partial<Record<SectionId, EntityType>> = {
+    experience: "experience",
+    projects: "projects",
+    skills: "skills",
+    certifications: "certifications",
+    writing: "posts",
+  };
+  return map[parsed.section] ?? null;
 }
 
 /* --- Addressing ------------------------------------------------------- */
@@ -265,8 +351,15 @@ export function addressableIds(portfolio: Portfolio): Map<string, { section: Sec
   for (const e of portfolio.education) {
     map.set(itemId("education", e.slug), { section: "education", label: `${e.degree}, ${e.institution}` });
   }
+  // Own namespace, deliberately. Certifications and education used to share
+  // "education:", so a cert slug colliding with an education slug silently
+  // overwrote it — and now that each has a detail page, they must address
+  // separately or two pages would answer to one id.
   for (const c of portfolio.certifications) {
-    map.set(itemId("education", c.slug), { section: "education", label: `${c.name} (${c.issuer})` });
+    map.set(itemId("certifications", c.slug), {
+      section: "certifications",
+      label: `${c.name} (${c.issuer})`,
+    });
   }
   for (const t of portfolio.testimonials) {
     map.set(itemId("testimonials", t.slug), { section: "testimonials", label: `Quote from ${t.authorName}` });

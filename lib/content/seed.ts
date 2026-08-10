@@ -1,3 +1,4 @@
+import type { Block } from "./blocks";
 import type { Portfolio } from "./types";
 
 /*
@@ -17,7 +18,7 @@ import type { Portfolio } from "./types";
 
 export const IS_SEED_CONTENT = true;
 
-export const seedPortfolio: Portfolio = {
+const rawSeed = {
   profile: {
     name: "Anhat Singh",
     headline: "I teach machines to do my job.",
@@ -198,4 +199,27 @@ export const seedPortfolio: Portfolio = {
       source: "Medium",
     },
   ],
+};
+
+/*
+  Detail-page fields are filled in here rather than repeated on every seed
+  entry. Forty copies of `body: [], showInBlogList: false` would bury the actual
+  content, and the defaults are genuinely uniform: seed rows have no body and
+  none of them belong in the blog index.
+
+  Spreading `item` last means a seed entry can still override either field.
+*/
+type DetailFields = { body: Block[]; showInBlogList: boolean; heroImageUrl?: string };
+
+function withDetail<T extends object>(items: T[]): Array<T & DetailFields> {
+  return items.map((item) => ({ body: [] as Block[], showInBlogList: false, ...item }));
+}
+
+export const seedPortfolio: Portfolio = {
+  ...rawSeed,
+  experience: withDetail(rawSeed.experience),
+  projects: withDetail(rawSeed.projects),
+  skills: withDetail(rawSeed.skills),
+  certifications: withDetail(rawSeed.certifications),
+  writing: withDetail(rawSeed.writing),
 };

@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { Highlightable, Section } from "./section";
-import { itemId, type Skill } from "@/lib/content/types";
+import { entityPath, itemId, type Skill } from "@/lib/content/types";
 
 export function Skills({ skills }: { skills: Skill[] }) {
   if (!skills.length) return null;
@@ -24,9 +25,12 @@ export function Skills({ skills }: { skills: Skill[] }) {
               {items.map((s) => (
                 <li key={s.slug}>
                   <Highlightable itemId={itemId("skills", s.slug)}>
-                    <span className="inline-block rounded-[var(--radius)] border border-hairline px-3 py-1.5 font-mono text-sm text-text">
+                    <Link
+                      href={entityPath("skills", s.slug)}
+                      className="inline-block rounded-[var(--radius)] border border-hairline px-3 py-1.5 font-mono text-sm text-text transition-colors hover:border-accent hover:text-accent"
+                    >
                       {s.name}
-                    </span>
+                    </Link>
                   </Highlightable>
                 </li>
               ))}

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { Highlightable, Section } from "./section";
 import { LogoPlate } from "@/components/ui/logo-plate";
-import { itemId, type Certification, type Education as EducationItem } from "@/lib/content/types";
+import { entityPath, itemId, type Certification, type Education as EducationItem } from "@/lib/content/types";
 
 export function Education({
   education,
@@ -46,11 +47,21 @@ export function Education({
               Certifications
             </h3>
             {certifications.map((c) => (
-              <Highlightable key={c.slug} itemId={itemId("education", c.slug)}>
+              <Highlightable key={c.slug} itemId={itemId("certifications", c.slug)}>
                 <article className="flex items-start gap-3">
                   <LogoPlate src={c.logoUrl} name={c.issuer} />
                   <div className="min-w-0">
-                    <h4 className="font-display text-xl leading-tight">{c.name}</h4>
+                    <h4 className="font-display text-xl leading-tight">
+                      <Link
+                        href={entityPath("certifications", c.slug)}
+                        className="transition-colors hover:text-accent"
+                      >
+                        {c.name}
+                        <span className="ml-1.5 font-mono text-xs text-muted" aria-hidden="true">
+                          →
+                        </span>
+                      </Link>
+                    </h4>
                     <p className="mt-1 text-accent">{c.issuer}</p>
                     {c.issueDate && (
                       <p className="mt-1 font-mono text-xs text-muted">{c.issueDate}</p>

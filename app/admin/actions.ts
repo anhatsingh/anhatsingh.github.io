@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { coerceRow, getTableSpec } from "@/lib/admin/schema";
+import { entityPath, type EntityType } from "@/lib/content/types";
 import { getAdminSession, getSupabaseServerClient } from "@/lib/supabase/auth";
 import { getServiceClient } from "@/lib/supabase/server";
 import { uploadImage, type UploadResult } from "@/lib/storage";
@@ -19,6 +20,37 @@ import { uploadImage, type UploadResult } from "@/lib/storage";
 */
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
+
+/** Which admin tables have detail pages, and under which entity namespace. */
+const DETAIL_ENTITY: Record<string, EntityType> = {
+  experience: "experience",
+  projects: "projects",
+  skills: "skills",
+  certifications: "certifications",
+  writing: "posts",
+};
+
+/*
+  Revalidate everything a row appears on.
+
+  Without the detail-page path, editing a post left its own page serving the old
+  copy for up to a minute — the homepage updated instantly and the page you were
+  actually looking at didn't, which reads as a broken save.
+
+  /blog and the sitemap are included because a title or a show_in_blog_list
+  change alters both.
+*/
+function revalidateFor(tableKey: string, slug: unknown) {
+  revalidatePath("/");
+  revalidatePath(`/admin/${tableKey}`);
+
+  const entity = DETAIL_ENTITY[tableKey];
+  if (!entity) return;
+
+  revalidatePath("/blog");
+  revalidatePath("/sitemap.xml");
+  if (typeof slug === "string" && slug) revalidatePath(entityPath(entity, slug));
+}
 
 async function requireAdmin() {
   const session = await getAdminSession();
@@ -44,6 +76,8 @@ export async function saveRow(
   if (!db) return { ok: false, error: "Supabase isn't configured (SUPABASE_SERVICE_ROLE_KEY)." };
 
   const row = coerceRow(spec, formData);
+  // Captured before the update branch deletes it from `row`.
+  const slug = row.slug;
 
   for (const field of spec.fields) {
     if (field.required && !row[field.name]) {
@@ -66,8 +100,7 @@ export async function saveRow(
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/");
-  revalidatePath(`/admin/${tableKey}`);
+  revalidateFor(tableKey, slug);
   return { ok: true };
 }
 
@@ -87,8 +120,9 @@ export async function deleteRow(tableKey: string, id: string): Promise<ActionRes
   const { error } = await db.from(spec.table).delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/");
-  revalidatePath(`/admin/${tableKey}`);
+  // No slug to hand over — the row is gone. The index paths still need
+  // refreshing so the deleted entry stops appearing in listings.
+  revalidateFor(tableKey, null);
   return { ok: true };
 }
 

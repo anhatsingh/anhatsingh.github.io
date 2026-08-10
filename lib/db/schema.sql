@@ -64,6 +64,9 @@ create table if not exists experience (
   summary     text not null default '',
   highlights  text[] not null default '{}',
   tech        text[] not null default '{}',
+  body        jsonb not null default '[]'::jsonb,
+  show_in_blog_list boolean not null default false,
+  hero_image_url text,
   sort_order  int not null default 0,
   is_published boolean not null default true,
   updated_at  timestamptz not null default now()
@@ -80,6 +83,9 @@ create table if not exists projects (
   live_url    text,
   image_url   text,
   featured    boolean not null default false,
+  body        jsonb not null default '[]'::jsonb,
+  show_in_blog_list boolean not null default false,
+  hero_image_url text,
   sort_order  int not null default 0,
   is_published boolean not null default true,
   updated_at  timestamptz not null default now()
@@ -90,6 +96,9 @@ create table if not exists skills (
   slug        text not null unique,
   name        text not null,
   category    text not null default 'Other',
+  body        jsonb not null default '[]'::jsonb,
+  show_in_blog_list boolean not null default false,
+  hero_image_url text,
   sort_order  int not null default 0,
   is_published boolean not null default true,
   updated_at  timestamptz not null default now()
@@ -118,6 +127,9 @@ create table if not exists certifications (
   issue_date     text,
   credential_url text,
   logo_url       text,
+  body        jsonb not null default '[]'::jsonb,
+  show_in_blog_list boolean not null default false,
+  hero_image_url text,
   sort_order     int not null default 0,
   is_published   boolean not null default true,
   updated_at     timestamptz not null default now()
@@ -142,7 +154,10 @@ create table if not exists writing (
   title        text not null,
   summary      text not null default '',
   image_url    text,
-  external_url text not null,
+  external_url text,
+  body         jsonb not null default '[]'::jsonb,
+  show_in_blog_list boolean not null default true,
+  hero_image_url text,
   published_at text,
   source       text,
   sort_order   int not null default 0,
@@ -187,6 +202,30 @@ create table if not exists chat_questions (
 alter table chat_questions enable row level security;
 
 create index if not exists chat_questions_created_idx on chat_questions (created_at desc);
+-- Which posts belong to which experience / project / skill / certification.
+-- A join table rather than an array column: the relationship is queried from
+-- both ends — "posts about this job" on a detail page, and "what is this post
+-- about" when building the chatbot's context.
+create table if not exists content_links (
+  id          uuid primary key default gen_random_uuid(),
+  post_slug   text not null,
+  target_type text not null,
+  target_slug text not null,
+  created_at  timestamptz not null default now(),
+  unique (post_slug, target_type, target_slug),
+  constraint content_links_target_type_check
+    check (target_type in ('experience','projects','skills','certifications'))
+);
+
+alter table content_links enable row level security;
+
+drop policy if exists "public read content_links" on content_links;
+create policy "public read content_links" on content_links
+  for select to anon, authenticated using (true);
+
+create index if not exists content_links_post_idx on content_links (post_slug);
+create index if not exists content_links_target_idx on content_links (target_type, target_slug);
+
 create index if not exists chat_cache_hash_idx on chat_cache (question_hash);
 create index if not exists contact_messages_created_idx on contact_messages (created_at desc);
 
@@ -211,6 +250,30 @@ alter table profile        add column if not exists stackoverflow_url text;
 alter table profile        add column if not exists devto_url text;
 alter table profile        add column if not exists hidden_socials text[] not null default '{}';
 alter table profile        add column if not exists selected_repos text[] not null default '{}';
+
+-- Detail pages. Every entity that gets its own route needs a body, a flag for
+-- whether that page also belongs in /blog, and an optional hero image.
+alter table experience     add column if not exists body jsonb not null default '[]'::jsonb;
+alter table experience     add column if not exists show_in_blog_list boolean not null default false;
+alter table experience     add column if not exists hero_image_url text;
+alter table projects       add column if not exists body jsonb not null default '[]'::jsonb;
+alter table projects       add column if not exists show_in_blog_list boolean not null default false;
+alter table projects       add column if not exists hero_image_url text;
+alter table skills         add column if not exists body jsonb not null default '[]'::jsonb;
+alter table skills         add column if not exists show_in_blog_list boolean not null default false;
+alter table skills         add column if not exists hero_image_url text;
+alter table certifications add column if not exists body jsonb not null default '[]'::jsonb;
+alter table certifications add column if not exists show_in_blog_list boolean not null default false;
+alter table certifications add column if not exists hero_image_url text;
+
+-- writing becomes the posts table. A post with no external_url is hosted here,
+-- so that column can no longer be NOT NULL. This is the first `alter column` in
+-- the file; it is idempotent (dropping a constraint that's already gone is a
+-- no-op) and does not touch existing rows.
+alter table writing        alter column external_url drop not null;
+alter table writing        add column if not exists body jsonb not null default '[]'::jsonb;
+alter table writing        add column if not exists show_in_blog_list boolean not null default true;
+alter table writing        add column if not exists hero_image_url text;
 alter table experience     add column if not exists logo_url text;
 alter table education      add column if not exists logo_url text;
 alter table certifications add column if not exists logo_url text;
