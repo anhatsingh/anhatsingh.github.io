@@ -173,6 +173,79 @@ land in the database and show up in the admin inbox.
 
 ---
 
+## Detail pages and writing
+
+Every experience, project, skill and certification has its own page. `/blog`
+collects internal posts, external links, and any entity page whose
+**Show in /blog** flag is on.
+
+### The block model
+
+A page body is an ordered list of typed blocks stored as `jsonb`, not markdown.
+Ten types: text, heading, code, image, video, github, link, callout, steps,
+embed. Edit them in `/admin` — add, reorder, delete.
+
+Blocks rather than a markdown blob buys three things: the chatbot reads a video
+block as *"a demo video"* instead of guessing at markup, blocks render natively
+as real embeds and highlighted code, and retrieval chunks on block boundaries so
+a code sample never gets split in half.
+
+`lib/content/blocks.ts` is the whole model. Two functions there carry more
+weight than they look:
+
+- **`parseBlocks`** drops invalid blocks rather than throwing. Bodies arrive from
+  the admin form, from the AI, and occasionally from the SQL editor — one
+  malformed block must cost one block, not the page.
+- **`blocksToPlainText`** is the single implementation behind reading time, SEO
+  descriptions, chatbot context and RAG chunking. A forgotten `case` would
+  shrink all four at once, so `verify-blocks` asserts every type contributes.
+
+### Skill pages assemble themselves
+
+`/skills/pytorch` lists every experience and project whose `tech[]` contains it,
+plus any linked posts. Matching is case-insensitive on the skill name, so there's
+no third list to maintain.
+
+⚠️ They're empty until `tech[]` is populated — LinkedIn's export doesn't carry
+it. AI drafting writes to `tech[]`, so they fill in as you draft each role.
+
+### AI drafting
+
+Open a saved row in `/admin`, hit **⌁ draft this with AI**, paste a paragraph of
+what you did. You get back a summary, highlights, a page body, proposed skills
+and keywords — and **nothing is written until you tick and apply**.
+
+New skills arrive *unticked* while existing ones are pre-ticked: adding to a
+shared taxonomy is the one action here that's awkward to undo. The existing skill
+list goes into the prompt so the model reuses your spellings rather than
+accumulating "Pytorch", "PyTorch " and "torch".
+
+The default instruction tells the model not to invent numbers, repeatedly. Check
+anyway — a CV that overstates gets you rejected at interview rather than filtered
+at screening, which costs more than a thinner page ever would.
+
+### Retrieval (RAG)
+
+Summaries, titles and live stats are **always** in the prompt, so the chatbot
+never claims something doesn't exist just because retrieval missed it. Only
+long-form bodies are embedded (`text-embedding-3-small`) and fetched per
+question.
+
+Re-indexing runs fire-and-forget on save — awaiting it would make every admin
+save wait on an embedding round trip. `npm run reindex` re-embeds everything when
+that window matters, or after a bulk SQL edit.
+
+Retrieval failure is not an error path: a missing extension or an embedding
+outage returns the base context, so answers lose depth rather than breaking.
+
+⚠️ **Re-run `lib/db/schema.sql`** for any of this to work — it adds `body`,
+`show_in_blog_list`, `hero_image_url`, the `content_links` table, the `vector`
+extension, `content_chunks`, and the `match_content_chunks` function.
+
+The code degrades safely without it: missing columns read as empty bodies, a
+missing `content_links` table returns no relations, and a missing match function
+disables retrieval. Nothing 500s.
+
 ## SEO
 
 Aimed squarely at ranking for the name.

@@ -10,6 +10,9 @@
 
 import { seedPortfolio } from "../lib/content/seed";
 import { buildDescription, buildPersonJsonLd, buildProjectsJsonLd, SITE_URL } from "../lib/seo";
+import { detailJsonLd, detailMetadata } from "../lib/content/detail-meta";
+import { entityPath, type EntityType } from "../lib/content/types";
+import type { DetailView } from "../lib/content/entities";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -80,6 +83,63 @@ if (projects) {
   check("every item credits the Person node",
     projects.itemListElement.every((e) => (e.item.author as { "@id": string })["@id"] === `${SITE_URL}/#person`),
   );
+}
+
+console.log("\n── detail pages ──");
+{
+  /*
+    Every detail route shares one metadata builder, so testing it once covers
+    all five. The failure this catches is a page shipping without a canonical —
+    which duplicates the homepage's content against itself in the index.
+  */
+  const view: DetailView = {
+    type: "experience",
+    slug: "ml-engineer-acme",
+    title: "ML Engineer",
+    subtitle: "Acme",
+    summary: "Owned retrieval and evaluation.",
+    body: [{ type: "text", markdown: "Rebuilt the pipeline around hybrid search." }],
+    showInBlogList: false,
+    meta: [],
+    tech: ["PyTorch"],
+    readingMinutes: 1,
+    path: "/experience/ml-engineer-acme",
+  };
+
+  const meta = detailMetadata(view);
+  check("canonical is absolute and matches the path",
+    meta.alternates?.canonical === `${SITE_URL}/experience/ml-engineer-acme`,
+    String(meta.alternates?.canonical));
+  check("has a description", Boolean(meta.description));
+  check("openGraph url matches the canonical",
+    (meta.openGraph as { url?: string })?.url === `${SITE_URL}/experience/ml-engineer-acme`);
+  check("title includes the subtitle", String(meta.title).includes("Acme"));
+
+  const bodyless = detailMetadata({ ...view, summary: "", body: [] });
+  check("a page with no summary or body still gets a description",
+    Boolean(bodyless.description), String(bodyless.description));
+
+  const ld = detailJsonLd(view) as Record<string, unknown>;
+  check("JSON-LD credits the same #person node",
+    (ld.author as { "@id": string })["@id"] === `${SITE_URL}/#person`);
+  check("publisher too", (ld.publisher as { "@id": string })["@id"] === `${SITE_URL}/#person`);
+  check("url is absolute", String(ld.url).startsWith("https://"));
+
+  const projectLd = detailJsonLd({ ...view, type: "projects" }) as Record<string, unknown>;
+  check("a project page is TechArticle, not Article", projectLd["@type"] === "TechArticle");
+
+  console.log("\n── entity paths ──");
+  const paths: Array<[EntityType, string]> = [
+    ["experience", "/experience/x"],
+    ["projects", "/projects/x"],
+    ["skills", "/skills/x"],
+    ["certifications", "/certifications/x"],
+    // Posts live at /blog because that's what people type and link to.
+    ["posts", "/blog/x"],
+  ];
+  for (const [type, expected] of paths) {
+    check(`${type} → ${expected}`, entityPath(type, "x") === expected, entityPath(type, "x"));
+  }
 }
 
 console.log("\n── empty-portfolio safety ──");
