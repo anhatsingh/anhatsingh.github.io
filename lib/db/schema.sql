@@ -279,6 +279,69 @@ alter table education      add column if not exists logo_url text;
 alter table certifications add column if not exists logo_url text;
 
 -- ---------------------------------------------------------------------
+-- Retrieval (pgvector)
+-- ---------------------------------------------------------------------
+-- Long-form bodies don't fit in the chat prompt alongside everything else, so
+-- they're embedded and retrieved on demand. Summaries and titles stay in the
+-- prompt always, which is what stops the bot from failing to know a page exists
+-- just because retrieval missed it.
+
+create extension if not exists vector;
+
+create table if not exists content_chunks (
+  id           uuid primary key default gen_random_uuid(),
+  source_type  text not null,
+  source_slug  text not null,
+  chunk_index  int  not null,
+  content      text not null,
+  -- 1536 = text-embedding-3-small. Changing model means changing this column
+  -- and re-embedding everything; the dimension is not negotiable per-row.
+  embedding    vector(1536),
+  updated_at   timestamptz not null default now(),
+  unique (source_type, source_slug, chunk_index)
+);
+
+alter table content_chunks enable row level security;
+-- No anon policy: retrieval runs server-side with the service role. Chunks are
+-- derived from public content, but there's no reason to expose the whole corpus
+-- for enumeration.
+
+create index if not exists content_chunks_source_idx
+  on content_chunks (source_type, source_slug);
+
+-- ivfflat needs rows before it can build meaningful lists, so this is created
+-- but will simply be unused until the table fills. Re-run ANALYZE after a bulk
+-- reindex if queries stay slow.
+create index if not exists content_chunks_embedding_idx
+  on content_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+
+-- Cosine distance: `<=>` is smallest-is-nearest, so similarity is 1 - distance.
+create or replace function match_content_chunks(
+  query_embedding vector(1536),
+  match_count int default 5,
+  min_similarity float default 0.15
+)
+returns table (
+  source_type text,
+  source_slug text,
+  content text,
+  similarity float
+)
+language sql stable
+as $$
+  select
+    c.source_type,
+    c.source_slug,
+    c.content,
+    1 - (c.embedding <=> query_embedding) as similarity
+  from content_chunks c
+  where c.embedding is not null
+    and 1 - (c.embedding <=> query_embedding) > min_similarity
+  order by c.embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------
 

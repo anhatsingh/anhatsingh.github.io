@@ -31,6 +31,7 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
   else if (outcome.action === "resume") label = "opened resume";
   else if (outcome.action === "clear") label = "cleared focus";
   else if (outcome.action === "fit") label = "assessed fit";
+  else if (outcome.action === "navigate") label = `opened ${outcome.label}`;
 
   if (!label) return null;
 

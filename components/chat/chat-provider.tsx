@@ -2,6 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useUIControl } from "@/components/ui-control";
 import type { ToolOutcome } from "@/lib/chat/tools";
@@ -44,6 +45,7 @@ export function ChatProvider({
   assistantAvatar?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
   const { focusSection, setHighlights, clearFocus } = useUIControl();
 
   const { messages, sendMessage, status, error, stop, regenerate } = useChat();
@@ -86,6 +88,12 @@ export function ChatProvider({
           case "resume":
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
+          case "navigate":
+            // Deliberately NOT through the UIControl queue. That cooldown exists
+            // to stop scroll-thrash within one page; a route change is a
+            // decision the visitor asked for and should feel immediate.
+            router.push(outcome.url);
+            break;
           case "draft":
             // Rendered inline in the transcript by ContactCard; no page effect.
             break;
@@ -94,7 +102,7 @@ export function ChatProvider({
         void getToolName(part);
       }
     }
-  }, [messages, focusSection, setHighlights, clearFocus]);
+  }, [messages, focusSection, setHighlights, clearFocus, router]);
 
   const send = useCallback(
     (text: string) => {

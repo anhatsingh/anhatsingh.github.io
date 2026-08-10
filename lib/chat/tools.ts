@@ -2,6 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { resumeLinks } from "@/lib/resume";
 import {
+  entityPath,
+  entityTypeForId,
   NAVIGABLE_SECTIONS,
   SECTION_LABELS,
   addressableIds,
@@ -32,6 +34,7 @@ export type ToolOutcome =
   | { ok: true; action: "focus"; section: SectionId; label: string; reason?: string }
   | { ok: true; action: "highlight"; items: Array<{ itemId: string; note: string }> }
   | { ok: true; action: "clear" }
+  | { ok: true; action: "navigate"; url: string; label: string; reason?: string }
   | { ok: true; action: "resume"; url: string }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
   | {
@@ -106,6 +109,39 @@ export function buildTools(portfolio: Portfolio) {
         }
 
         return { ok: true, action: "highlight", items: accepted };
+      },
+    }),
+
+    openPage: tool({
+      description:
+        "Open an item's own page, where the full write-up lives. Use ONLY for ids listed under HAS A FULL WRITE-UP — for anything else, highlight it on the current page instead. This navigates the visitor away, so don't do it for a question a highlight answers.",
+      inputSchema: z.object({
+        itemId: z.string().describe("Exact id from the CONTENT INDEX."),
+        reason: z
+          .string()
+          .max(80)
+          .optional()
+          .describe("Why this page answers the question. Shown on the link."),
+      }),
+      execute: async ({ itemId: id, reason }): Promise<ToolOutcome> => {
+        const entry = known.get(id);
+        if (!entry) {
+          return {
+            ok: false,
+            error: `No such id: ${id}. Valid ids are: ${[...known.keys()].join(", ")}`,
+          };
+        }
+
+        const type = entityTypeForId(id);
+        if (!type) {
+          return {
+            ok: false,
+            error: `${id} has no page of its own. Use highlightItems to point at it instead.`,
+          };
+        }
+
+        const slug = id.slice(id.indexOf(":") + 1);
+        return { ok: true, action: "navigate", url: entityPath(type, slug), label: entry.label, reason };
       },
     }),
 

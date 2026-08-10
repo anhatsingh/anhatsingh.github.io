@@ -10,7 +10,8 @@
     "verify": "npm run verify:theme && tsx scripts/verify-blocks.ts && tsx scripts/verify-seo.ts && tsx scripts/verify-resume.ts && tsx scripts/verify-stats.ts && tsx scripts/verify-tools.ts && tsx scripts/verify-linkedin.ts",
     "verify:theme": "tsx scripts/verify-theme.ts",
     "check:env": "tsx scripts/check-env.ts",
-    "admin:password": "tsx scripts/admin-password.ts"
+    "admin:password": "tsx scripts/admin-password.ts",
+    "reindex": "tsx scripts/reindex.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.36",

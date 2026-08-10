@@ -1,4 +1,6 @@
 import { formatNumber } from "@/lib/format";
+import { formatRetrieved, retrieve } from "./embeddings";
+import { entityPath } from "@/lib/content/types";
 import { addressableIds, itemId, type Portfolio } from "@/lib/content/types";
 import type { GitHubStats } from "@/lib/github/service";
 import type { LeetCodeStats } from "@/lib/leetcode/service";
@@ -192,7 +194,14 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
     parts.push(
       `## WRITING\n` +
         p.writing
-          .map((w) => `[${itemId("writing", w.slug)}] ${w.title} — ${w.summary}`)
+          .map((w) => {
+            const where = w.externalUrl
+              ? `published externally at ${w.externalUrl}`
+              : w.body.length
+                ? `on this site at ${entityPath("posts", w.slug)}`
+                : "not written up yet";
+            return `[${itemId("writing", w.slug)}] ${w.title} — ${w.summary} (${where})`;
+          })
           .join("\n"),
     );
   }
@@ -200,12 +209,58 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
   const live = serializeStats(stats);
   if (live) parts.push(live);
 
+  /*
+    Which entries have a full write-up behind them.
+
+    Without this the model can't tell a one-line card from a 1,500-word page,
+    so it either links to everything or nothing. Listing only what has a body
+    means openPage gets used where there's actually something to read.
+  */
+  const withPages = [
+    ...p.experience.filter((e) => e.body.length).map((e) => itemId("experience", e.slug)),
+    ...p.projects.filter((x) => x.body.length).map((x) => itemId("projects", x.slug)),
+    ...p.skills.filter((x) => x.body.length).map((x) => itemId("skills", x.slug)),
+    ...p.certifications.filter((x) => x.body.length).map((x) => itemId("certifications", x.slug)),
+    ...p.writing.filter((w) => w.body.length).map((w) => itemId("writing", w.slug)),
+  ];
+  if (withPages.length) {
+    parts.push(
+      `## HAS A FULL WRITE-UP (worth linking with openPage)\n${withPages.join("\n")}`,
+    );
+  }
+
   parts.push(
-    `## CONTENT INDEX (the ONLY valid ids for highlightItems)\n` +
+    `## CONTENT INDEX (the ONLY valid ids for highlightItems and openPage)\n` +
       [...addressableIds(p).keys()].join("\n"),
   );
 
   return parts.join("\n\n");
+}
+
+/*
+  Summaries in the prompt, bodies retrieved.
+
+  The base context — every title, role, skill and summary — is always present,
+  which is what guarantees the bot never claims something doesn't exist merely
+  because retrieval missed it. Only the long-form bodies are fetched on demand.
+
+  Retrieval failure is not an error path: it returns the base context, so a
+  missing pgvector extension or an embedding outage degrades the answer's depth
+  rather than the reply itself.
+*/
+export class RetrievalContextProvider implements ContextProvider {
+  constructor(
+    private portfolio: Portfolio,
+    private stats: LiveStats = {},
+    private topK = 5,
+  ) {}
+
+  async getContext(question: string): Promise<string> {
+    const base = serializePortfolio(this.portfolio, this.stats);
+    const chunks = await retrieve(question, this.topK);
+    const retrieved = formatRetrieved(chunks);
+    return retrieved ? `${base}\n\n${retrieved}` : base;
+  }
 }
 
 export class DirectContextProvider implements ContextProvider {

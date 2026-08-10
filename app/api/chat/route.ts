@@ -3,7 +3,7 @@ import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 
 import { getPortfolio } from "@/lib/content";
 import { getGitHubStats } from "@/lib/github/service";
 import { getLeetCodeStats } from "@/lib/leetcode/service";
-import { DirectContextProvider } from "@/lib/chat/context";
+import { RetrievalContextProvider } from "@/lib/chat/context";
 import { buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, clientIp, trimHistory } from "@/lib/chat/guards";
@@ -65,17 +65,22 @@ export async function POST(req: Request) {
       : null,
   ]);
 
-  const context = await new DirectContextProvider(portfolio, { github, leetcode }).getContext();
+  // The visitor's latest question drives retrieval, so it has to be extracted
+  // before the context is built rather than after.
+  const question = (incoming.at(-1)?.role === "user"
+    ? (incoming.at(-1)!.parts
+        .filter((part): part is { type: "text"; text: string } => part.type === "text")
+        .map((part) => part.text)
+        .join(" "))
+    : ""
+  ).trim();
+
+  const context = await new RetrievalContextProvider(portfolio, { github, leetcode }).getContext(
+    question,
+  );
 
   // Fire-and-forget: analytics must never delay or fail a reply.
-  const latest = incoming.at(-1);
-  if (latest?.role === "user") {
-    const text = latest.parts
-      .filter((p): p is { type: "text"; text: string } => p.type === "text")
-      .map((p) => p.text)
-      .join(" ");
-    void logQuestion(text);
-  }
+  if (question) void logQuestion(question);
 
   // Wrap visitor turns so the model can distinguish content from instructions.
   const messages = trimHistory(incoming).map((m) =>
@@ -96,7 +101,8 @@ export async function POST(req: Request) {
     tools: buildTools(portfolio),
     // Tools resolve, then the model gets another step to write its prose reply.
     // Three is enough for focus + highlight + answer without letting it loop.
-    stopWhen: stepCountIs(4),
+    // Room for focus + highlight + openPage + the prose reply.
+    stopWhen: stepCountIs(5),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     temperature: 0.7,
     maxRetries: 2,

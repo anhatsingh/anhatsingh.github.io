@@ -24,6 +24,9 @@ import {
   readingMinutes,
   type Block,
 } from "../lib/content/blocks";
+// Static import: tsx compiles these scripts to CJS, where top-level await is a
+// syntax error. chunkText is pure, so importing the module costs nothing.
+import { chunkText } from "../lib/chat/embeddings";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -118,6 +121,23 @@ for (const [label, url, expected] of cases) {
 }
 const yt = normalizeVideoUrl("https://www.youtube.com/watch?v=abc123");
 check("YouTube uses the no-cookie host", yt?.src.includes("youtube-nocookie.com") ?? false, yt?.src);
+
+console.log("\n── retrieval chunking ──");
+{
+  const short = chunkText("One paragraph.");
+  check("short text stays one chunk", short.length === 1);
+
+  const paras = Array.from({ length: 12 }, (_, i) => `Paragraph ${i} ` + "word ".repeat(40)).join("\n\n");
+  const chunks = chunkText(paras, 900);
+  check("long text splits into several chunks", chunks.length > 1, `${chunks.length} chunks`);
+  check("no chunk wildly exceeds the target", chunks.every((c) => c.length < 1400),
+    `max ${Math.max(...chunks.map((c) => c.length))}`);
+  check("nothing is lost", chunks.join(" ").includes("Paragraph 11"));
+
+  const giant = chunkText("x".repeat(50) + ". " + "sentence here. ".repeat(200), 900);
+  check("an oversized single paragraph still splits", giant.length > 1, `${giant.length} chunks`);
+  check("no empty chunks", giant.every((c) => c.trim().length > 0));
+}
 
 console.log(failures === 0 ? "\nAll block checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

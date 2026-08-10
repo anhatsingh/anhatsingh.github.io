@@ -9,7 +9,8 @@ import { getServiceClient } from "@/lib/supabase/server";
 import { uploadImage, type UploadResult } from "@/lib/storage";
 import { draftFromParagraph, type Draft, type DraftResult } from "@/lib/ai/author";
 import { getPortfolio } from "@/lib/content";
-import type { Block } from "@/lib/content/blocks";
+import { parseBlocks, type Block } from "@/lib/content/blocks";
+import { reindexEntity } from "@/lib/chat/embeddings";
 
 /*
   All admin mutations.
@@ -43,6 +44,31 @@ const DETAIL_ENTITY: Record<string, EntityType> = {
   /blog and the sitemap are included because a title or a show_in_blog_list
   change alters both.
 */
+/*
+  Re-embed after a write.
+
+  Fire-and-forget, same pattern as logQuestion: an indexing failure must never
+  fail a save. The alternative — awaiting it — would make every admin save wait
+  on an embedding round trip, and a transient OpenAI error would look like the
+  save itself failed.
+
+  The cost of it being async is a brief window where the chatbot quotes the old
+  body. `npm run reindex` is the escape hatch when that matters.
+*/
+function reindexAfterSave(tableKey: string, row: Record<string, unknown>) {
+  const entity = DETAIL_ENTITY[tableKey];
+  if (!entity) return;
+
+  const slug = typeof row.slug === "string" ? row.slug : null;
+  if (!slug) return;
+
+  const spec = getTableSpec(tableKey);
+  const titleField = spec?.titleField ?? "name";
+  const title = String(row[titleField] ?? slug);
+
+  void reindexEntity(entity, slug, title, parseBlocks(row.body));
+}
+
 function revalidateFor(tableKey: string, slug: unknown) {
   revalidatePath("/");
   revalidatePath(`/admin/${tableKey}`);
@@ -104,6 +130,7 @@ export async function saveRow(
   }
 
   revalidateFor(tableKey, slug);
+  reindexAfterSave(tableKey, { ...row, slug });
   return { ok: true };
 }
 
@@ -266,10 +293,12 @@ export async function applyDraft(input: {
 
   const { data: row } = await db
     .from(spec.table)
-    .select("slug")
+    .select("*")
     .eq("id", input.rowId)
     .maybeSingle();
+
   revalidateFor(input.tableKey, row?.slug);
+  if (row) reindexAfterSave(input.tableKey, row);
 
   return { ok: true };
 }
