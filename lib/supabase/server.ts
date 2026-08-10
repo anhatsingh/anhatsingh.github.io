@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { checkAnonKey, checkSupabaseUrl } from "./config";
 
 /*
   Supabase is OPTIONAL at build/run time.
@@ -9,11 +10,23 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
   with no .env at all.
 */
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Validated + normalised once at module load, so a trailing slash or a pasted
+// dashboard URL fails loudly here rather than as a gateway error later.
+const urlCheck = checkSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const keyCheck = checkAnonKey(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+const url = urlCheck.url;
+const anonKey = keyCheck.key;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+/** Non-null when env vars are present but wrong. Surfaced in the admin UI. */
+export const supabaseConfigProblem = urlCheck.problem ?? keyCheck.problem;
 
 export const isSupabaseConfigured = Boolean(url && anonKey);
+
+if (process.env.NEXT_PUBLIC_SUPABASE_URL && supabaseConfigProblem) {
+  console.error(`[supabase] ${supabaseConfigProblem}`);
+}
 
 /** Anon client — subject to RLS. Use for all public reads. */
 export function getPublicClient(): SupabaseClient | null {

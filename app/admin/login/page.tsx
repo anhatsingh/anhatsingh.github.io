@@ -20,21 +20,31 @@ export default function LoginPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const supabase = getBrowserClient();
-    if (!supabase) {
-      setProblem("Supabase isn't configured yet.");
+    const { client, problem: configProblem } = getBrowserClient();
+
+    // Config errors are caught before the request goes out, so the message
+    // names the actual mistake instead of Supabase's opaque gateway error.
+    if (!client) {
+      setProblem(configProblem ?? "Supabase isn't configured yet.");
       setState("error");
       return;
     }
 
     setState("sending");
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await client.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/admin/auth/callback` },
     });
 
     if (error) {
-      setProblem(error.message);
+      // Supabase's gateway says "Invalid path specified in request URL" when the
+      // project URL is malformed in a way we couldn't detect statically. Translate
+      // it, because on its own it points at nothing.
+      setProblem(
+        /invalid path/i.test(error.message)
+          ? `Supabase rejected the request path. Check NEXT_PUBLIC_SUPABASE_URL is exactly your Project URL from Settings → API — https://<project-ref>.supabase.co, with no path and no trailing slash. (${error.message})`
+          : error.message,
+      );
       setState("error");
       return;
     }

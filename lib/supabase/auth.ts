@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { checkAnonKey, checkSupabaseUrl } from "./config";
 
 /*
   ADMIN AUTH
@@ -32,8 +33,8 @@ export function isAllowlisted(email: string | undefined | null): boolean {
 }
 
 export async function getSupabaseServerClient(): Promise<SupabaseClient | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const { url } = checkSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const { key } = checkAnonKey(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   if (!url || !key) return null;
 
   const cookieStore = await cookies();
