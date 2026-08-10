@@ -134,14 +134,25 @@ async function main() {
   const { data: existing, error } = await db.from("skills").select("id,slug,name,category");
   if (error) throw new Error(error.message);
 
+  /*
+    Look up by BOTH the LinkedIn name and the cleaned display name.
+
+    This script renames rows, which made an earlier version destructive on a
+    second run: after "Pandas (Software)" had become "Pandas", the plan could no
+    longer find it, so it fell through to the hidden set. Re-running a tidy-up
+    must be a no-op, not a cull.
+  */
   const byName = new Map(existing.map((s) => [s.name.toLowerCase(), s]));
+  const find = (linkedinName: string, display?: string) =>
+    byName.get(linkedinName.toLowerCase()) ??
+    (display ? byName.get(display.toLowerCase()) : undefined);
   const updates: Array<{ id: string; name: string; category: string; sort_order: number }> = [];
   const missing: string[] = [];
   const keptIds = new Set<string>();
 
   PLAN.forEach((group, blockIndex) => {
     group.skills.forEach(([linkedinName, display], position) => {
-      const row = byName.get(linkedinName.toLowerCase());
+      const row = find(linkedinName, display);
       if (!row) {
         missing.push(linkedinName);
         return;
