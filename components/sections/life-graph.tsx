@@ -21,8 +21,14 @@ import type { Portfolio } from "@/lib/content/types";
   two things that ran at once are visibly concurrent rather than merely listed
   near each other.
 
-  Nothing shares a row. Overlapping entries fork onto their own branches, and
-  every entry gets its own colour — see lib/content/graph.ts, which does the
+  Nothing is labelled on the track itself. Names printed beside each bar had to
+  be truncated to fit, still collided where entries were close, and turned a
+  chart you read shapes from into a list you read words from. The caption below
+  names whatever is hovered instead.
+
+  Bars never share a row. Overlapping entries fork onto their own branches —
+  though only the bars count, so ends that merely touch are left to sit close
+  rather than costing a row. Every entry gets its own colour — see lib/content/graph.ts, which does the
   packing and hands back a row and a hue for each.
 
   Colour identifies the entry, so the category is carried by line style
@@ -44,23 +50,6 @@ const COL = 14; // px per month
 const LANE_H = 26; // px between branches
 const TOP = 16; // px above the first branch
 const AXIS_H = 28; // px below the last branch, for the year axis
-const LABEL_PX = 6.1; // approx width of one monospace char at 10px
-const MAX_LABEL = 30; // chars before a label is truncated
-
-/** Long project titles would otherwise reserve two years of track each. */
-function short(label: string): string {
-  return label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label;
-}
-
-/**
- * Columns a label needs. Shared with the packer so the space reserved is
- * exactly the space drawn — measure with one function, draw with the same one,
- * and labels can't collide.
- */
-function labelCols(label: string): number {
-  return Math.ceil((short(label).length * LABEL_PX + 10) / COL);
-}
-
 function colorFor(item: GraphItem): string {
   // Saturation and lightness are theme tokens; only the hue varies per entry.
   return `hsl(${item.hue.toFixed(1)} var(--graph-sat) var(--graph-lum))`;
@@ -69,15 +58,13 @@ function colorFor(item: GraphItem): string {
 export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: number }) {
   const [active, setActive] = useState<GraphItem | null>(null);
 
-  const graph = useMemo(() => buildGraph(portfolio, { now, labelCols }), [portfolio, now]);
+  const graph = useMemo(() => buildGraph(portfolio, { now }), [portfolio, now]);
 
   if (!graph.items.length) return null;
 
   const plotH = TOP + graph.lanes * LANE_H;
   const height = plotH + AXIS_H;
-  // Widest label overhang, so the last entry's text isn't clipped.
-  const overhang = Math.max(...graph.items.map((i) => i.endCol + labelCols(i.label))) + 2;
-  const width = Math.max(graph.totalMonths, overhang) * COL;
+  const width = graph.totalMonths * COL;
 
   const x = (col: number) => col * COL + COL / 2;
   const y = (lane: number) => TOP + lane * LANE_H;
@@ -87,7 +74,7 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 className="font-display text-xl">The whole thing, on one track</h3>
         <p className="font-mono text-[11px] uppercase tracking-widest text-muted">
-          one dot = one month · scroll →
+          one dot = one month · hover a branch · scroll →
         </p>
       </div>
 
@@ -221,9 +208,9 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
                 {/* A fat transparent hit area — a single-month entry is only
                     14px of track, far too small to point at reliably. */}
                 <rect
-                  x={x1 - 7}
+                  x={x1 - 8}
                   y={cy - LANE_H / 2}
-                  width={x2 - x1 + 14 + labelCols(item.label) * COL}
+                  width={x2 - x1 + 16}
                   height={LANE_H}
                   fill="transparent"
                 />
@@ -271,15 +258,6 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
                     style={{ transition: "r 120ms" }}
                   />
                 )}
-
-                <text
-                  x={x2 + 9}
-                  y={cy + 3.5}
-                  className="font-mono"
-                  style={{ fontSize: 10, fill: color, fontWeight: isActive ? 700 : 400 }}
-                >
-                  {short(item.label)}
-                </text>
               </g>
             );
 

@@ -11,10 +11,16 @@ import { entityPath, type Portfolio } from "./types";
 
   Two rules drive the shape:
 
-  1. Nothing overlaps. Entries are packed into rows so that no row ever holds
-     two things at the same time — the standard greedy interval packing. Where
-     life ran in parallel, the track forks, which is what a network graph is
-     for.
+  1. Bars never overlap. Entries are packed into rows so that no row ever
+     holds two bars running at the same time — the standard greedy interval
+     packing. Where life ran in parallel, the track forks, which is what a
+     network graph is for.
+
+     Only the bars count. Two spans that merely touch — one ending the month
+     another begins — share a row, and so do the end nodes and the text
+     labels, which are allowed to sit close or overlap. Forking for those
+     spent a whole row on a near-miss and made the graph far taller than the
+     data warranted.
 
      Packing runs per section rather than across everything, so a section's
      entries stay together vertically the way a Gantt chart groups its rows.
@@ -215,12 +221,6 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
 
 export interface BuildOptions {
   now: number;
-  /**
-   * Columns to reserve after a bar for its text label, so a label can never
-   * run into the next entry on the same row. The component supplies this from
-   * its own font and column width; omitting it packs bars alone.
-   */
-  labelCols?: (label: string) => number;
 }
 
 /**
@@ -229,7 +229,7 @@ export interface BuildOptions {
  * `now` is supplied rather than read from the clock so the layout is
  * deterministic and testable.
  */
-export function buildGraph(portfolio: Portfolio, { now, labelCols }: BuildOptions): Graph {
+export function buildGraph(portfolio: Portfolio, { now }: BuildOptions): Graph {
   const collected = collectItems(portfolio, now);
 
   if (!collected.length) {
@@ -265,23 +265,29 @@ export function buildGraph(portfolio: Portfolio, { now, labelCols }: BuildOption
     const inKind = collected.filter((i) => i.kind === kind);
     if (!inKind.length) continue;
 
-    const laneNextFree: number[] = [];
+    /*
+      `laneEnd[i]` is the last column row i's occupant covers.
+
+      A new entry joins that row when it starts at or after that column AND
+      finishes strictly later. The first half lets a span begin the month the
+      previous one ended — a touch, not an overlap, and not worth a row. The
+      second half is what stops two entries occupying exactly the same columns:
+      a certificate and a test score issued in the same month have no length to
+      overlap, but drawing them on one row puts both nodes and both labels at
+      the same pixel and one of them simply disappears.
+    */
+    const laneEnd: number[] = [];
 
     for (const item of inKind) {
       const startCol = item.startMonth - originMonth;
       const endCol = item.endMonth - originMonth;
 
-      // Reserve room for the label after the bar, plus a column of air, so two
-      // entries on one row can't have their text collide even when the bars
-      // themselves are comfortably apart.
-      const occupiedTo = endCol + (labelCols ? labelCols(item.label) : 0) + 1;
-
-      let lane = laneNextFree.findIndex((free) => free <= startCol);
+      let lane = laneEnd.findIndex((end) => end <= startCol && endCol > end);
       if (lane === -1) {
-        lane = laneNextFree.length;
-        laneNextFree.push(0);
+        lane = laneEnd.length;
+        laneEnd.push(0);
       }
-      laneNextFree[lane] = occupiedTo + 1;
+      laneEnd[lane] = endCol;
 
       items.push({
         ...item,
@@ -292,8 +298,8 @@ export function buildGraph(portfolio: Portfolio, { now, labelCols }: BuildOption
       });
     }
 
-    groups.push({ kind, label: KIND_GROUP_LABELS[kind], firstLane, lanes: laneNextFree.length });
-    firstLane += laneNextFree.length;
+    groups.push({ kind, label: KIND_GROUP_LABELS[kind], firstLane, lanes: laneEnd.length });
+    firstLane += laneEnd.length;
   }
 
   const yearTicks: Array<{ col: number; label: string }> = [];

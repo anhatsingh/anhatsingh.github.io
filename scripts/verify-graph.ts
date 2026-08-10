@@ -144,10 +144,11 @@ console.log("\n── nothing overlaps ──");
       const x = g.items[a];
       const z = g.items[b];
       if (x.lane !== z.lane) continue;
-      if (x.startCol <= z.endCol && z.startCol <= x.endCol) clashes++;
+      // Strict: sharing only a boundary month is a permitted touch.
+      if (x.startCol < z.endCol && z.startCol < x.endCol) clashes++;
     }
   }
-  check("no two entries share a row at the same time", clashes === 0, `${clashes} clashes`);
+  check("no two bars on a row genuinely overlap", clashes === 0, `${clashes} clashes`);
 
   check("lane count equals the rows actually used",
     g.lanes === new Set(g.items.map((i) => i.lane)).size, `${g.lanes} reported`);
@@ -244,34 +245,65 @@ console.log("\n── sections are stacked bands ──");
   check("total is the sum, not the global maximum", g.lanes === 4, `${g.lanes}`);
 }
 
-console.log("\n── label reservation ──");
+console.log("\n── only bars force a fork ──");
 {
   /*
-    A label is drawn after its bar, so the packer must treat that text as
-    occupied track. Without it, two bars sit comfortably apart and their labels
-    print straight through each other.
+    Two short entries a couple of months apart, whose text labels would
+    certainly overlap. They must still share a row: a label collision is not a
+    reason to spend a whole extra branch, and forking on it made the graph far
+    taller than the data warranted.
   */
-  const tight = {
+  const nearby = {
     ...portfolio, education: [], projects: [], certifications: [], testimonials: [],
     experience: [job("a", "2020-01", "2020-02"), job("b", "2020-04", "2020-05")],
   } as unknown as Portfolio;
-
-  const bare = buildGraph(tight, { now: M(2021, 1) });
-  check("without labels, two nearby bars share a row", bare.lanes === 1, `${bare.lanes}`);
-
-  const labelled = buildGraph(tight, { now: M(2021, 1), labelCols: () => 8 });
-  check("reserving label space pushes the second onto its own branch",
-    labelled.lanes === 2, `${labelled.lanes}`);
-
-  const roomy = buildGraph(
-    {
-      ...tight,
-      experience: [job("a", "2020-01", "2020-02"), job("b", "2021-06", "2021-07")],
-    } as unknown as Portfolio,
-    { now: M(2022, 1), labelCols: () => 8 },
-  );
-  check("a far-apart pair still shares a row once the label fits",
-    roomy.lanes === 1, `${roomy.lanes}`);
+  check("labels that would collide do not fork",
+    buildGraph(nearby, { now: M(2021, 1) }).lanes === 1);
+}
+{
+  // One ends exactly as the next begins. Sharing that single boundary month is
+  // a touch, not an overlap.
+  const touching = {
+    ...portfolio, education: [], projects: [], certifications: [], testimonials: [],
+    experience: [job("a", "2020-01", "2020-06"), job("b", "2020-06", "2021-01")],
+  } as unknown as Portfolio;
+  check("ends meeting starts do not fork",
+    buildGraph(touching, { now: M(2021, 6) }).lanes === 1, "");
+}
+{
+  // A single month of genuine overlap must still fork.
+  const overlapping = {
+    ...portfolio, education: [], projects: [], certifications: [], testimonials: [],
+    experience: [job("a", "2020-01", "2020-07"), job("b", "2020-06", "2021-01")],
+  } as unknown as Portfolio;
+  check("one month of real overlap does fork",
+    buildGraph(overlapping, { now: M(2021, 6) }).lanes === 2);
+}
+{
+  /*
+    Points have no length, so they can never *overlap*. But two in the same
+    month occupy exactly the same column, and drawing them on one row puts both
+    nodes and both labels at the same pixel — one entry vanishes. Coincidence
+    forks; mere adjacency does not.
+  */
+  const points = {
+    ...portfolio, education: [], projects: [], experience: [], testimonials: [],
+    certifications: [
+      { slug: "a", name: "A", issuer: "X", issueDate: "2024-06", body: [], showInBlogList: false },
+      { slug: "b", name: "B", issuer: "X", issueDate: "2024-06", body: [], showInBlogList: false },
+      { slug: "c", name: "C", issuer: "X", issueDate: "2024-11", body: [], showInBlogList: false },
+    ],
+  } as unknown as Portfolio;
+  const g = buildGraph(points, { now: M(2025, 1) });
+  check("all three appear", g.items.length === 3);
+  // A and B are both June: identical columns, so one would be drawn exactly on
+  // top of the other. C is November and reuses A's row.
+  check("two entries in the same month fork so neither is hidden", g.lanes === 2, `${g.lanes}`);
+  const june = g.items.filter((i) => i.startCol === g.items[0].startCol);
+  check("the coincident pair are on different rows",
+    new Set(june.map((i) => i.lane)).size === june.length);
+  check("a later point reuses an earlier row rather than adding one",
+    g.items.find((i) => i.id === "certifications:c")!.lane === 0);
 }
 
 console.log("\n── colours ──");
