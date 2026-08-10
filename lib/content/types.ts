@@ -9,6 +9,7 @@
 
 export type SectionId =
   | "hero"
+  | "about"
   | "projects"
   | "experience"
   | "github"
@@ -20,6 +21,7 @@ export type SectionId =
 
 /** Sections the chatbot is allowed to navigate to, in page order. */
 export const NAVIGABLE_SECTIONS: SectionId[] = [
+  "about",
   "projects",
   "experience",
   "github",
@@ -32,6 +34,7 @@ export const NAVIGABLE_SECTIONS: SectionId[] = [
 
 export const SECTION_LABELS: Record<SectionId, string> = {
   hero: "Home",
+  about: "About",
   projects: "Projects",
   experience: "Experience",
   github: "GitHub",
@@ -57,6 +60,8 @@ export interface Profile {
   bio: string;
   location?: string;
   email: string;
+  /** Portrait. Shown in About and as the assistant's avatar in chat. */
+  avatarUrl?: string;
   /** Google Drive share link, editable from admin. */
   resumeUrl?: string;
   openToWork: boolean;

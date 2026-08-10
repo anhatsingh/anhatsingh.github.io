@@ -3,6 +3,7 @@
 import { isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { useChatDock } from "./chat-provider";
+import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
 import { useUIControl } from "@/components/ui-control";
 import type { ToolOutcome } from "@/lib/chat/tools";
@@ -88,7 +89,8 @@ const STARTERS = [
 ];
 
 export function ChatDock() {
-  const { messages, status, error, isOpen, send, close, stop, retry } = useChatDock();
+  const { messages, status, error, isOpen, send, close, stop, retry, assistantAvatar, assistantName } =
+    useChatDock();
   const { isSplit } = useUIControl();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -181,22 +183,27 @@ export function ChatDock() {
           </div>
         )}
 
-        {messages.map((m) => (
-          <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
-            <div
-              className={
-                m.role === "user"
-                  ? "max-w-[85%] rounded-[var(--radius)] bg-accent px-3 py-2 text-accent-ink"
-                  : "max-w-full space-y-1 text-text"
-              }
-            >
-              <MessageParts message={m} />
+        {messages.map((m) =>
+          m.role === "user" ? (
+            <div key={m.id} className="flex justify-end">
+              <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent px-3 py-2 text-accent-ink">
+                <MessageParts message={m} />
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div key={m.id} className="flex gap-2.5">
+              <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
+              <div className="min-w-0 flex-1 space-y-1 text-text">
+                <MessageParts message={m} />
+              </div>
+            </div>
+          ),
+        )}
 
         {status === "submitted" && (
-          <div className="flex gap-1" aria-label="Assistant is typing">
+          <div className="flex items-center gap-2.5" aria-label="Assistant is typing">
+            <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
+            <span className="flex gap-1">
             {[0, 150, 300].map((delay) => (
               <span
                 key={delay}
@@ -204,6 +211,7 @@ export function ChatDock() {
                 style={{ animationDelay: `${delay}ms` }}
               />
             ))}
+            </span>
           </div>
         )}
 

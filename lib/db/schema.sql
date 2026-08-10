@@ -26,6 +26,7 @@ create table if not exists profile (
   bio             text not null default '',
   location        text,
   email           text not null,
+  avatar_url      text,
   resume_url      text,
   open_to_work    boolean not null default true,
   github_username text,
@@ -170,6 +171,7 @@ create index if not exists contact_messages_created_idx on contact_messages (cre
 -- added later needs an explicit alter here. These are idempotent, so re-running
 -- the whole file is always safe.
 
+alter table profile        add column if not exists avatar_url text;
 alter table experience     add column if not exists logo_url text;
 alter table education      add column if not exists logo_url text;
 alter table certifications add column if not exists logo_url text;

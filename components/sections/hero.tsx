@@ -24,8 +24,7 @@ export function Hero({ profile }: { profile: Profile }) {
         {profile.headline}
       </h1>
 
-      <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">{profile.bio}</p>
-
+      {/* The bio lives in About now — the hero was carrying too much. */}
       <div className="mt-10">
         <HeroChatPanel />
       </div>

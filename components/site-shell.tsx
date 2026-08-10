@@ -70,10 +70,18 @@ function Content({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function SiteShell({ name, children }: { name: string; children: React.ReactNode }) {
+export function SiteShell({
+  name,
+  avatarUrl,
+  children,
+}: {
+  name: string;
+  avatarUrl?: string;
+  children: React.ReactNode;
+}) {
   return (
     <UIControlProvider>
-      <ChatProvider>
+      <ChatProvider assistantName={name} assistantAvatar={avatarUrl}>
         {/* Fixed decorative layers, behind everything, non-interactive. */}
         <div aria-hidden="true" className="aurora">
           <div className="aurora-orb aurora-orb-a" />

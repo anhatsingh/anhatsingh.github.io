@@ -77,6 +77,12 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "location", label: "Location", type: "text" },
       { name: "email", label: "Email", type: "email", required: true },
       {
+        name: "avatar_url",
+        label: "Photo URL",
+        type: "url",
+        help: "Shown in About and as the chatbot's avatar. Portrait crops best.",
+      },
+      {
         name: "resume_url",
         label: "Resume URL",
         type: "url",

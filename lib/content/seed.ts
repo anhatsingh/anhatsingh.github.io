@@ -25,6 +25,9 @@ export const seedPortfolio: Portfolio = {
     bio: "I build LLM systems that survive contact with actual users — retrieval pipelines that return the right chunk, evals that catch the regression before the customer does, and inference that doesn't fall over at 3am. Mostly Python and TypeScript. Occasionally I write the frontend too, as this site regrettably demonstrates.",
     location: "Punjab, India",
     email: "anhatsingh2001@gmail.com",
+    // Recovered from the 2021 site. Swap it from /admin for anything newer —
+    // the field takes any URL, so an uploaded image or a CDN link both work.
+    avatarUrl: "/anhat.jpg",
     resumeUrl: "",
     openToWork: true,
     githubUsername: "anhatsingh",

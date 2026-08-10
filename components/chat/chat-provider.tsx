@@ -22,6 +22,9 @@ interface ChatContextValue {
   status: ReturnType<typeof useChat>["status"];
   error: Error | undefined;
   isOpen: boolean;
+  /** Anhat's portrait, shown on assistant messages. */
+  assistantAvatar?: string;
+  assistantName: string;
   send: (text: string) => void;
   open: () => void;
   close: () => void;
@@ -31,7 +34,15 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+export function ChatProvider({
+  children,
+  assistantName,
+  assistantAvatar,
+}: {
+  children: React.ReactNode;
+  assistantName: string;
+  assistantAvatar?: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const { focusSection, setHighlights, clearFocus } = useUIControl();
 
@@ -107,6 +118,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         status,
         error,
         isOpen,
+        assistantAvatar,
+        assistantName,
         send,
         open: () => setIsOpen(true),
         close,

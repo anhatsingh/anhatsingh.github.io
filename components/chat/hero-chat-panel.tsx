@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AssistantAvatar } from "./assistant-avatar";
 import { useChatDock } from "./chat-provider";
 
 /*
@@ -32,7 +33,7 @@ const HINTS = [
 ];
 
 export function HeroChatPanel() {
-  const { send, isOpen, open, messages } = useChatDock();
+  const { send, isOpen, open, messages, assistantAvatar, assistantName } = useChatDock();
   const [value, setValue] = useState("");
   const [hint, setHint] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,11 +77,14 @@ export function HeroChatPanel() {
 
         {/* Greeting bubble */}
         <div className="px-4 pb-3 pt-4">
-          <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-elevated px-3.5 py-2.5 text-sm leading-relaxed">
-            Hi — ask me anything about Anhat.{" "}
-            <span className="text-muted">
-              I&apos;ll pull up the relevant part of the page as I answer.
-            </span>
+          <div className="flex gap-2.5">
+            <AssistantAvatar src={assistantAvatar} name={assistantName} size={28} />
+            <div className="max-w-[92%] rounded-2xl rounded-tl-sm bg-elevated px-3.5 py-2.5 text-sm leading-relaxed">
+              Hi — ask me anything about {assistantName.split(" ")[0]}.{" "}
+              <span className="text-muted">
+                I&apos;ll pull up the relevant part of the page as I answer.
+              </span>
+            </div>
           </div>
 
           {conversationStarted ? (

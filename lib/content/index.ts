@@ -72,6 +72,7 @@ function mapProfile(r: Record<string, unknown>): Profile {
     bio: (r.bio as string) ?? "",
     location: (r.location as string) ?? undefined,
     email: r.email as string,
+    avatarUrl: (r.avatar_url as string) ?? undefined,
     resumeUrl: (r.resume_url as string) ?? undefined,
     openToWork: Boolean(r.open_to_work),
     githubUsername: (r.github_username as string) ?? undefined,

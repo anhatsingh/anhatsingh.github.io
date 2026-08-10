@@ -1,4 +1,5 @@
 import { SiteShell } from "@/components/site-shell";
+import { About } from "@/components/sections/about";
 import { Contact } from "@/components/sections/contact";
 import { Education } from "@/components/sections/education";
 import { Experience } from "@/components/sections/experience";
@@ -25,8 +26,9 @@ export default async function HomePage() {
     : null;
 
   return (
-    <SiteShell name={portfolio.profile.name}>
+    <SiteShell name={portfolio.profile.name} avatarUrl={portfolio.profile.avatarUrl}>
       <Hero profile={portfolio.profile} />
+      <About profile={portfolio.profile} />
       <Projects projects={portfolio.projects} />
       <Experience experience={portfolio.experience} />
       <GitHub stats={githubStats} />
