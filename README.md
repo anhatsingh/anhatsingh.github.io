@@ -90,6 +90,20 @@ rate-limit points per day.
 
 The section hides itself entirely if the token is absent or GitHub is down.
 
+### LeetCode
+
+Set `leetcode_username` in `/admin` → Profile (handle only, not a URL). Blank
+hides the section.
+
+⚠️ `https://leetcode.com/graphql` is **unofficial** — it's what leetcode.com's own
+frontend calls, needs no auth for public profiles, and is what every LeetCode
+stats widget uses, but there's no documented contract and no deprecation policy.
+It can change or start blocking without notice. So the service fails quietly:
+any error and the section simply doesn't render. Cached six hours.
+
+Must stay server-side — LeetCode sends no CORS headers, so a browser fetch is
+blocked.
+
 ### 4. Contact — Resend
 
 `RESEND_API_KEY` + `CONTACT_EMAIL`. Messages persist to Supabase *before* the email
@@ -167,6 +181,12 @@ Five tools: `focusSection`, `highlightItems`, `clearFocus`, `openResume`,
 `draftContactMessage`.
 
 Two design decisions worth knowing before you change anything here:
+
+**The chatbot sees your live account data.** GitHub and LeetCode stats are folded
+into the same context as your portfolio content, so "how active is he on GitHub?"
+or "how many LeetCode problems has he solved?" get real answers. Deliberately
+aggregates only — the 365-day contribution calendar is never serialised, which
+keeps the whole context around 1,700 tokens.
 
 **Content ids are validated server-side.** Tools are built per request, closed
 over the real portfolio (`lib/chat/tools.ts`). A hallucinated

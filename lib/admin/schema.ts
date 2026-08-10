@@ -90,6 +90,12 @@ export const ADMIN_TABLES: TableSpec[] = [
       },
       { name: "open_to_work", label: "Open to work", type: "boolean" },
       { name: "github_username", label: "GitHub username", type: "text" },
+      {
+        name: "leetcode_username",
+        label: "LeetCode username",
+        type: "text",
+        help: "Handle only, not the URL. Blank hides the section.",
+      },
     ],
   },
   {

@@ -7,6 +7,7 @@ import { Education } from "@/components/sections/education";
 import { Experience } from "@/components/sections/experience";
 import { GitHub } from "@/components/sections/github";
 import { Hero } from "@/components/sections/hero";
+import { LeetCode } from "@/components/sections/leetcode";
 import { Projects } from "@/components/sections/projects";
 import { Skills } from "@/components/sections/skills";
 import { Testimonials } from "@/components/sections/testimonials";
@@ -14,6 +15,7 @@ import { Writing } from "@/components/sections/writing";
 import { defaultAvatar } from "@/components/ui/default-avatar";
 import { getPortfolio } from "@/lib/content";
 import { getGitHubStats } from "@/lib/github/service";
+import { getLeetCodeStats } from "@/lib/leetcode/service";
 import {
   SITE_URL,
   absoluteUrl,
@@ -90,10 +92,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const portfolio = await getPortfolio();
 
-  // Never let a GitHub outage take the page down with it.
-  const githubStats = portfolio.profile.githubUsername
-    ? await getGitHubStats(portfolio.profile.githubUsername).catch(() => null)
-    : null;
+  // Neither third party can take the page down with it — both resolve to null
+  // on any failure and their sections simply don't render.
+  const [githubStats, leetcodeStats] = await Promise.all([
+    portfolio.profile.githubUsername
+      ? getGitHubStats(portfolio.profile.githubUsername).catch(() => null)
+      : null,
+    portfolio.profile.leetcodeUsername
+      ? getLeetCodeStats(portfolio.profile.leetcodeUsername).catch(() => null)
+      : null,
+  ]);
 
   const avatarUrl = portfolio.profile.avatarUrl?.trim()
     ? absoluteUrl(portfolio.profile.avatarUrl)
@@ -116,6 +124,7 @@ export default async function HomePage() {
         <Projects projects={portfolio.projects} />
         <Experience experience={portfolio.experience} />
         <GitHub stats={githubStats} />
+        <LeetCode stats={leetcodeStats} />
         <Skills skills={portfolio.skills} />
         <Education education={portfolio.education} certifications={portfolio.certifications} />
         <Testimonials testimonials={portfolio.testimonials} />

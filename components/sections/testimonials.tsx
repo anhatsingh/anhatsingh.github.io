@@ -7,7 +7,7 @@ export function Testimonials({ testimonials }: { testimonials: Testimonial[] }) 
   if (!testimonials.length) return null;
 
   return (
-    <Section id="testimonials" eyebrow="06 — Testimonials" title="What people say">
+    <Section id="testimonials" eyebrow="07 — Testimonials" title="What people say">
       <div className="grid gap-6 md:grid-cols-2">
         {testimonials.map((t) => (
           <Highlightable key={t.slug} itemId={itemId("testimonials", t.slug)}>

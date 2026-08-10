@@ -1,6 +1,7 @@
 "use client";
 
 import { Section } from "./section";
+import { formatNumber } from "@/lib/format";
 import type { ContributionLevel, GitHubStats } from "@/lib/github/service";
 
 /*
@@ -39,7 +40,7 @@ export function GitHub({ stats }: { stats: GitHubStats | null }) {
     <Section id="github" eyebrow="03 — Activity" title="What I've been shipping">
       <div className="flex flex-wrap items-baseline gap-3">
         <p className="font-display text-6xl text-accent">
-          {stats.totalContributions.toLocaleString()}
+          {formatNumber(stats.totalContributions)}
         </p>
         <p className="font-mono text-xs uppercase tracking-widest text-muted">
           contributions in the last year
@@ -71,7 +72,7 @@ export function GitHub({ stats }: { stats: GitHubStats | null }) {
       </div>
 
       <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat value={stats.commits.toLocaleString()} label="commits" />
+        <Stat value={formatNumber(stats.commits)} label="commits" />
         <Stat value={stats.mergedPrs} label="PRs merged" />
         <Stat value={stats.externalMergedPrs} label="into others' repos" />
         <Stat value={stats.reviews} label="reviews" />

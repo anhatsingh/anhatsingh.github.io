@@ -37,6 +37,7 @@ export const seedPortfolio: Portfolio = {
     resumeUrl: "",
     openToWork: true,
     githubUsername: "anhatsingh",
+    leetcodeUsername: "anhatsingh",
     socials: {
       github: "https://github.com/anhatsingh",
       linkedin: "https://linkedin.com/in/anhat-singh/",

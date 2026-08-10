@@ -49,7 +49,7 @@ export function Contact({ profile }: { profile: Profile }) {
   }
 
   return (
-    <Section id="contact" eyebrow="08 — Contact" title="Get in touch">
+    <Section id="contact" eyebrow="09 — Contact" title="Get in touch">
       <div className="grid gap-10 md:grid-cols-2">
         <div>
           <p className="max-w-md leading-relaxed text-muted">

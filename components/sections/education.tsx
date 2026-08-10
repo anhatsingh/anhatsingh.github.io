@@ -14,7 +14,7 @@ export function Education({
   if (!education.length && !certifications.length) return null;
 
   return (
-    <Section id="education" eyebrow="05 — Education" title="Where I learned it">
+    <Section id="education" eyebrow="06 — Education" title="Where I learned it">
       <div className="grid gap-10 md:grid-cols-2">
         {education.length > 0 && (
           <div className="space-y-6">

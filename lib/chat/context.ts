@@ -1,4 +1,7 @@
+import { formatNumber } from "@/lib/format";
 import { addressableIds, itemId, type Portfolio } from "@/lib/content/types";
+import type { GitHubStats } from "@/lib/github/service";
+import type { LeetCodeStats } from "@/lib/leetcode/service";
 
 /*
   RETRIEVAL SEAM
@@ -17,6 +20,70 @@ export interface ContextProvider {
   getContext(question: string): Promise<string>;
 }
 
+/** Live data pulled from connected accounts, folded into the same context. */
+export interface LiveStats {
+  github?: GitHubStats | null;
+  leetcode?: LeetCodeStats | null;
+}
+
+/*
+  Connected-account stats, summarised.
+
+  Deliberately aggregates only. The GitHub contribution calendar is 365 day
+  entries and the language list can run long — dumping either would multiply the
+  context size for data nobody asks a chatbot about at that granularity.
+  "How many contributions last year?" needs one number, not the calendar.
+*/
+function serializeStats(stats: LiveStats): string {
+  const parts: string[] = [];
+
+  if (stats.github) {
+    const g = stats.github;
+    const languages = g.languages
+      .slice(0, 6)
+      .map((l) => `${l.name} ${l.percent.toFixed(0)}%`)
+      .join(", ");
+    const repos = g.recentRepos
+      .slice(0, 5)
+      .map((r) => `${r.name}${r.language ? ` (${r.language})` : ""}`)
+      .join(", ");
+
+    parts.push(
+      `## GITHUB (@${g.username}, live — last 12 months unless stated)\n` +
+        `Total contributions: ${g.totalContributions}` +
+        (g.restrictedContributions > 0 ? ` (plus ${g.restrictedContributions} in private repos)` : "") +
+        `\nCommits: ${g.commits} | Pull requests opened: ${g.pullRequests} | Code reviews: ${g.reviews} | Issues: ${g.issues}` +
+        `\nPRs merged all-time: ${g.mergedPrs}, of which ${g.externalMergedPrs} were into repositories he does not own` +
+        `\nRepositories contributed to: ${g.reposContributedTo} | Public repos: ${g.publicRepos} | Followers: ${g.followers}` +
+        `\nYears on GitHub: ${g.yearsOnGitHub}` +
+        (languages ? `\nLanguages by volume of code written: ${languages}` : "") +
+        (repos ? `\nMost recently pushed: ${repos}` : ""),
+    );
+  }
+
+  if (stats.leetcode) {
+    const l = stats.leetcode;
+    const breakdown = l.breakdown
+      .map((d) => `${d.difficulty} ${d.solved}/${d.available}`)
+      .join(", ");
+    const languages = l.languages.slice(0, 4).map((x) => `${x.name} (${x.solved})`).join(", ");
+    const tags = l.topTags.slice(0, 6).map((t) => `${t.name} (${t.solved})`).join(", ");
+
+    parts.push(
+      `## LEETCODE (@${l.username}, live)\n` +
+        `Problems solved: ${l.totalSolved} out of ${l.totalAvailable} available\n` +
+        `By difficulty: ${breakdown}` +
+        (l.acceptanceRate !== null ? `\nAcceptance rate: ${l.acceptanceRate.toFixed(1)}% across ${l.totalSubmissions} submissions` : "") +
+        (l.ranking ? `\nGlobal ranking: ${formatNumber(l.ranking)}` : "") +
+        (languages ? `\nLanguages used: ${languages}` : "") +
+        (tags ? `\nStrongest topics: ${tags}` : "") +
+        (l.activeYears.length ? `\nActive years: ${l.activeYears.join(", ")}` : ""),
+    );
+  }
+
+  return parts.join("\n\n");
+}
+
 function line(label: string, value?: string | null): string {
   return value ? `${label}: ${value}\n` : "";
 }
@@ -28,7 +95,7 @@ function line(label: string, value?: string | null): string {
  * vocabulary the model uses in highlightItems calls. Without them inline the
  * model invents plausible-looking slugs.
  */
-export function serializePortfolio(p: Portfolio): string {
+export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string {
   const parts: string[] = [];
 
   parts.push(
@@ -130,6 +197,9 @@ export function serializePortfolio(p: Portfolio): string {
     );
   }
 
+  const live = serializeStats(stats);
+  if (live) parts.push(live);
+
   parts.push(
     `## CONTENT INDEX (the ONLY valid ids for highlightItems)\n` +
       [...addressableIds(p).keys()].join("\n"),
@@ -139,9 +209,12 @@ export function serializePortfolio(p: Portfolio): string {
 }
 
 export class DirectContextProvider implements ContextProvider {
-  constructor(private portfolio: Portfolio) {}
+  constructor(
+    private portfolio: Portfolio,
+    private stats: LiveStats = {},
+  ) {}
 
   async getContext(): Promise<string> {
-    return serializePortfolio(this.portfolio);
+    return serializePortfolio(this.portfolio, this.stats);
   }
 }

@@ -76,6 +76,7 @@ function mapProfile(r: Record<string, unknown>): Profile {
     resumeUrl: (r.resume_url as string) ?? undefined,
     openToWork: Boolean(r.open_to_work),
     githubUsername: (r.github_username as string) ?? undefined,
+    leetcodeUsername: (r.leetcode_username as string) ?? undefined,
     socials: (r.socials as Profile["socials"]) ?? {},
   };
 }

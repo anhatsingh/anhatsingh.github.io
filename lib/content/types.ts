@@ -13,6 +13,7 @@ export type SectionId =
   | "projects"
   | "experience"
   | "github"
+  | "leetcode"
   | "skills"
   | "education"
   | "testimonials"
@@ -25,6 +26,7 @@ export const NAVIGABLE_SECTIONS: SectionId[] = [
   "projects",
   "experience",
   "github",
+  "leetcode",
   "skills",
   "education",
   "testimonials",
@@ -38,6 +40,7 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   projects: "Projects",
   experience: "Experience",
   github: "GitHub",
+  leetcode: "LeetCode",
   skills: "Skills",
   education: "Education & Certifications",
   testimonials: "Testimonials",
@@ -60,6 +63,8 @@ export interface Profile {
   bio: string;
   location?: string;
   email: string;
+  /** LeetCode handle. Section hides itself when unset. */
+  leetcodeUsername?: string;
   /** Portrait. Shown in About and as the assistant's avatar in chat. */
   avatarUrl?: string;
   /** Google Drive share link, editable from admin. */

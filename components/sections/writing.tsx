@@ -13,7 +13,7 @@ export function Writing({ writing }: { writing: WritingItem[] }) {
   if (!writing.length) return null;
 
   return (
-    <Section id="writing" eyebrow="07 — Writing" title="Things I've written">
+    <Section id="writing" eyebrow="08 — Writing" title="Things I've written">
       <div className="grid gap-6 md:grid-cols-2">
         {writing.map((w) => (
           <Highlightable key={w.slug} itemId={itemId("writing", w.slug)}>

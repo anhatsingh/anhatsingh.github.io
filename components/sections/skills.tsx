@@ -15,7 +15,7 @@ export function Skills({ skills }: { skills: Skill[] }) {
   }
 
   return (
-    <Section id="skills" eyebrow="04 — Skills" title="What I work with">
+    <Section id="skills" eyebrow="05 — Skills" title="What I work with">
       <div className="space-y-8">
         {[...grouped.entries()].map(([category, items]) => (
           <div key={category}>

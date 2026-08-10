@@ -1,6 +1,8 @@
 import { openai } from "@ai-sdk/openai";
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from "ai";
 import { getPortfolio } from "@/lib/content";
+import { getGitHubStats } from "@/lib/github/service";
+import { getLeetCodeStats } from "@/lib/leetcode/service";
 import { DirectContextProvider } from "@/lib/chat/context";
 import { buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
 import { buildTools } from "@/lib/chat/tools";
@@ -49,7 +51,20 @@ export async function POST(req: Request) {
   }
 
   const portfolio = await getPortfolio();
-  const context = await new DirectContextProvider(portfolio).getContext();
+
+  // Same cached fetches the page uses, so the chatbot quotes exactly what the
+  // visitor can see. Both degrade to null rather than failing the reply — an
+  // answer without stats beats no answer.
+  const [github, leetcode] = await Promise.all([
+    portfolio.profile.githubUsername
+      ? getGitHubStats(portfolio.profile.githubUsername).catch(() => null)
+      : null,
+    portfolio.profile.leetcodeUsername
+      ? getLeetCodeStats(portfolio.profile.leetcodeUsername).catch(() => null)
+      : null,
+  ]);
+
+  const context = await new DirectContextProvider(portfolio, { github, leetcode }).getContext();
 
   // Wrap visitor turns so the model can distinguish content from instructions.
   const messages = trimHistory(incoming).map((m) =>

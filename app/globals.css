@@ -45,6 +45,9 @@
 
   /* #00873d read nicer but landed at 4.40:1 on --bg, just under AA. */
   --success: #007a37;
+  /* Medium-difficulty amber. LeetCode's own green/amber/red coding is near
+     universal among people who use it, so it wins over brand consistency. */
+  --warn: #8a5300;
   --danger: #c1121f;
 
   /* Callout bubbles the chatbot pins onto matched content */
@@ -87,6 +90,7 @@
   --grain-opacity: 0.05;
 
   --success: #00c758;
+  --warn: #e0a33a;
   --danger: #fb2c36;
 
   --callout-bg: #06232b;
@@ -117,6 +121,7 @@
     --grain-opacity: 0.05;
 
     --success: #00c758;
+    --warn: #e0a33a;
     --danger: #fb2c36;
 
     --callout-bg: #06232b;
@@ -135,6 +140,7 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
   --color-success: var(--success);
+  --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-callout-bg: var(--callout-bg);
   --color-callout-border: var(--callout-border);
