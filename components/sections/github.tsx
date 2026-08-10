@@ -84,6 +84,17 @@ export function GitHub({ stats }: { stats: GitHubStats | null }) {
         <div className="mt-12">
           <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
             Languages by volume
+            {stats.languageRepoCount > 0 && (
+              // Says what the chart is actually measuring. Without this the
+              // percentages look like they describe the public repos listed
+              // below, which they don't.
+              <span className="ml-2 normal-case tracking-normal text-muted/70">
+                {stats.languagesCurated
+                  ? `${stats.languageRepoCount} selected repos`
+                  : `${stats.languageRepoCount} repos from the last ${stats.languageWindowYears} years`}
+                {stats.privateRepoCount > 0 && `, incl. ${stats.privateRepoCount} private`}
+              </span>
+            )}
           </h3>
           <div className="mt-3 flex h-2 overflow-hidden rounded-full">
             {stats.languages.map((l) => (

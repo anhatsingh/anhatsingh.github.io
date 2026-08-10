@@ -48,12 +48,36 @@ export const SECTION_LABELS: Record<SectionId, string> = {
   contact: "Contact",
 };
 
-export interface Socials {
-  github?: string;
-  linkedin?: string;
-  leetcode?: string;
-  twitter?: string;
-  email?: string;
+/**
+ * Every profile the site can link to, in the order they're rendered.
+ *
+ * GitHub and LeetCode are derived from usernames rather than full URLs, because
+ * those same usernames already drive the stats sections — one field per thing,
+ * no chance of the button pointing somewhere the stats don't.
+ */
+export const SOCIAL_PLATFORMS = [
+  { key: "github", label: "GitHub", field: "githubUsername", derive: (v: string) => `https://github.com/${v}` },
+  { key: "leetcode", label: "LeetCode", field: "leetcodeUsername", derive: (v: string) => `https://leetcode.com/u/${v}/` },
+  { key: "linkedin", label: "LinkedIn", field: "linkedinUrl" },
+  { key: "x", label: "X", field: "xUrl" },
+  { key: "kaggle", label: "Kaggle", field: "kaggleUrl" },
+  { key: "huggingface", label: "Hugging Face", field: "huggingfaceUrl" },
+  { key: "hashnode", label: "Hashnode", field: "hashnodeUrl" },
+  { key: "peerlist", label: "Peerlist", field: "peerlistUrl" },
+  { key: "medium", label: "Medium", field: "mediumUrl" },
+  { key: "stackoverflow", label: "Stack Overflow", field: "stackoverflowUrl" },
+  { key: "devto", label: "dev.to", field: "devtoUrl" },
+] as const satisfies ReadonlyArray<{
+  key: string;
+  label: string;
+  field: string;
+  derive?: (value: string) => string;
+}>;
+
+export interface SocialLink {
+  key: string;
+  label: string;
+  url: string;
 }
 
 export interface Profile {
@@ -67,13 +91,23 @@ export interface Profile {
   /** LeetCode handle. Section and button hide themselves when unset. */
   leetcodeUsername?: string;
   linkedinUrl?: string;
-  twitterUrl?: string;
+  xUrl?: string;
+  kaggleUrl?: string;
+  huggingfaceUrl?: string;
+  hashnodeUrl?: string;
+  peerlistUrl?: string;
+  mediumUrl?: string;
+  stackoverflowUrl?: string;
+  devtoUrl?: string;
+  /** Platform keys the admin has chosen to hide from the site. */
+  hiddenSocials?: string[];
+  /** Repos chosen in /admin/repos to feed the GitHub language chart. */
+  selectedRepos?: string[];
   /** Portrait. Shown in About and as the assistant's avatar in chat. */
   avatarUrl?: string;
   /** Google Drive share link, editable from admin. */
   resumeUrl?: string;
   openToWork: boolean;
-  socials: Socials;
   githubUsername?: string;
 }
 
@@ -166,31 +200,29 @@ export interface Portfolio {
 }
 
 /**
- * The profile's outbound links, derived rather than stored.
+ * The profile's visible outbound links, in registry order.
  *
- * Previously these came from a `socials` jsonb column that the admin form never
- * exposed — so it stayed `{}` and the GitHub and LinkedIn buttons never
- * appeared no matter what you typed. Now GitHub and LeetCode are built from the
- * usernames you already set (the same ones that drive the stats sections), and
- * LinkedIn/X are their own fields. One place to set each thing.
- *
- * The stored `socials` object is still honoured as a fallback so existing rows
- * and the seed keep working.
+ * A platform appears only if it has a value AND hasn't been hidden from
+ * /admin. Hiding is deliberately total: a hidden profile is also dropped from
+ * the `sameAs` structured data, so "hide" means "don't publish this anywhere"
+ * rather than "hide it visually but still tell Google about it".
  */
-export function socialLinks(profile: Profile): Socials {
-  const stored = profile.socials ?? {};
+export function socialLinks(profile: Profile): SocialLink[] {
+  const hidden = new Set(profile.hiddenSocials ?? []);
+  const links: SocialLink[] = [];
 
-  return {
-    github: profile.githubUsername
-      ? `https://github.com/${profile.githubUsername}`
-      : stored.github,
-    leetcode: profile.leetcodeUsername
-      ? `https://leetcode.com/u/${profile.leetcodeUsername}/`
-      : stored.leetcode,
-    linkedin: profile.linkedinUrl?.trim() || stored.linkedin,
-    twitter: profile.twitterUrl?.trim() || stored.twitter,
-    email: profile.email ? `mailto:${profile.email}` : stored.email,
-  };
+  for (const platform of SOCIAL_PLATFORMS) {
+    if (hidden.has(platform.key)) continue;
+
+    const raw = (profile as unknown as Record<string, unknown>)[platform.field];
+    const value = typeof raw === "string" ? raw.trim() : "";
+    if (!value) continue;
+
+    const derive = (platform as { derive?: (v: string) => string }).derive;
+    links.push({ key: platform.key, label: platform.label, url: derive ? derive(value) : value });
+  }
+
+  return links;
 }
 
 /* --- Addressing ------------------------------------------------------- */

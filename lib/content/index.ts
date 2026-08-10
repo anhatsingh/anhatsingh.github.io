@@ -78,8 +78,16 @@ function mapProfile(r: Record<string, unknown>): Profile {
     githubUsername: (r.github_username as string) ?? undefined,
     leetcodeUsername: (r.leetcode_username as string) ?? undefined,
     linkedinUrl: (r.linkedin_url as string) ?? undefined,
-    twitterUrl: (r.twitter_url as string) ?? undefined,
-    socials: (r.socials as Profile["socials"]) ?? {},
+    xUrl: (r.x_url as string) ?? undefined,
+    kaggleUrl: (r.kaggle_url as string) ?? undefined,
+    huggingfaceUrl: (r.huggingface_url as string) ?? undefined,
+    hashnodeUrl: (r.hashnode_url as string) ?? undefined,
+    peerlistUrl: (r.peerlist_url as string) ?? undefined,
+    mediumUrl: (r.medium_url as string) ?? undefined,
+    stackoverflowUrl: (r.stackoverflow_url as string) ?? undefined,
+    devtoUrl: (r.devto_url as string) ?? undefined,
+    hiddenSocials: (r.hidden_socials as string[]) ?? [],
+    selectedRepos: (r.selected_repos as string[]) ?? [],
   };
 }
 

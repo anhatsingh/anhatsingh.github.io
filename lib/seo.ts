@@ -73,10 +73,9 @@ export function buildPersonJsonLd(portfolio: Portfolio, avatarUrl: string) {
   // empty for rows created through the admin form, and reading it directly
   // silently emitted sameAs: [] — dropping the one field that connects this
   // domain to the GitHub and LinkedIn profiles.
-  const links = socialLinks(profile);
-  const sameAs = [links.github, links.linkedin, links.leetcode, links.twitter].filter(
-    (url): url is string => Boolean(url),
-  );
+  // Hidden platforms are already filtered out by socialLinks(), so hiding a
+  // profile removes it from the entity graph too — not just the visible page.
+  const sameAs = socialLinks(profile).map((l) => l.url);
 
   const currentRole = portfolio.experience.find((e) => e.endDate === null);
 

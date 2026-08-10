@@ -20,6 +20,12 @@ export interface Field {
   help?: string;
   /** Rendered but not editable after creation. Slugs are the chatbot's addresses. */
   lockedAfterCreate?: boolean;
+  /**
+   * Renders a "Hide" checkbox beside this field. The value is the platform key;
+   * checked keys are collected into the `hidden_socials` array rather than each
+   * needing its own boolean column.
+   */
+  hideKey?: string;
 }
 
 export interface TableSpec {
@@ -97,28 +103,27 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "open_to_work", label: "Open to work", type: "boolean" },
       {
         name: "github_username",
-        label: "GitHub username",
+        label: "GitHub",
         type: "text",
-        help: "Handle only. This drives the GitHub button AND the stats section.",
+        hideKey: "github",
+        help: "Handle only. Also drives the GitHub stats section.",
       },
       {
         name: "leetcode_username",
-        label: "LeetCode username",
+        label: "LeetCode",
         type: "text",
-        help: "Handle only, not the URL. Blank hides the section and the button.",
+        hideKey: "leetcode",
+        help: "Handle only. Also drives the LeetCode section.",
       },
-      {
-        name: "linkedin_url",
-        label: "LinkedIn URL",
-        type: "url",
-        help: "Full profile URL, e.g. https://linkedin.com/in/anhat-singh",
-      },
-      {
-        name: "twitter_url",
-        label: "X / Twitter URL",
-        type: "url",
-        help: "Optional. Full profile URL.",
-      },
+      { name: "linkedin_url", label: "LinkedIn", type: "url", hideKey: "linkedin", help: "Full profile URL." },
+      { name: "x_url", label: "X", type: "url", hideKey: "x", help: "Full profile URL." },
+      { name: "kaggle_url", label: "Kaggle", type: "url", hideKey: "kaggle" },
+      { name: "huggingface_url", label: "Hugging Face", type: "url", hideKey: "huggingface" },
+      { name: "hashnode_url", label: "Hashnode", type: "url", hideKey: "hashnode" },
+      { name: "peerlist_url", label: "Peerlist", type: "url", hideKey: "peerlist" },
+      { name: "medium_url", label: "Medium", type: "url", hideKey: "medium" },
+      { name: "stackoverflow_url", label: "Stack Overflow", type: "url", hideKey: "stackoverflow" },
+      { name: "devto_url", label: "dev.to", type: "url", hideKey: "devto" },
     ],
   },
   {
@@ -305,6 +310,15 @@ export function coerceRow(spec: TableSpec, form: FormData): Record<string, unkno
         row[field.name] = String(raw ?? "").trim();
       }
     }
+  }
+
+  // Hide toggles aren't columns of their own — they collapse into one array,
+  // so adding a platform doesn't mean adding a boolean column alongside it.
+  const toggles = spec.fields.filter((f) => f.hideKey);
+  if (toggles.length) {
+    row.hidden_socials = toggles
+      .filter((f) => form.get(`hidden__${f.hideKey}`) === "on")
+      .map((f) => f.hideKey as string);
   }
 
   return row;

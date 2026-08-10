@@ -1,7 +1,7 @@
 "use client";
 
 import { HeroChatPanel } from "@/components/chat/hero-chat-panel";
-import { DownloadIcon, GitHubIcon, LeetCodeIcon, LinkedInIcon } from "@/components/ui/icons";
+import { BrandIcon, DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
 import { socialLinks, type Profile } from "@/lib/content/types";
 
@@ -56,39 +56,18 @@ export function Hero({ profile }: { profile: Profile }) {
             Download CV
           </a>
         )}
-        {socials.github && (
+        {socials.map((link) => (
           <a
-            href={socials.github}
+            key={link.key}
+            href={link.url}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
           >
-            <GitHubIcon className="h-4 w-4" />
-            GitHub
+            <BrandIcon name={link.key} />
+            {link.label}
           </a>
-        )}
-        {socials.linkedin && (
-          <a
-            href={socials.linkedin}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
-          >
-            <LinkedInIcon className="h-4 w-4" />
-            LinkedIn
-          </a>
-        )}
-        {socials.leetcode && (
-          <a
-            href={socials.leetcode}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-hairline px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
-          >
-            <LeetCodeIcon className="h-4 w-4" />
-            LeetCode
-          </a>
-        )}
+        ))}
       </div>
     </section>
   );

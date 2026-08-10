@@ -15,7 +15,7 @@ export async function GET() {
     return Response.json({ error: "No GitHub username configured." }, { status: 404 });
   }
 
-  const stats = await getGitHubStats(username);
+  const stats = await getGitHubStats(username, profile.selectedRepos);
   if (!stats) {
     return Response.json(
       { error: "GitHub stats unavailable. Is GH_STATS_PAT set?" },

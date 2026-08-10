@@ -11,6 +11,23 @@
   reflect private work.
 */
 
+/**
+ * Which repositories feed the LANGUAGE chart.
+ *
+ * Worth understanding before changing: GitHub reports language bytes per
+ * REPOSITORY, not per author. A repo you're a member of contributes its entire
+ * breakdown whether you wrote three lines of it or all of it.
+ *
+ *   [OWNER]                            your own repos only, public + private
+ *   [OWNER, COLLABORATOR]              + repos you were explicitly added to
+ *   [OWNER, ORGANIZATION_MEMBER, ...]  + every org repo you can see  ← current
+ *
+ * The widest setting is the most complete picture of what you touch, but it
+ * lets an employer's codebase dominate — which can end up describing the
+ * company's stack rather than your own.
+ */
+export const LANGUAGE_AFFILIATIONS = "[OWNER, ORGANIZATION_MEMBER, COLLABORATOR]";
+
 /** Costs 1 rate-limit point. from/to must span no more than one year. */
 export const CONTRIBUTIONS_QUERY = /* GraphQL */ `
   query Contributions($login: String!, $from: DateTime, $to: DateTime) {
@@ -40,7 +57,36 @@ export const CONTRIBUTIONS_QUERY = /* GraphQL */ `
           }
         }
       }
-      repositories(
+      # TWO separate connections, deliberately.
+      #
+      # languageRepos spans private and organisation repositories, because the
+      # language chart is an aggregate — summed bytes reveal no repository names.
+      #
+      # publicRepos stays PUBLIC + OWNER because its names are RENDERED. Widening
+      # it would publish private and client repository names on a public page.
+      languageRepos: repositories(
+        first: 100
+        isFork: false
+        ownerAffiliations: ${LANGUAGE_AFFILIATIONS}
+        orderBy: { field: PUSHED_AT, direction: DESC }
+      ) {
+        totalCount
+        nodes {
+          nameWithOwner
+          isPrivate
+          pushedAt
+          languages(first: 10, orderBy: { field: SIZE, direction: DESC }) {
+            edges {
+              size
+              node {
+                name
+                color
+              }
+            }
+          }
+        }
+      }
+      publicRepos: repositories(
         first: 100
         isFork: false
         privacy: PUBLIC
@@ -56,15 +102,6 @@ export const CONTRIBUTIONS_QUERY = /* GraphQL */ `
           primaryLanguage {
             name
             color
-          }
-          languages(first: 10, orderBy: { field: SIZE, direction: DESC }) {
-            edges {
-              size
-              node {
-                name
-                color
-              }
-            }
           }
         }
       }

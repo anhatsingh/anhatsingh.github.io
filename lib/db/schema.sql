@@ -31,8 +31,20 @@ create table if not exists profile (
   open_to_work    boolean not null default true,
   github_username text,
   leetcode_username text,
-  linkedin_url    text,
-  twitter_url     text,
+  linkedin_url      text,
+  x_url             text,
+  kaggle_url        text,
+  huggingface_url   text,
+  hashnode_url      text,
+  peerlist_url      text,
+  medium_url        text,
+  stackoverflow_url text,
+  devto_url         text,
+  -- Platform keys hidden from the site. One array beats a boolean per platform.
+  hidden_socials    text[] not null default '{}',
+  -- Repos hand-picked in /admin/repos to feed the language chart. Empty means
+  -- "use the recency default".
+  selected_repos    text[] not null default '{}',
   socials         jsonb not null default '{}'::jsonb,
   updated_at      timestamptz not null default now(),
   -- Enforces the singleton: only one row can ever exist.
@@ -177,7 +189,16 @@ create index if not exists contact_messages_created_idx on contact_messages (cre
 alter table profile        add column if not exists avatar_url text;
 alter table profile        add column if not exists leetcode_username text;
 alter table profile        add column if not exists linkedin_url text;
-alter table profile        add column if not exists twitter_url text;
+alter table profile        add column if not exists x_url text;
+alter table profile        add column if not exists kaggle_url text;
+alter table profile        add column if not exists huggingface_url text;
+alter table profile        add column if not exists hashnode_url text;
+alter table profile        add column if not exists peerlist_url text;
+alter table profile        add column if not exists medium_url text;
+alter table profile        add column if not exists stackoverflow_url text;
+alter table profile        add column if not exists devto_url text;
+alter table profile        add column if not exists hidden_socials text[] not null default '{}';
+alter table profile        add column if not exists selected_repos text[] not null default '{}';
 alter table experience     add column if not exists logo_url text;
 alter table education      add column if not exists logo_url text;
 alter table certifications add column if not exists logo_url text;

@@ -74,53 +74,23 @@ export function Contact({ profile }: { profile: Profile }) {
                 <dd>{profile.location}</dd>
               </div>
             )}
-            {socials.github && (
-              <div className="flex gap-3">
-                <dt className="w-20 shrink-0 text-muted">github</dt>
-                <dd>
+            {socials.map((link) => (
+              <div key={link.key} className="flex gap-3">
+                <dt className="w-20 shrink-0 text-muted">{link.label.toLowerCase()}</dt>
+                <dd className="min-w-0">
                   <a
-                    href={socials.github}
+                    href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-accent hover:underline"
+                    className="break-all text-accent hover:underline"
                   >
-                    @{profile.githubUsername}
+                    {/* Show the handle rather than the whole URL — derived from
+                        the link so it can't drift from where it points. */}
+                    {link.url.replace(/\/+$/, "").split("/").pop()}
                   </a>
                 </dd>
               </div>
-            )}
-            {socials.leetcode && (
-              <div className="flex gap-3">
-                <dt className="w-20 shrink-0 text-muted">leetcode</dt>
-                <dd>
-                  <a
-                    href={socials.leetcode}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline"
-                  >
-                    @{profile.leetcodeUsername}
-                  </a>
-                </dd>
-              </div>
-            )}
-            {socials.linkedin && (
-              <div className="flex gap-3">
-                <dt className="w-20 shrink-0 text-muted">linkedin</dt>
-                <dd>
-                  <a
-                    href={socials.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline"
-                  >
-                    {/* Derived from the URL rather than hardcoded — the handle
-                        used to be the literal string "anhat-singh". */}
-                    {socials.linkedin.replace(/\/$/, "").split("/").pop()}
-                  </a>
-                </dd>
-              </div>
-            )}
+            ))}
           </dl>
 
           <button

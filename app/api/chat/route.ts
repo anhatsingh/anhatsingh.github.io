@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   // answer without stats beats no answer.
   const [github, leetcode] = await Promise.all([
     portfolio.profile.githubUsername
-      ? getGitHubStats(portfolio.profile.githubUsername).catch(() => null)
+      ? getGitHubStats(portfolio.profile.githubUsername, portfolio.profile.selectedRepos).catch(() => null)
       : null,
     portfolio.profile.leetcodeUsername
       ? getLeetCodeStats(portfolio.profile.leetcodeUsername).catch(() => null)

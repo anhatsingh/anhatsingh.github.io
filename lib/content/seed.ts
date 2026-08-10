@@ -38,10 +38,13 @@ export const seedPortfolio: Portfolio = {
     openToWork: true,
     githubUsername: "anhatsingh",
     leetcodeUsername: "anhatsingh",
-    linkedinUrl: "https://linkedin.com/in/anhat-singh/",
-    // GitHub, LeetCode and email links are derived from the fields above by
+    // GitHub and LeetCode links are derived from the usernames above by
     // socialLinks(), so there's nothing to duplicate here.
-    socials: {},
+    linkedinUrl: "https://linkedin.com/in/anhat-singh/",
+    kaggleUrl: "https://www.kaggle.com/anhatsingh",
+    hashnodeUrl: "https://hashnode.com/@anhatsingh",
+    xUrl: "https://x.com/anhatsingh",
+    hiddenSocials: [],
   },
 
   experience: [

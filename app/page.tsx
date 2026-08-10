@@ -96,7 +96,7 @@ export default async function HomePage() {
   // on any failure and their sections simply don't render.
   const [githubStats, leetcodeStats] = await Promise.all([
     portfolio.profile.githubUsername
-      ? getGitHubStats(portfolio.profile.githubUsername).catch(() => null)
+      ? getGitHubStats(portfolio.profile.githubUsername, portfolio.profile.selectedRepos).catch(() => null)
       : null,
     portfolio.profile.leetcodeUsername
       ? getLeetCodeStats(portfolio.profile.leetcodeUsername).catch(() => null)

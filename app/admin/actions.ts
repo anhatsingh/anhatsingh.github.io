@@ -97,6 +97,36 @@ export async function signOut() {
   redirect("/admin/login");
 }
 
+/**
+ * Saves the repositories chosen in /admin/repos.
+ *
+ * Stored on the profile singleton rather than its own table — it's one array
+ * belonging to one person, and a table would buy nothing.
+ */
+export async function saveSelectedRepos(repos: string[]): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const db = getServiceClient();
+  if (!db) return { ok: false, error: "Supabase isn't configured." };
+
+  // Cap and sanitise: these come from a client form, and the column is only
+  // ever compared against GitHub's own nameWithOwner values.
+  const clean = [...new Set(repos)]
+    .filter((r) => typeof r === "string" && /^[\w.-]+\/[\w.-]+$/.test(r))
+    .slice(0, 300);
+
+  const { error } = await db.from("profile").update({ selected_repos: clean }).eq("id", 1);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/");
+  revalidatePath("/admin/repos");
+  return { ok: true };
+}
+
 /** Tables the LinkedIn importer is allowed to touch. */
 const IMPORTABLE = ["experience", "education", "skills", "certifications"] as const;
 export type ImportableTable = (typeof IMPORTABLE)[number];

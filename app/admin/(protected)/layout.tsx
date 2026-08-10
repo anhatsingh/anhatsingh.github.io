@@ -68,6 +68,12 @@ export default async function ProtectedAdminLayout({
           </Link>
         ))}
         <Link
+          href="/admin/repos"
+          className="rounded-[var(--radius)] border border-hairline px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
+        >
+          Repos
+        </Link>
+        <Link
           href="/admin/import"
           className="rounded-[var(--radius)] border border-accent/40 px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-accent"
         >

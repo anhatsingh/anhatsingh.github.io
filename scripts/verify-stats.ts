@@ -55,6 +55,10 @@ const github: GitHubStats = {
     { name: "Jupyter Notebook", color: "#DA5B0B", percent: 39.2 },
     { name: "Python", color: "#3572A5", percent: 16.4 },
   ],
+  languageRepoCount: 28,
+  privateRepoCount: 14,
+  languageWindowYears: 4,
+  languagesCurated: false,
   recentRepos: [
     {
       name: "anhatsingh.github.io",

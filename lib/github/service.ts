@@ -15,6 +15,18 @@ import { CONTRIBUTIONS_QUERY, MERGED_PRS_QUERY } from "./queries";
 const ENDPOINT = "https://api.github.com/graphql";
 const REVALIDATE_SECONDS = 3600;
 
+/*
+  Only repositories touched within this window feed the language chart.
+
+  Without it, size wins over relevance. Three 2020-21 university projects
+  accounted for 64% of all bytes on this account — mostly vendored libraries
+  committed into the repo — and pushed the chart to "PHP 22%, JavaScript 21%,
+  HTML 20%" on a site headlined AI/ML Engineer. Restricted to four years the
+  same data reads TypeScript, Vue, Python, Jupyter: still every private and org
+  repo, just not a snapshot of coursework from half a decade ago.
+*/
+const LANGUAGE_WINDOW_YEARS = 4;
+
 export type ContributionLevel =
   | "NONE"
   | "FIRST_QUARTILE"
@@ -44,6 +56,13 @@ export interface GitHubStats {
   externalMergedPrs: number;
   weeks: ContributionDay[][];
   languages: Array<{ name: string; color: string; percent: number }>;
+  /** How many repositories fed the language chart, and how many were private. */
+  languageRepoCount: number;
+  privateRepoCount: number;
+  /** Recency window applied to the language chart, in years. */
+  languageWindowYears: number;
+  /** True when the repo set was hand-picked rather than date-filtered. */
+  languagesCurated: boolean;
   recentRepos: Array<{
     name: string;
     url: string;
@@ -116,7 +135,16 @@ interface ContributionsData {
         }>;
       };
     };
-    repositories: {
+    languageRepos: {
+      totalCount: number;
+      nodes: Array<{
+        nameWithOwner: string;
+        isPrivate: boolean;
+        pushedAt: string;
+        languages: { edges: Array<{ size: number; node: { name: string; color: string } }> };
+      }>;
+    };
+    publicRepos: {
       totalCount: number;
       nodes: Array<{
         name: string;
@@ -124,13 +152,20 @@ interface ContributionsData {
         description: string | null;
         pushedAt: string;
         primaryLanguage: { name: string; color: string } | null;
-        languages: { edges: Array<{ size: number; node: { name: string; color: string } }> };
       }>;
     };
   } | null;
 }
 
-export async function getGitHubStats(username: string): Promise<GitHubStats | null> {
+export async function getGitHubStats(
+  username: string,
+  /**
+   * Repositories hand-picked in /admin/repos, as "owner/name". When non-empty
+   * this replaces the recency heuristic entirely — an explicit choice should
+   * never be second-guessed by a date filter.
+   */
+  selectedRepos: string[] = [],
+): Promise<GitHubStats | null> {
   if (!username) return null;
 
   // Trailing 12 months. The API rejects a range longer than one year.
@@ -155,10 +190,24 @@ export async function getGitHubStats(username: string): Promise<GitHubStats | nu
 
   const cc = user.contributionsCollection;
 
-  // Sum language bytes across non-fork repos. Forks are excluded in the query
-  // itself — counting them makes the chart a lie about what you actually wrote.
+  // Sum language bytes across non-fork repos, INCLUDING private and org ones.
+  //
+  // Caveat worth knowing: GitHub reports language bytes per repository, not per
+  // author. A large org repo you contributed a little to still contributes its
+  // whole breakdown here. Narrow ownerAffiliations in queries.ts if that skews
+  // the chart away from what you actually write.
+  const chosen = new Set(selectedRepos);
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - LANGUAGE_WINDOW_YEARS);
+
+  const recentRepos_ = chosen.size
+    ? user.languageRepos.nodes.filter((r) => chosen.has(r.nameWithOwner))
+    : user.languageRepos.nodes.filter((r) => new Date(r.pushedAt) >= cutoff);
+
+  const curated = chosen.size > 0;
+
   const byLanguage = new Map<string, { size: number; color: string }>();
-  for (const repo of user.repositories.nodes) {
+  for (const repo of recentRepos_) {
     for (const edge of repo.languages.edges) {
       const prev = byLanguage.get(edge.node.name);
       byLanguage.set(edge.node.name, {
@@ -186,7 +235,7 @@ export async function getGitHubStats(username: string): Promise<GitHubStats | nu
     reviews: cc.totalPullRequestReviewContributions,
     issues: cc.totalIssueContributions,
     reposContributedTo: cc.totalRepositoriesWithContributedCommits,
-    publicRepos: user.repositories.totalCount,
+    publicRepos: user.publicRepos.totalCount,
     followers: user.followers.totalCount,
     yearsOnGitHub: Math.max(
       1,
@@ -202,7 +251,12 @@ export async function getGitHubStats(username: string): Promise<GitHubStats | nu
       })),
     ),
     languages,
-    recentRepos: user.repositories.nodes.slice(0, 5).map((r) => ({
+    languageRepoCount: recentRepos_.length,
+    privateRepoCount: recentRepos_.filter((r) => r.isPrivate).length,
+    languageWindowYears: LANGUAGE_WINDOW_YEARS,
+    languagesCurated: curated,
+    // Public only — these names are rendered on the page.
+    recentRepos: user.publicRepos.nodes.slice(0, 5).map((r) => ({
       name: r.name,
       url: r.url,
       description: r.description,

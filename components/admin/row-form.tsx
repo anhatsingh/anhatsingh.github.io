@@ -64,15 +64,35 @@ export function RowForm({
         const common =
           "w-full rounded-[var(--radius)] border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50";
 
+        // Hidden platform keys arrive as an array on the row; the toggle below
+        // reflects membership rather than a per-platform boolean column.
+        const hiddenKeys = Array.isArray(row?.hidden_socials)
+          ? (row.hidden_socials as string[])
+          : [];
+
         return (
           <div key={field.name}>
-            <label
-              htmlFor={`${spec.key}-${id ?? "new"}-${field.name}`}
-              className="block font-mono text-[11px] uppercase tracking-widest text-muted"
-            >
-              {field.label}
-              {field.required && <span className="text-accent"> *</span>}
-            </label>
+            <div className="flex items-baseline justify-between gap-3">
+              <label
+                htmlFor={`${spec.key}-${id ?? "new"}-${field.name}`}
+                className="block font-mono text-[11px] uppercase tracking-widest text-muted"
+              >
+                {field.label}
+                {field.required && <span className="text-accent"> *</span>}
+              </label>
+
+              {field.hideKey && (
+                <label className="flex cursor-pointer select-none items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-muted hover:text-text">
+                  <input
+                    type="checkbox"
+                    name={`hidden__${field.hideKey}`}
+                    defaultChecked={hiddenKeys.includes(field.hideKey)}
+                    className="h-3.5 w-3.5 accent-[var(--accent)]"
+                  />
+                  Hide
+                </label>
+              )}
+            </div>
 
             {field.type === "boolean" ? (
               <input
