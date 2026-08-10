@@ -75,8 +75,12 @@ export function SiteShell({ name, children }: { name: string; children: React.Re
     <UIControlProvider>
       <ChatProvider>
         {/* Fixed decorative layers, behind everything, non-interactive. */}
-        <div aria-hidden="true" className="blueprint-grid pointer-events-none fixed inset-0 -z-10" />
-        <div aria-hidden="true" className="accent-glow pointer-events-none fixed inset-0 -z-10" />
+        <div aria-hidden="true" className="aurora">
+          <div className="aurora-orb aurora-orb-a" />
+          <div className="aurora-orb aurora-orb-b" />
+          <div className="aurora-orb aurora-orb-c" />
+        </div>
+        <div aria-hidden="true" className="grain" />
 
         <Header name={name} />
         <Content>{children}</Content>

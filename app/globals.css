@@ -28,8 +28,15 @@
   --accent-soft: #155e75; /* gradient partner; also AA as text */
   --accent-ink: #ffffff; /* text sitting on top of --accent */
 
-  --grid: #0e74900f;
-  --glow: #22d3ee1a;
+  /*
+    Aurora orbs. On cream, saturated colour turns to mud once blurred, so light
+    mode uses pale 200/300-level tints and leans on opacity instead of hue.
+  */
+  --orb-a: #67e8f9;
+  --orb-b: #a5b4fc;
+  --orb-c: #99f6e4;
+  --orb-opacity: 0.5;
+  --grain-opacity: 0.035;
 
   /* #00873d read nicer but landed at 4.40:1 on --bg, just under AA. */
   --success: #007a37;
@@ -55,8 +62,11 @@
   --accent-soft: #67e8f9;
   --accent-ink: #062c33;
 
-  --grid: #22d3ee14;
-  --glow: #22d3ee33;
+  --orb-a: #22d3ee;
+  --orb-b: #4f46e5;
+  --orb-c: #0d9488;
+  --orb-opacity: 0.32;
+  --grain-opacity: 0.05;
 
   --success: #00c758;
   --danger: #fb2c36;
@@ -82,8 +92,11 @@
     --accent-soft: #67e8f9;
     --accent-ink: #062c33;
 
-    --grid: #22d3ee14;
-    --glow: #22d3ee33;
+    --orb-a: #22d3ee;
+    --orb-b: #4f46e5;
+    --orb-c: #0d9488;
+    --orb-opacity: 0.32;
+    --grain-opacity: 0.05;
 
     --success: #00c758;
     --danger: #fb2c36;
@@ -129,6 +142,16 @@ html {
   /* Sections scrolled to by the chatbot must clear the sticky header. */
   scroll-padding-top: 6rem;
   color-scheme: light;
+
+  /*
+    The page background lives on <html>, NOT <body>, and that is deliberate.
+
+    The aurora layers sit at negative z-index. If <body> carried the background
+    colour, it would paint over them and they'd be invisible — the classic
+    negative-z-index trap. With the colour on <html> it paints to the canvas,
+    and negative-z children render above it.
+  */
+  background-color: var(--bg);
 }
 
 :root[data-theme="dark"] {
@@ -142,7 +165,8 @@ html {
 }
 
 body {
-  background-color: var(--bg);
+  /* Intentionally transparent — see the note on <html> above. */
+  background-color: transparent;
   color: var(--text);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -157,23 +181,119 @@ body {
 /* --- Signature surfaces ---------------------------------------------- */
 
 /*
-  The blueprint grid. Two 1px gradients crossed. Sits on a fixed layer behind
-  everything so it doesn't scroll-shift, with a radial mask so it fades out
-  toward the bottom rather than ending on a hard line.
+  AURORA
+  ======
+  Three heavily-blurred colour fields drifting on long, mismatched loops. The
+  mismatch matters: equal durations would make them visibly re-sync every cycle
+  and the whole thing would read as a looping GIF.
+
+  `overflow: hidden` on the container is load-bearing — the orbs are sized in
+  viewport units and translate well past the edges, so without it they'd create
+  a horizontal scrollbar on every page.
 */
-.blueprint-grid {
-  background-image:
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
-    linear-gradient(var(--grid) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 40%, transparent 100%);
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  /* Own compositing layer, so orb animation never repaints page content. */
+  contain: strict;
 }
 
-.accent-glow {
-  background: radial-gradient(circle at 20% 15%, var(--glow), transparent 45%);
+.aurora-orb {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: var(--orb-opacity);
+  /* The blur IS the effect — below ~90px these read as circles, not atmosphere. */
+  filter: blur(120px);
+  will-change: transform;
+}
+
+.aurora-orb-a {
+  top: -18vh;
+  left: -8vw;
+  width: 62vw;
+  height: 62vh;
+  min-width: 420px;
+  min-height: 420px;
+  background: var(--orb-a);
+  animation: drift-a 47s ease-in-out infinite;
+}
+
+.aurora-orb-b {
+  top: 24vh;
+  right: -14vw;
+  width: 54vw;
+  height: 58vh;
+  min-width: 380px;
+  min-height: 380px;
+  background: var(--orb-b);
+  animation: drift-b 61s ease-in-out infinite;
+}
+
+.aurora-orb-c {
+  bottom: -22vh;
+  left: 22vw;
+  width: 48vw;
+  height: 48vh;
+  min-width: 340px;
+  min-height: 340px;
+  background: var(--orb-c);
+  animation: drift-c 73s ease-in-out infinite;
+}
+
+/*
+  Film grain over the top. Without it the blurred gradients band visibly on
+  8-bit displays — the noise dithers those steps away. SVG feTurbulence rather
+  than an image so there's no extra request.
+*/
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: -9;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* --- Motion ----------------------------------------------------------- */
+
+@keyframes drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(9vw, 7vh, 0) scale(1.18);
+  }
+  66% {
+    transform: translate3d(-4vw, 12vh, 0) scale(0.92);
+  }
+}
+
+@keyframes drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  40% {
+    transform: translate3d(-11vw, -8vh, 0) scale(0.9);
+  }
+  70% {
+    transform: translate3d(-3vw, 9vh, 0) scale(1.2);
+  }
+}
+
+@keyframes drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  50% {
+    transform: translate3d(10vw, -11vh, 0) scale(1.22);
+  }
+}
 
 @keyframes slide-in-up {
   from {
