@@ -28,6 +28,22 @@ import { entityPath, type Portfolio } from "./types";
 
 export type ItemKind = "education" | "experience" | "projects" | "certifications" | "testimonials";
 
+/*
+  Line style per kind, so the category is readable without spending colour on
+  it — colour now identifies the individual entry. Points (certificates,
+  recommendations) draw no line at all, so they take no pattern.
+
+  Values are SVG stroke-dasharray strings; empty means solid. With a round
+  linecap, "1 7" renders as a row of dots rather than short dashes.
+*/
+export const KIND_DASH: Record<ItemKind, string> = {
+  experience: "",
+  education: "11 5",
+  projects: "1 7",
+  certifications: "",
+  testimonials: "",
+};
+
 export const KIND_LABELS: Record<ItemKind, string> = {
   education: "Education",
   experience: "Experience",
@@ -47,6 +63,12 @@ export interface GraphItem {
   endMonth: number;
   /** True when this is a moment rather than a span — a certificate, a review. */
   isPoint: boolean;
+  /**
+   * Whether the source actually recorded an end. An ongoing role's endMonth is
+   * today's month, which is derived rather than known — drawing a terminating
+   * node there would claim the job has finished.
+   */
+  hasEnd: boolean;
   /** Column offsets from the track's origin. */
   startCol: number;
   endCol: number;
@@ -97,6 +119,7 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
       id: `education:${e.slug}`, kind: "education",
       label: e.degree || e.institution, detail: e.institution,
       startMonth: start, endMonth: Math.max(start, end), isPoint: false,
+      hasEnd: Boolean(e.endYear),
     });
   }
 
@@ -109,6 +132,7 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
       id: `experience:${e.slug}`, kind: "experience",
       label: e.role, detail: e.company,
       startMonth: start, endMonth: Math.max(start, end), isPoint: false,
+      hasEnd: Boolean(e.endDate),
       href: entityPath("experience", e.slug),
     });
   }
@@ -121,6 +145,7 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
       id: `projects:${p.slug}`, kind: "projects",
       label: p.name,
       startMonth: start, endMonth: Math.max(start, end), isPoint: false,
+      hasEnd: Boolean(p.ended),
       href: entityPath("projects", p.slug),
     });
   }
@@ -131,7 +156,7 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
     items.push({
       id: `certifications:${c.slug}`, kind: "certifications",
       label: c.name, detail: c.issuer,
-      startMonth: at, endMonth: at, isPoint: true,
+      startMonth: at, endMonth: at, isPoint: true, hasEnd: false,
       href: entityPath("certifications", c.slug),
     });
   }
@@ -142,7 +167,7 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
     items.push({
       id: `testimonials:${t.slug}`, kind: "testimonials",
       label: t.authorName, detail: t.authorCompany ?? t.authorTitle,
-      startMonth: at, endMonth: at, isPoint: true,
+      startMonth: at, endMonth: at, isPoint: true, hasEnd: false,
     });
   }
 

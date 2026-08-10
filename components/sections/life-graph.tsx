@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { buildGraph, itemRange, KIND_LABELS, type GraphItem } from "@/lib/content/graph";
+import {
+  buildGraph,
+  itemRange,
+  KIND_DASH,
+  KIND_LABELS,
+  type GraphItem,
+  type ItemKind,
+} from "@/lib/content/graph";
 import type { Portfolio } from "@/lib/content/types";
 
 /*
@@ -17,6 +24,11 @@ import type { Portfolio } from "@/lib/content/types";
   Nothing shares a row. Overlapping entries fork onto their own branches, and
   every entry gets its own colour — see lib/content/graph.ts, which does the
   packing and hands back a row and a hue for each.
+
+  Colour identifies the entry, so the category is carried by line style
+  instead: solid for a job, dashed for study, dotted for a project. A span
+  terminates in a second node where its end is actually known; an ongoing role
+  simply runs on, since its end month is today's date rather than a fact.
 
   Not gitgraph.js: that library lays commits out in sequence with no time axis,
   so a fixed month scale is the one thing it can't express. It is also
@@ -75,7 +87,39 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
         </p>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-[var(--radius)] border border-hairline bg-surface p-3">
+      {/* Line style is the only thing shared between entries, so it's the only
+          thing a key can usefully explain. */}
+      <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+        {(["experience", "education", "projects"] as ItemKind[]).map((kind) => (
+          <li key={kind} className="flex items-center gap-2">
+            <svg width="26" height="8" aria-hidden="true">
+              <line
+                x1={1}
+                y1={4}
+                x2={25}
+                y2={4}
+                stroke="var(--muted)"
+                strokeWidth={3}
+                strokeLinecap="round"
+                strokeDasharray={KIND_DASH[kind] || undefined}
+              />
+            </svg>
+            <span className="font-mono text-[11px] uppercase tracking-widest text-muted">
+              {KIND_LABELS[kind]}
+            </span>
+          </li>
+        ))}
+        <li className="flex items-center gap-2">
+          <svg width="26" height="8" aria-hidden="true">
+            <circle cx={13} cy={4} r={3.5} fill="var(--muted)" />
+          </svg>
+          <span className="font-mono text-[11px] uppercase tracking-widest text-muted">
+            Certificate / recommendation
+          </span>
+        </li>
+      </ul>
+
+      <div className="mt-4 overflow-x-auto rounded-[var(--radius)] border border-hairline bg-surface p-3">
         <svg
           width={width}
           height={height}
@@ -152,6 +196,7 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
                     stroke={color}
                     strokeWidth={isActive ? 7 : 5}
                     strokeLinecap="round"
+                    strokeDasharray={KIND_DASH[item.kind] || undefined}
                     style={{ transition: "stroke-width 120ms" }}
                   />
                 )}
@@ -166,6 +211,23 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
                   strokeWidth={2.5}
                   style={{ transition: "r 120ms" }}
                 />
+
+                {/*
+                  Closing node, only where the end is a recorded fact. An
+                  ongoing role's end month is today's date, so capping it would
+                  assert the job has finished.
+                */}
+                {item.hasEnd && item.endCol > item.startCol && (
+                  <circle
+                    cx={x2}
+                    cy={cy}
+                    r={isActive ? 5.5 : 4.5}
+                    fill="var(--surface)"
+                    stroke={color}
+                    strokeWidth={2.5}
+                    style={{ transition: "r 120ms" }}
+                  />
+                )}
 
                 <text
                   x={x2 + 9}

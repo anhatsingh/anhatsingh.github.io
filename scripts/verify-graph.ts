@@ -10,7 +10,7 @@
   Run: npx tsx scripts/verify-graph.ts
 */
 
-import { buildGraph, collectItems, itemRange, KIND_LABELS } from "../lib/content/graph";
+import { buildGraph, collectItems, itemRange, KIND_DASH, KIND_LABELS } from "../lib/content/graph";
 import type { Portfolio } from "../lib/content/types";
 
 let failures = 0;
@@ -79,6 +79,33 @@ console.log("\n── collecting ──");
   check("a testimonial is a point too", items.find((i) => i.id === "testimonials:jk")!.isPoint);
   check("points still carry a link where one exists", Boolean(cert.href), String(cert.href));
   check("every kind has a caption label", items.every((i) => Boolean(KIND_LABELS[i.kind])));
+  check("every kind has a line style defined",
+    items.every((i) => KIND_DASH[i.kind] !== undefined));
+  // Category is carried by line style now that colour identifies the entry, so
+  // the three span kinds must be distinguishable from each other.
+  check("the three span kinds have distinct line styles",
+    new Set([KIND_DASH.experience, KIND_DASH.education, KIND_DASH.projects]).size === 3,
+    `${KIND_DASH.experience}|${KIND_DASH.education}|${KIND_DASH.projects}`);
+}
+
+console.log("\n── known vs derived ends ──");
+{
+  /*
+    A closing node is drawn only where the end is a recorded fact. An ongoing
+    role's endMonth is today's date, so capping it would assert on the page
+    that the job has finished.
+  */
+  const items = collectItems(portfolio, NOW);
+  check("an ongoing role has no recorded end",
+    items.find((i) => i.id === "experience:now")!.hasEnd === false);
+  check("a finished role does", items.find((i) => i.id === "experience:past")!.hasEnd === true);
+  check("a dated project does", items.find((i) => i.id === "projects:p1")!.hasEnd === true);
+  check("a degree with an end year does",
+    items.find((i) => i.id === "education:btech")!.hasEnd === true);
+  check("education with a blank end year does not",
+    items.find((i) => i.id === "education:school")!.hasEnd === false);
+  check("points never claim an end",
+    items.filter((i) => i.isPoint).every((i) => !i.hasEnd));
 }
 
 console.log("\n── the track ──");
