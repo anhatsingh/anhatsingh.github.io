@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { defaultAvatar } from "@/components/ui/default-avatar";
 
 /*
   Anhat's face on the assistant's messages.
@@ -10,7 +11,7 @@ import Image from "next/image";
   that voice reads as "his assistant" rather than an impersonation.
 */
 export function AssistantAvatar({ src, name, size = 24 }: { src?: string; name: string; size?: number }) {
-  if (!src) return null;
+  const portrait = src?.trim() || defaultAvatar;
 
   return (
     <span
@@ -18,7 +19,7 @@ export function AssistantAvatar({ src, name, size = 24 }: { src?: string; name: 
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <Image src={src} alt="" fill sizes={`${size}px`} className="object-cover" />
+      <Image src={portrait} alt="" fill sizes={`${size}px`} className="object-cover" />
       <span className="sr-only">{name}</span>
     </span>
   );

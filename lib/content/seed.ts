@@ -25,9 +25,15 @@ export const seedPortfolio: Portfolio = {
     bio: "I build LLM systems that survive contact with actual users — retrieval pipelines that return the right chunk, evals that catch the regression before the customer does, and inference that doesn't fall over at 3am. Mostly Python and TypeScript. Occasionally I write the frontend too, as this site regrettably demonstrates.",
     location: "Punjab, India",
     email: "anhatsingh2001@gmail.com",
-    // Recovered from the 2021 site. Swap it from /admin for anything newer —
-    // the field takes any URL, so an uploaded image or a CDN link both work.
-    avatarUrl: "/anhat.jpg",
+    // Empty means "use the bundled default" (public/anhat.jpg, statically
+    // imported by the components so it gets a content-hashed URL). Set any URL
+    // here or from /admin to override it.
+    //
+    // Deliberately NOT the literal string "/anhat.jpg": that path is cached by
+    // Next's image optimizer keyed on the URL, so replacing the file under the
+    // same name keeps serving the old photo. The static import sidesteps that
+    // entirely — new file contents produce a new hash, hence a new URL.
+    avatarUrl: "",
     resumeUrl: "",
     openToWork: true,
     githubUsername: "anhatsingh",

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { Section } from "./section";
+import { defaultAvatar } from "@/components/ui/default-avatar";
 import type { Profile } from "@/lib/content/types";
 
 /*
@@ -13,23 +14,34 @@ import type { Profile } from "@/lib/content/types";
   on the headline and the chatbot alone.
 */
 export function About({ profile }: { profile: Profile }) {
+  // Empty avatar_url falls back to the bundled, content-hashed default.
+  const portrait = profile.avatarUrl?.trim() || defaultAvatar;
+
   return (
     <Section id="about" eyebrow="00 — About" title="Nice to meet you">
       <div className="grid gap-10 md:grid-cols-[minmax(0,18rem)_1fr] md:gap-12">
-        {profile.avatarUrl && (
-          <div className="relative aspect-[4/5] w-full max-w-xs overflow-hidden rounded-xl border border-hairline bg-elevated">
-            <Image
-              src={profile.avatarUrl}
-              alt={`Portrait of ${profile.name}`}
-              fill
-              sizes="(max-width: 768px) 100vw, 18rem"
-              className="object-cover"
-              // Sits just below the fold — worth prioritising so it isn't
-              // still resolving by the time the visitor scrolls to it.
-              priority
-            />
-          </div>
-        )}
+        {/*
+          Square, not portrait. Profile photos are overwhelmingly square
+          (LinkedIn, GitHub, every headshot crop), and object-cover in a 4:5
+          frame would slice the sides off one — which on a tightly-framed
+          headshot means clipping the subject. Square crops a portrait source
+          far more gracefully than portrait crops a square one.
+
+          `fill` rather than intrinsic sizing because avatar_url accepts any
+          admin-pasted URL, so the real dimensions aren't knowable at build time.
+        */}
+        <div className="relative aspect-square w-full max-w-xs overflow-hidden rounded-xl border border-hairline bg-elevated">
+          <Image
+            src={portrait}
+            alt={`Portrait of ${profile.name}`}
+            fill
+            sizes="(max-width: 768px) 100vw, 18rem"
+            className="object-cover"
+            // Sits just below the fold — worth prioritising so it isn't still
+            // resolving by the time the visitor scrolls to it.
+            priority
+          />
+        </div>
 
         <div className="max-w-2xl">
           <p className="text-lg leading-relaxed">{profile.bio}</p>
