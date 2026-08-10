@@ -127,6 +127,8 @@ export interface Experience {
   endDate: string | null;
   location?: string;
   summary: string;
+  /** One line for the timeline card. Falls back to `summary` when unset. */
+  shortSummary?: string;
   highlights: string[];
   tech: string[];
   /** Detail-page body. Empty array means the page shows only structured data. */
@@ -146,6 +148,10 @@ export interface Project {
   liveUrl?: string;
   imageUrl?: string;
   featured: boolean;
+  /** "YYYY-MM" or "YYYY". What the projects section sorts on. */
+  started?: string;
+  /** null/absent means ongoing. */
+  ended?: string;
   /** Detail-page body. Empty array means the page shows only structured data. */
   body: Block[];
   /** Surfaces this page in /blog. Off by default — most entries aren't posts. */
@@ -198,6 +204,8 @@ export interface Testimonial {
   authorTitle?: string;
   authorCompany?: string;
   authorUrl?: string;
+  authorImageUrl?: string;
+  authorEmail?: string;
 }
 
 export interface Writing {

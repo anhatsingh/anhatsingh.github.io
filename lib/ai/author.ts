@@ -181,3 +181,69 @@ ${vocabulary || "(none yet)"}`,
     };
   }
 }
+
+/*
+  Condenses a role into a single line for the homepage timeline.
+
+  Separate from draftFromParagraph because the job is different: that one
+  expands a paragraph into a page and proposes skills, this one throws
+  material away. Sharing a prompt between "write more" and "write less" would
+  make both worse.
+
+  Same invention rule applies, and it matters more here — compression is where
+  a model is most tempted to smooth a specific claim into a grander vague one.
+*/
+const SHORT_SUMMARY_PROMPT = `Write ONE sentence describing this role for a CV timeline.
+
+Rules:
+- Use ONLY facts present in the source. Never invent metrics, scale, team sizes or outcomes.
+- Aim for 15-25 words. Never exceed 200 characters.
+- Lead with what he actually built or owned, not with responsibilities or values.
+- Plain and direct. No corporate filler — no "leveraged", "spearheaded", "passionate about".
+- No trailing period is fine. Do not start with the person's name or the job title.
+- If the source is too thin to say anything specific, say the plain version rather than padding it.`;
+
+export interface ShortSummarySource {
+  role?: string;
+  company?: string;
+  summary?: string;
+  highlights?: string;
+}
+
+export type ShortSummaryResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string };
+
+export async function generateShortSummary(
+  source: ShortSummarySource,
+): Promise<ShortSummaryResult> {
+  const material = [
+    source.role && `Role: ${source.role}`,
+    source.company && `Company: ${source.company}`,
+    source.summary && `Summary:\n${source.summary}`,
+    source.highlights && `Highlights:\n${source.highlights}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  // Without source text the model would have nothing to compress and would
+  // invent a plausible-sounding line, which is the one outcome to avoid.
+  if (material.replace(/Role:|Company:/g, "").trim().length < 40) {
+    return {
+      ok: false,
+      error: "Not enough to work from — write the full summary or some highlights first.",
+    };
+  }
+
+  try {
+    const { object } = await generateObject({
+      model: openai(MODEL),
+      schema: z.object({ text: z.string().min(1).max(200) }),
+      system: SHORT_SUMMARY_PROMPT,
+      prompt: material,
+    });
+    return { ok: true, text: object.text.trim() };
+  } catch {
+    return { ok: false, error: "Couldn't generate that. Try again in a moment." };
+  }
+}

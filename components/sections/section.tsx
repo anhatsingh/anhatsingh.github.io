@@ -68,15 +68,21 @@ export function Highlightable({
   itemId,
   children,
   className = "",
+  fill = false,
 }: {
   itemId: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Stretches the wrapper to the grid row's height. Card layouts need the
+   * height to reach the child, and there are two wrapper divs in the way.
+   */
+  fill?: boolean;
 }) {
   const { isHighlighted, note } = useHighlight(itemId);
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${fill ? "flex h-full flex-col" : ""} ${className}`}>
       {isHighlighted && note && (
         <div
           role="note"
@@ -90,8 +96,8 @@ export function Highlightable({
       )}
       <div
         className={`transition-[border-color,box-shadow] duration-300 ${
-          isHighlighted ? "border-l-2 border-accent pl-4" : "border-l-2 border-transparent pl-4"
-        }`}
+          fill ? "flex-1" : ""
+        } ${isHighlighted ? "border-l-2 border-accent pl-4" : "border-l-2 border-transparent pl-4"}`}
       >
         {children}
       </div>

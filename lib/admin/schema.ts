@@ -38,6 +38,12 @@ export interface Field {
   hideKey?: string;
   /** Shows an upload button that fills this field with a hosted image URL. */
   upload?: boolean;
+  /**
+   * Renders a "Generate with AI" button that fills this field. `from` names the
+   * sibling fields whose current form values are sent as source material — the
+   * model rewrites what is on screen, so an unsaved edit is what gets used.
+   */
+  generate?: { kind: "short-summary"; from: string[] };
 }
 
 export interface TableSpec {
@@ -160,6 +166,13 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "end_date", label: "End", type: "text", help: "YYYY-MM, or blank for present." },
       { name: "location", label: "Location", type: "text" },
       { name: "summary", label: "Summary", type: "textarea" },
+      {
+        name: "short_summary",
+        label: "Short summary",
+        type: "textarea",
+        help: "One line, shown on the homepage timeline. Blank falls back to the full summary.",
+        generate: { kind: "short-summary", from: ["role", "company", "summary", "highlights"] },
+      },
       { name: "highlights", label: "Highlights", type: "list", help: "One per line." },
       { name: "tech", label: "Tech", type: "list", help: "One per line." },
       {
@@ -199,6 +212,13 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "repo_url", label: "Repo URL", type: "url" },
       { name: "live_url", label: "Live URL", type: "url" },
       { name: "image_url", label: "Image", type: "url", upload: true },
+      {
+        name: "started",
+        label: "Started",
+        type: "text",
+        help: "YYYY-MM or YYYY. Projects sort newest-first on this.",
+      },
+      { name: "ended", label: "Ended", type: "text", help: "YYYY-MM, or blank for ongoing." },
       { name: "featured", label: "Featured", type: "boolean" },
       {
         name: "body",
@@ -332,6 +352,19 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "author_title", label: "Their title", type: "text" },
       { name: "author_company", label: "Their company", type: "text" },
       { name: "author_url", label: "Their profile URL", type: "url" },
+      {
+        name: "author_image_url",
+        label: "Their photo",
+        type: "url",
+        upload: true,
+        help: "Shown beside the quote. Falls back to their initials.",
+      },
+      {
+        name: "author_email",
+        label: "Their email",
+        type: "email",
+        help: "Optional. Rendered as a mailto link, so only add it with their agreement.",
+      },
       ORDER_FIELD,
       PUBLISHED_FIELD,
     ],

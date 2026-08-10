@@ -62,6 +62,7 @@ export interface ImportedProject {
   repo_url: string | null;
   live_url: string | null;
   started: string | null;
+  ended: string | null;
 }
 
 export interface ImportedTestimonial {
@@ -280,6 +281,7 @@ export async function parseLinkedInExport(file: File | Blob): Promise<ImportResu
         repo_url: isRepo ? url : null,
         live_url: url && !isRepo ? url : null,
         started: normalizeDate(row["Started On"]),
+        ended: normalizeDate(row["Finished On"]),
       });
     }
   }

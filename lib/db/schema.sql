@@ -62,6 +62,7 @@ create table if not exists experience (
   end_date    text,
   location    text,
   summary     text not null default '',
+  short_summary text not null default '',
   highlights  text[] not null default '{}',
   tech        text[] not null default '{}',
   body        jsonb not null default '[]'::jsonb,
@@ -83,6 +84,8 @@ create table if not exists projects (
   live_url    text,
   image_url   text,
   featured    boolean not null default false,
+  started     text,
+  ended       text,
   body        jsonb not null default '[]'::jsonb,
   show_in_blog_list boolean not null default false,
   hero_image_url text,
@@ -143,6 +146,8 @@ create table if not exists testimonials (
   author_title   text,
   author_company text,
   author_url     text,
+  author_image_url text,
+  author_email   text,
   sort_order     int not null default 0,
   is_published   boolean not null default true,
   updated_at     timestamptz not null default now()
@@ -277,6 +282,21 @@ alter table writing        add column if not exists hero_image_url text;
 alter table experience     add column if not exists logo_url text;
 alter table education      add column if not exists logo_url text;
 alter table certifications add column if not exists logo_url text;
+
+-- Projects had no date of any kind, which is why they came out of the importer
+-- in arbitrary order — there was nothing to sort on. Text rather than date to
+-- match how experience already stores "YYYY-MM", where the day is never known.
+alter table projects       add column if not exists started text;
+alter table projects       add column if not exists ended text;
+
+-- The homepage needs a line, not a paragraph. Kept separate from `summary` so
+-- shortening the card can never quietly destroy the longer text the detail
+-- page and the chatbot both read.
+alter table experience     add column if not exists short_summary text not null default '';
+
+-- A recommendation carries more weight when you can see who wrote it.
+alter table testimonials   add column if not exists author_image_url text;
+alter table testimonials   add column if not exists author_email text;
 
 -- ---------------------------------------------------------------------
 -- Retrieval (pgvector)

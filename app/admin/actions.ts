@@ -7,7 +7,14 @@ import { entityPath, type EntityType } from "@/lib/content/types";
 import { getAdminSession, getSupabaseServerClient } from "@/lib/supabase/auth";
 import { getServiceClient } from "@/lib/supabase/server";
 import { uploadImage, type UploadResult } from "@/lib/storage";
-import { draftFromParagraph, type Draft, type DraftResult } from "@/lib/ai/author";
+import {
+  draftFromParagraph,
+  generateShortSummary,
+  type Draft,
+  type DraftResult,
+  type ShortSummaryResult,
+  type ShortSummarySource,
+} from "@/lib/ai/author";
 import { getPortfolio } from "@/lib/content";
 import { parseBlocks, type Block } from "@/lib/content/blocks";
 import { reindexEntity } from "@/lib/chat/embeddings";
@@ -231,6 +238,26 @@ export async function requestDraft(input: {
 
   const { skills } = await getPortfolio();
   return draftFromParagraph({ ...input, existingSkills: skills });
+}
+
+/**
+ * Condenses a role into one line for the timeline card.
+ *
+ * Returns the text rather than writing it: the value lands in the form field
+ * for review and is only persisted when the form is saved, which keeps this
+ * consistent with the rest of the AI tooling here — nothing the model produces
+ * reaches the database without passing a human first.
+ */
+export async function requestShortSummary(
+  source: ShortSummarySource,
+): Promise<ShortSummaryResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  return generateShortSummary(source);
 }
 
 /**

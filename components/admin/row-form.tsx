@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { deleteRow, saveRow } from "@/app/admin/actions";
 import { AiDraftPanel } from "./ai-draft-panel";
+import { GenerateButton } from "./generate-button";
 import { BlockEditor } from "./block-editor";
 import { ImageField } from "./image-field";
 import type { TableSpec } from "@/lib/admin/schema";
@@ -93,6 +94,13 @@ export function RowForm({
                 {field.label}
                 {field.required && <span className="text-accent"> *</span>}
               </label>
+
+              {field.generate && (
+                <GenerateButton
+                  field={{ ...field, generate: field.generate }}
+                  targetId={`${spec.key}-${id ?? "new"}-${field.name}`}
+                />
+              )}
 
               {field.hideKey && (
                 <label className="flex cursor-pointer select-none items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-muted hover:text-text">

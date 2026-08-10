@@ -45,6 +45,7 @@ function mapExperience(r: Record<string, unknown>): Experience {
     endDate: (r.end_date as string) ?? null,
     location: (r.location as string) ?? undefined,
     summary: (r.summary as string) ?? "",
+    shortSummary: (r.short_summary as string) ?? "",
     highlights: (r.highlights as string[]) ?? [],
     tech: (r.tech as string[]) ?? [],
     ...detailFields(r),
@@ -62,6 +63,8 @@ function mapProject(r: Record<string, unknown>): Project {
     liveUrl: (r.live_url as string) ?? undefined,
     imageUrl: (r.image_url as string) ?? undefined,
     featured: Boolean(r.featured),
+    started: (r.started as string) ?? undefined,
+    ended: (r.ended as string) ?? undefined,
     ...detailFields(r),
   };
 }
@@ -116,6 +119,10 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
   const [profile, experience, projects, skills, education, certifications, testimonials, writing] =
     await Promise.all([
       db.from("profile").select("*").limit(1).maybeSingle(),
+      // Only sort_order here. Chronological ordering is applied in the section
+      // components instead, so the query never names a column that a database
+      // running one migration behind doesn't have yet — ordering on a missing
+      // column is a hard error that would take the whole page down.
       db.from("experience").select("*").order("sort_order", { ascending: true }),
       db.from("projects").select("*").order("sort_order", { ascending: true }),
       db.from("skills").select("*").order("sort_order", { ascending: true }),
@@ -165,6 +172,8 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       authorTitle: r.author_title ?? undefined,
       authorCompany: r.author_company ?? undefined,
       authorUrl: r.author_url ?? undefined,
+      authorImageUrl: r.author_image_url ?? undefined,
+      authorEmail: r.author_email ?? undefined,
     })) as Testimonial[],
     writing: (writing.data ?? []).map(mapWriting),
   };
