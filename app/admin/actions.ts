@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { coerceRow, getTableSpec } from "@/lib/admin/schema";
 import { getAdminSession, getSupabaseServerClient } from "@/lib/supabase/auth";
 import { getServiceClient } from "@/lib/supabase/server";
+import { uploadImage, type UploadResult } from "@/lib/storage";
 
 /*
   All admin mutations.
@@ -125,6 +126,25 @@ export async function saveSelectedRepos(repos: string[]): Promise<ActionResult> 
   revalidatePath("/");
   revalidatePath("/admin/repos");
   return { ok: true };
+}
+
+/**
+ * Uploads an image and returns its public URL.
+ *
+ * Auth is re-checked here, not inherited from the page: a server action is
+ * directly invocable, and this one writes to storage with the service key.
+ */
+export async function uploadMedia(formData: FormData): Promise<UploadResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "No file received." };
+
+  return uploadImage(file);
 }
 
 /** Tables the LinkedIn importer is allowed to touch. */

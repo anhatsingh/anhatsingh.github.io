@@ -26,6 +26,8 @@ export interface Field {
    * needing its own boolean column.
    */
   hideKey?: string;
+  /** Shows an upload button that fills this field with a hosted image URL. */
+  upload?: boolean;
 }
 
 export interface TableSpec {
@@ -90,6 +92,7 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "email", label: "Email", type: "email", required: true },
       {
         name: "avatar_url",
+        upload: true,
         label: "Photo URL",
         type: "url",
         help: "Shown in About and as the chatbot's avatar. Portrait crops best.",
@@ -138,6 +141,7 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "company_url", label: "Company URL", type: "url" },
       {
         name: "logo_url",
+        upload: true,
         label: "Company logo URL",
         type: "url",
         help: "Optional. Square-ish works best. Leave blank for a monogram.",
@@ -165,7 +169,7 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "tech", label: "Tech", type: "list", help: "One per line." },
       { name: "repo_url", label: "Repo URL", type: "url" },
       { name: "live_url", label: "Live URL", type: "url" },
-      { name: "image_url", label: "Image URL", type: "url" },
+      { name: "image_url", label: "Image", type: "url", upload: true },
       { name: "featured", label: "Featured", type: "boolean" },
       ORDER_FIELD,
       PUBLISHED_FIELD,
@@ -199,6 +203,7 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "note", label: "Note", type: "textarea" },
       {
         name: "logo_url",
+        upload: true,
         label: "Institution logo URL",
         type: "url",
         help: "Optional. Square-ish works best. Leave blank for a monogram.",
@@ -220,6 +225,7 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "credential_url", label: "Credential URL", type: "url" },
       {
         name: "logo_url",
+        upload: true,
         label: "Issuer logo URL",
         type: "url",
         help: "Optional. Square-ish works best. Leave blank for a monogram.",
@@ -253,7 +259,7 @@ export const ADMIN_TABLES: TableSpec[] = [
       SLUG_FIELD,
       { name: "title", label: "Title", type: "text", required: true },
       { name: "summary", label: "Summary", type: "textarea" },
-      { name: "image_url", label: "Cover image URL", type: "url" },
+      { name: "image_url", label: "Cover image", type: "url", upload: true },
       {
         name: "external_url",
         label: "Post URL",

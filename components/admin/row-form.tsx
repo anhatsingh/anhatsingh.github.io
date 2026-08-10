@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteRow, saveRow } from "@/app/admin/actions";
+import { ImageField } from "./image-field";
 import type { TableSpec } from "@/lib/admin/schema";
 
 /*
@@ -94,7 +95,15 @@ export function RowForm({
               )}
             </div>
 
-            {field.type === "boolean" ? (
+            {field.upload ? (
+              <ImageField
+                id={`${spec.key}-${id ?? "new"}-${field.name}`}
+                name={field.name}
+                defaultValue={valueFor(field, row)}
+                required={field.required}
+                help={field.help}
+              />
+            ) : field.type === "boolean" ? (
               <input
                 id={`${spec.key}-${id ?? "new"}-${field.name}`}
                 name={field.name}
@@ -126,7 +135,9 @@ export function RowForm({
             {/* Locked slugs still need to post, or the update would clear them. */}
             {locked && <input type="hidden" name={field.name} value={valueFor(field, row)} />}
 
-            {field.help && <p className="mt-1 text-xs text-muted">{field.help}</p>}
+            {field.help && !field.upload && (
+              <p className="mt-1 text-xs text-muted">{field.help}</p>
+            )}
 
             {field.name === "resume_url" && valueFor(field, row) && (
               <a

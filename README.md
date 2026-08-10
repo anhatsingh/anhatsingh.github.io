@@ -94,6 +94,26 @@ Until Supabase is configured the site serves `lib/content/seed.ts`. Replace that
 placeholder content from `/admin` — experience, projects and testimonials are all
 invented.
 
+### Uploading images
+
+Every image field in `/admin` — profile photo, company and institution logos,
+project and writing covers — has an **Upload** button next to it, backed by
+Supabase Storage. No extra service: the free tier includes 1GB and the keys are
+already set. The `media` bucket is created on first upload, so there's no
+dashboard step.
+
+Uploads go through a server action that re-checks the admin session and writes
+with the service-role key, so the bucket needs no write policy — the only way in
+is authenticated. It's public-read, because everything in it is destined for a
+public page; don't put anything private there.
+
+PNG, JPG, WebP or GIF, 2MB max. **SVG is rejected on purpose**: `next/image`
+won't optimise it without `dangerouslyAllowSVG`, and that flag exists because an
+SVG is a document that can carry script.
+
+Pasting a URL still works, and each field previews the image so a dead link is
+caught before saving rather than on the live site.
+
 ### Logos
 
 Experience, Education and Certifications each take an optional logo URL, editable
