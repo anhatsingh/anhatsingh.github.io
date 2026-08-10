@@ -1,39 +1,43 @@
 @import "tailwindcss";
 
 /*
-  BLUEPRINT & EMBER
-  =================
+  BLUEPRINT & CYAN
+  ================
   Every colour lives on bare `:root` first, so a viewer with no explicit theme
   choice still gets a complete palette. The dark block only *overrides* tokens —
   it never introduces one. That rule is what keeps a stray colour from being
-  undefined in one mode.
+  undefined in one mode. `npm run verify:theme` enforces it.
 
   Light is the base because it degrades more safely: if a token were ever missed,
   the page reads as unstyled-but-legible rather than black-on-black.
+
+  Cyan is deliberately DARKENED in light mode (#0e7490, not #22d3ee). Bright
+  cyan on cream measures 1.9:1 — invisible. Both values here clear AA against
+  their own background and against white/ink on top of them.
 */
 
 :root {
   --bg: #faf9f7;
   --surface: #ffffff;
-  --elevated: #f2efea;
+  --elevated: #f0f2f3;
   --text: #151a23;
   --muted: #5b6472;
-  --hairline: #e4e0d9;
+  --hairline: #e2e5e7;
 
-  --accent: #c9430f; /* darkened from ember so it clears AA on cream */
-  --accent-soft: #e65320;
+  --accent: #0e7490; /* teal-700 — 5.09:1 on --bg */
+  --accent-soft: #155e75; /* gradient partner; also AA as text */
   --accent-ink: #ffffff; /* text sitting on top of --accent */
 
-  --grid: #151a230f;
-  --glow: #e653201a;
+  --grid: #0e74900f;
+  --glow: #22d3ee1a;
 
   /* #00873d read nicer but landed at 4.40:1 on --bg, just under AA. */
   --success: #007a37;
   --danger: #c1121f;
 
   /* Callout bubbles the chatbot pins onto matched content */
-  --callout-bg: #fff6f1;
-  --callout-border: #e6532059;
+  --callout-bg: #ecfeff;
+  --callout-border: #0e749047;
 
   --radius: 4px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -42,23 +46,23 @@
 :root[data-theme="dark"] {
   --bg: #000000;
   --surface: #0d0d0d;
-  --elevated: #1e1e1e;
+  --elevated: #1a1a1a;
   --text: #ededed;
   --muted: #8a8a8a;
   --hairline: #252526;
 
-  --accent: #e65320;
-  --accent-soft: #ff8566;
-  --accent-ink: #0d0d0d;
+  --accent: #22d3ee;
+  --accent-soft: #67e8f9;
+  --accent-ink: #062c33;
 
-  --grid: #e6532014;
-  --glow: #e6532033;
+  --grid: #22d3ee14;
+  --glow: #22d3ee33;
 
   --success: #00c758;
   --danger: #fb2c36;
 
-  --callout-bg: #17100c;
-  --callout-border: #e6532066;
+  --callout-bg: #06232b;
+  --callout-border: #22d3ee66;
 }
 
 /*
@@ -69,23 +73,23 @@
   :root:not([data-theme="light"]) {
     --bg: #000000;
     --surface: #0d0d0d;
-    --elevated: #1e1e1e;
+    --elevated: #1a1a1a;
     --text: #ededed;
     --muted: #8a8a8a;
     --hairline: #252526;
 
-    --accent: #e65320;
-    --accent-soft: #ff8566;
-    --accent-ink: #0d0d0d;
+    --accent: #22d3ee;
+    --accent-soft: #67e8f9;
+    --accent-ink: #062c33;
 
-    --grid: #e6532014;
-    --glow: #e6532033;
+    --grid: #22d3ee14;
+    --glow: #22d3ee33;
 
     --success: #00c758;
     --danger: #fb2c36;
 
-    --callout-bg: #17100c;
-    --callout-border: #e6532066;
+    --callout-bg: #06232b;
+    --callout-border: #22d3ee66;
   }
 }
 
@@ -104,9 +108,20 @@
   --color-callout-bg: var(--callout-bg);
   --color-callout-border: var(--callout-border);
 
-  --font-display: var(--font-instrument-serif);
+  --font-display: var(--font-space-grotesk);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/*
+  Tailwind's generated .font-display only sets font-family. Headings also want
+  the weight and the tight tracking that make Space Grotesk read as a display
+  face rather than body copy — so this plain rule rides alongside it. Both apply;
+  neither fights the other, since they set different properties.
+*/
+.font-display {
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 html {
@@ -154,29 +169,11 @@ body {
   mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 40%, transparent 100%);
 }
 
-.ember-glow {
+.accent-glow {
   background: radial-gradient(circle at 20% 15%, var(--glow), transparent 45%);
 }
 
-.ember-gradient-text {
-  background: linear-gradient(135deg, var(--accent), var(--accent-soft));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 /* --- Motion ----------------------------------------------------------- */
-
-@keyframes blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0;
-  }
-}
 
 @keyframes slide-in-up {
   from {
@@ -187,20 +184,6 @@ body {
     opacity: 1;
     transform: none;
   }
-}
-
-@keyframes gradient-shift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.animate-caret {
-  animation: blink 1.1s steps(1) infinite;
 }
 
 .animate-rise {

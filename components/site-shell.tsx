@@ -76,7 +76,7 @@ export function SiteShell({ name, children }: { name: string; children: React.Re
       <ChatProvider>
         {/* Fixed decorative layers, behind everything, non-interactive. */}
         <div aria-hidden="true" className="blueprint-grid pointer-events-none fixed inset-0 -z-10" />
-        <div aria-hidden="true" className="ember-glow pointer-events-none fixed inset-0 -z-10" />
+        <div aria-hidden="true" className="accent-glow pointer-events-none fixed inset-0 -z-10" />
 
         <Header name={name} />
         <Content>{children}</Content>

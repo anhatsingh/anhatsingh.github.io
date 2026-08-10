@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -16,11 +16,12 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
+// Display face. 700 only — the lighter weights would blur the distinction
+// between headings and body, which is the whole reason for a second family.
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+  weight: "700",
   display: "swap",
 });
 
@@ -52,6 +53,8 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#faf9f7" },
     { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -59,7 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable}`}
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>

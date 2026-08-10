@@ -10,7 +10,7 @@ import type { ContributionLevel, GitHubStats } from "@/lib/github/service";
   undersell real work. Contributions, merged PRs — especially into other
   people's repos — and recency are the honest signals.
 
-  The heatmap is themed with the ember accent instead of GitHub's green so it
+  The heatmap is themed with the site accent instead of GitHub's green so it
   reads as part of the page rather than an embedded widget.
 */
 

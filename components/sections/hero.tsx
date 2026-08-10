@@ -1,6 +1,6 @@
 "use client";
 
-import { HeroChatInput } from "@/components/chat/hero-chat-input";
+import { HeroChatPanel } from "@/components/chat/hero-chat-panel";
 import type { Profile } from "@/lib/content/types";
 
 export function Hero({ profile }: { profile: Profile }) {
@@ -18,14 +18,16 @@ export function Hero({ profile }: { profile: Profile }) {
         )}
       </div>
 
-      <h1 className="mt-6 max-w-3xl font-display text-5xl leading-[1.05] tracking-tight sm:text-6xl md:text-7xl">
+      {/* Tracking comes from .font-display (-0.03em); a tracking-* utility here
+          would be silently overridden, so it's deliberately omitted. */}
+      <h1 className="mt-6 max-w-3xl font-display text-5xl leading-[1.05] sm:text-6xl md:text-7xl">
         {profile.headline}
       </h1>
 
       <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">{profile.bio}</p>
 
       <div className="mt-10">
-        <HeroChatInput />
+        <HeroChatPanel />
       </div>
 
       <div className="mt-10 flex flex-wrap items-center gap-3">

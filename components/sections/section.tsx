@@ -61,7 +61,7 @@ export function Section({
 }
 
 /**
- * Wraps any addressable card. When the chatbot highlights this item, an ember
+ * Wraps any addressable card. When the chatbot highlights this item, a cyan
  * callout appears above it explaining why it's relevant.
  */
 export function Highlightable({
