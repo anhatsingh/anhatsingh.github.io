@@ -303,11 +303,33 @@ export async function applyDraft(input: {
   return { ok: true };
 }
 
-/** Tables the LinkedIn importer is allowed to touch. */
-const IMPORTABLE = ["experience", "education", "skills", "certifications"] as const;
-export type ImportableTable = (typeof IMPORTABLE)[number];
+/*
+  What the LinkedIn importer is allowed to touch.
 
-export type ImportPayload = Partial<Record<ImportableTable, Record<string, unknown>[]>>;
+  Keyed by the group the review screen shows rather than by table, because the
+  two aren't one-to-one: volunteering has no table of its own and rides in
+  `experience`, and the counts read better as "6 volunteering" than as a lump
+  added to "experience".
+*/
+const IMPORT_TARGETS = {
+  experience: { table: "experience" },
+  education: { table: "education" },
+  skills: { table: "skills" },
+  certifications: { table: "certifications" },
+  projects: { table: "projects", drop: ["started"] },
+  testimonials: { table: "testimonials" },
+  /*
+    Volunteering lands unpublished. Six society roles appearing unannounced in
+    a work timeline misrepresents it, so it stays hidden until reviewed — but
+    only for rows that are new. Forcing is_published on every import would undo
+    the publish decision every time a fresh export is re-imported.
+  */
+  volunteering: { table: "experience", unpublishNew: true },
+} as const;
+
+export type ImportGroup = keyof typeof IMPORT_TARGETS;
+
+export type ImportPayload = Partial<Record<ImportGroup, Record<string, unknown>[]>>;
 
 /**
  * Upserts parsed LinkedIn records, keyed on slug.
@@ -335,14 +357,36 @@ export async function importLinkedIn(
 
   const counts: Record<string, number> = {};
 
-  for (const table of IMPORTABLE) {
-    const rows = payload[table];
+  for (const group of Object.keys(IMPORT_TARGETS) as ImportGroup[]) {
+    const target = IMPORT_TARGETS[group] as {
+      table: string;
+      drop?: readonly string[];
+      unpublishNew?: boolean;
+    };
+    const rows = payload[group];
     if (!rows?.length) continue;
 
-    const { error } = await db.from(table).upsert(rows, { onConflict: "slug" });
-    if (error) return { ok: false, error: `${table}: ${error.message}` };
+    // Parser fields that aren't columns would fail the whole upsert.
+    let prepared = rows.map((row) => {
+      if (!target.drop) return row;
+      const copy = { ...row };
+      for (const key of target.drop) delete copy[key];
+      return copy;
+    });
 
-    counts[table] = rows.length;
+    if (target.unpublishNew) {
+      const slugs = prepared.map((r) => String(r.slug));
+      const { data: existing } = await db.from(target.table).select("slug").in("slug", slugs);
+      const known = new Set((existing ?? []).map((r) => r.slug as string));
+      prepared = prepared.map((row) =>
+        known.has(String(row.slug)) ? row : { ...row, is_published: false },
+      );
+    }
+
+    const { error } = await db.from(target.table).upsert(prepared, { onConflict: "slug" });
+    if (error) return { ok: false, error: `${group}: ${error.message}` };
+
+    counts[group] = prepared.length;
   }
 
   revalidatePath("/");

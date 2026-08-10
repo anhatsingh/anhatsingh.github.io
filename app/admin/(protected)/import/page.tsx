@@ -16,11 +16,41 @@ import { parseLinkedInExport, type ImportResult } from "@/lib/linkedin/import";
 type Phase = "idle" | "parsing" | "review" | "saving" | "done" | "error";
 
 const GROUPS = [
-  { key: "experience", label: "Experience" },
-  { key: "education", label: "Education" },
-  { key: "skills", label: "Skills" },
-  { key: "certifications", label: "Certifications" },
+  { key: "experience", label: "Experience", note: "" },
+  { key: "education", label: "Education", note: "" },
+  { key: "skills", label: "Skills", note: "All land under “Imported” — re-file them afterwards." },
+  {
+    key: "certifications",
+    label: "Certifications, honours and test scores",
+    note: "Honours and test scores share this section — it's the one that renders things awarded by someone else.",
+  },
+  { key: "projects", label: "Projects", note: "" },
+  {
+    key: "testimonials",
+    label: "Recommendations",
+    note: "Only ones marked VISIBLE on LinkedIn — anything still pending isn't shown there either.",
+  },
+  {
+    key: "volunteering",
+    label: "Volunteering",
+    note: "Imported hidden, into the experience section. Publish each one yourself once it reads the way you want.",
+  },
 ] as const;
+
+/** Groups vary in shape; this is the one place that knows how each reads. */
+function rowTitle(row: Record<string, unknown>): string {
+  if ("role" in row) return `${row.role} · ${row.company}`;
+  if ("institution" in row) return `${row.degree} · ${row.institution}`;
+  if ("author_name" in row) return `${row.author_name}${row.author_title ? ` · ${row.author_title}` : ""}`;
+  return String(row.name ?? row.slug);
+}
+
+/** The second line — a quote needs showing, a slug is just plumbing. */
+function rowDetail(row: Record<string, unknown>): string {
+  if ("quote" in row) return `“${String(row.quote).slice(0, 120)}…”`;
+  if ("repo_url" in row && row.repo_url) return String(row.repo_url);
+  return String(row.slug);
+}
 
 export default function ImportPage() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -44,6 +74,9 @@ export default function ImportPage() {
       for (const g of GROUPS) {
         for (const row of result[g.key]) initial[`${g.key}:${row.slug}`] = true;
       }
+      // Volunteering is the one group that isn't obviously wanted — it lands in
+      // the work timeline, so make ticking it a deliberate act.
+      for (const row of result.volunteering) initial[`volunteering:${row.slug}`] = false;
       setSelected(initial);
       setPhase("review");
     } catch {
@@ -59,8 +92,10 @@ export default function ImportPage() {
 
     const payload: ImportPayload = {};
     for (const g of GROUPS) {
-      const rows = parsed[g.key].filter((r) => selected[`${g.key}:${r.slug}`]);
-      if (rows.length) payload[g.key] = rows as unknown as Record<string, unknown>[];
+      const rows = (parsed[g.key] as unknown as Record<string, unknown>[]).filter(
+        (r) => selected[`${g.key}:${r.slug}`],
+      );
+      if (rows.length) payload[g.key] = rows;
     }
 
     const result = await importLinkedIn(payload);
@@ -91,7 +126,10 @@ export default function ImportPage() {
             <span className="text-text">Data Privacy</span> →{" "}
             <span className="text-text">Get a copy of your data</span>
           </li>
-          <li>Pick the larger archive (or at least Positions, Education, Skills, Certifications)</li>
+          <li>
+            Ask for the <span className="text-text">full</span> archive — the small one omits
+            Projects, Recommendations, Honours and Volunteering
+          </li>
           <li>Wait for the email, download the .zip, drop it below</li>
         </ol>
         <p className="mt-3 text-xs text-muted">
@@ -135,8 +173,24 @@ export default function ImportPage() {
             </p>
           )}
 
+          {parsed.skipped.length > 0 && (
+            <section className="rounded-[var(--radius)] border border-hairline bg-surface p-4">
+              <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
+                Left out on purpose
+              </h3>
+              <ul className="mt-2 space-y-1 text-sm text-muted">
+                {parsed.skipped.map((s) => (
+                  <li key={s.file}>
+                    <span className="text-text">{s.file}</span>
+                    {s.rows > 0 && ` (${s.rows} row${s.rows === 1 ? "" : "s"})`} — {s.why}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {GROUPS.map((g) => {
-            const rows = parsed[g.key];
+            const rows = parsed[g.key] as unknown as Record<string, unknown>[];
             if (!rows.length) return null;
 
             return (
@@ -144,15 +198,11 @@ export default function ImportPage() {
                 <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
                   {g.label} ({rows.length})
                 </h3>
+                {g.note && <p className="mt-1 text-xs text-muted">{g.note}</p>}
                 <ul className="mt-3 space-y-2">
                   {rows.map((row) => {
                     const key = `${g.key}:${row.slug}`;
-                    const title =
-                      "role" in row
-                        ? `${row.role} · ${row.company}`
-                        : "institution" in row
-                          ? `${row.degree} · ${row.institution}`
-                          : row.name;
+                    const title = rowTitle(row);
 
                     return (
                       <li key={key}>
@@ -167,7 +217,9 @@ export default function ImportPage() {
                           />
                           <span className="min-w-0">
                             <span className="block text-sm">{title}</span>
-                            <span className="block font-mono text-xs text-muted">{row.slug}</span>
+                            <span className="block truncate font-mono text-xs text-muted">
+                              {rowDetail(row)}
+                            </span>
                           </span>
                         </label>
                       </li>
