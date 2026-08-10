@@ -25,13 +25,24 @@ import { z } from "zod";
   which flattens emphasis into texture — when everything is emphasised nothing
   is, and a human skimming reads keyword-stuffing rather than signal.
 */
+/*
+  Nullable rather than optional, throughout this file.
+
+  OpenAI's structured-output mode requires every property to appear in the
+  schema's `required` array — an optional field is rejected outright with
+  "'required' is required to be supplied and to be an array including every key
+  in properties". Nullable gives the same "there may be nothing here" meaning in
+  a shape the API accepts, and the renderer treats null and absent identically.
+
+  Defaults are gone for the same reason: the model supplies every field, even
+  when the answer is an empty array.
+*/
 export const richTextSchema = z.object({
   text: z.string().min(1).max(400),
   emphasise: z
     .array(z.string().min(2).max(60))
     .max(3)
-    .default([])
-    .describe("Phrases to bold. Each MUST appear verbatim in `text`, or it is dropped."),
+    .describe("Phrases to bold. Each MUST appear verbatim in `text`, or it is dropped. May be empty."),
 });
 
 export type RichText = z.infer<typeof richTextSchema>;
@@ -56,11 +67,11 @@ export type Bullet = z.infer<typeof bulletSchema>;
 export const resumeSchema = z.object({
   header: z.object({
     name: z.string().min(1).max(80),
-    location: z.string().max(80).optional().describe("City, Country. ATS parse a location field."),
-    phone: z.string().max(30).optional().describe("Include the country code."),
+    location: z.string().max(80).nullable().describe("City, Country. ATS parse a location field. Null if unknown."),
+    phone: z.string().max(30).nullable().describe("Include the country code. Null if unknown."),
     email: z.string().max(120),
-    linkedin: z.string().max(200).optional().describe("Bare host+path, no scheme."),
-    github: z.string().max(200).optional().describe("Bare host+path, no scheme."),
+    linkedin: z.string().max(200).nullable().describe("Bare host+path, no scheme. Null if unknown."),
+    github: z.string().max(200).nullable().describe("Bare host+path, no scheme. Null if unknown."),
   }),
 
   summary: richTextSchema.describe(
@@ -72,7 +83,7 @@ export const resumeSchema = z.object({
       z.object({
         degree: z.string().min(1).max(120),
         institution: z.string().min(1).max(160),
-        score: z.string().max(40).optional().describe("e.g. '9.26 CGPA'"),
+        score: z.string().max(40).nullable().describe("e.g. '9.26 CGPA'. Null if none."),
         years: z.string().min(1).max(40).describe("e.g. '2021 - 2025'"),
       }),
     )
@@ -102,8 +113,8 @@ export const resumeSchema = z.object({
     .array(
       z.object({
         name: z.string().min(1).max(120),
-        context: z.string().max(160).optional().describe("e.g. 'Course Project | IIT Madras'"),
-        dates: z.string().max(60).optional(),
+        context: z.string().max(160).nullable().describe("e.g. 'Course Project | IIT Madras'. Null if none."),
+        dates: z.string().max(60).nullable(),
         bullets: z.array(bulletSchema).min(1).max(4),
       }),
     )
@@ -118,7 +129,7 @@ export const resumeSchema = z.object({
     )
     .max(8),
 
-  achievements: z.array(richTextSchema).max(5).default([]),
+  achievements: z.array(richTextSchema).max(5).describe("May be empty."),
 });
 
 export type Resume = z.infer<typeof resumeSchema>;

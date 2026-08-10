@@ -19,6 +19,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compileTex } from "../lib/resume/compile";
 import { escapeLatex, renderResume, renderRich } from "../lib/resume/render";
+import { resumeMetaSchema, resumeSchema } from "../lib/resume/schema";
+import { z } from "zod";
 import type { Resume } from "../lib/resume/schema";
 
 let failures = 0;
@@ -144,6 +146,45 @@ check("no emphasis leaves text untouched",
 check("markup in the text is neutralised, not executed",
   renderRich({ text: "\\input{/etc/passwd}", emphasise: [] }).startsWith("\\textbackslash{}input"),
   renderRich({ text: "\\input{/etc/passwd}", emphasise: [] }));
+
+console.log("\n── the schema OpenAI will actually accept ──");
+{
+  /*
+    Structured-output mode requires every property of every object to appear in
+    that object's `required` array. An optional field is rejected outright:
+
+      Invalid schema for response_format: 'required' is required to be supplied
+      and to be an array including every key in properties. Missing 'location'.
+
+    That failure only happens at call time, against the live API, so nothing in
+    the build or the type checker catches a reintroduced .optional(). Hence
+    this: walk the emitted JSON Schema and assert the shape the API demands.
+    Use .nullable() instead — same meaning, accepted.
+  */
+  const walk = (node: unknown, path: string, report: string[]) => {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+
+    if (n.type === "object" && n.properties) {
+      const props = Object.keys(n.properties as object);
+      const required = new Set((n.required as string[]) ?? []);
+      for (const key of props) if (!required.has(key)) report.push(`${path}.${key}`);
+      for (const key of props) walk((n.properties as Record<string, unknown>)[key], `${path}.${key}`, report);
+    }
+    if (n.items) walk(n.items, `${path}[]`, report);
+    for (const key of ["anyOf", "allOf", "oneOf"]) {
+      if (Array.isArray(n[key])) (n[key] as unknown[]).forEach((sub, i) => walk(sub, `${path}.${key}[${i}]`, report));
+    }
+  };
+
+  for (const [name, schema] of [["resume", resumeSchema], ["resumeMeta", resumeMetaSchema]] as const) {
+    const json = z.toJSONSchema(schema as z.ZodType, { io: "output" });
+    const missing: string[] = [];
+    walk(json, name, missing);
+    check(`${name}: every property is required, as structured output demands`,
+      missing.length === 0, missing.slice(0, 5).join(", "));
+  }
+}
 
 console.log("\n── rendering ──");
 const tex = renderResume(fixture);
