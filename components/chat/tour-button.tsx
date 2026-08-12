@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useChatDock } from "./chat-provider";
 
 /*
@@ -19,21 +20,75 @@ import { useChatDock } from "./chat-provider";
   already open, so a third control in either would read as another state of the
   same button rather than a different offer. This one is a different offer.
 */
+
+/** Remembers that this person has been offered the tour. */
+const SEEN_KEY = "anhat.tour.offered";
+
+/*
+  Late enough to be a change rather than part of the page.
+
+  A halo present at first paint is just how the button looks; one that appears
+  a moment after the page settles is movement in the corner of the eye, which
+  is the entire mechanism. It also keeps the nudge out of the way of whatever
+  someone came to read first.
+*/
+const NUDGE_DELAY_MS = 2200;
+
+/*
+  And it stops. A control that pulses until clicked has stopped suggesting and
+  started nagging, and anyone who ignored six cycles has decided.
+*/
+const NUDGE_DURATION_MS = 15_000;
+
 export function TourButton() {
-  const { send, open, status } = useChatDock();
+  const { send, open, status, messages } = useChatDock();
+  const [nudge, setNudge] = useState(false);
 
   const busy = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    // Someone already talking has found the chat; pointing at it is noise.
+    if (messages.length > 0) return;
+
+    let seen = false;
+    try {
+      seen = localStorage.getItem(SEEN_KEY) === "1";
+    } catch {
+      // Private browsing throws on read. Treat it as a first visit — being
+      // offered the tour twice is a smaller cost than never being offered it.
+    }
+    if (seen) return;
+
+    const show = setTimeout(() => setNudge(true), NUDGE_DELAY_MS);
+    const hide = setTimeout(() => setNudge(false), NUDGE_DELAY_MS + NUDGE_DURATION_MS);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+    };
+  }, [messages.length]);
+
+  const start = () => {
+    setNudge(false);
+    try {
+      localStorage.setItem(SEEN_KEY, "1");
+    } catch {
+      /* Nothing to do; the nudge simply reappears next visit. */
+    }
+    open();
+    send("Show me around");
+  };
 
   return (
     <button
       type="button"
       disabled={busy}
-      onClick={() => {
-        open();
-        send("Show me around");
-      }}
+      onClick={start}
       title="A guided walk through the site"
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-invite/60 bg-invite/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)] transition-colors hover:bg-invite/20 disabled:opacity-40"
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-invite/60 bg-invite/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite transition-colors hover:bg-invite/20 disabled:opacity-40 ${
+        nudge
+          ? "animate-invite"
+          : "shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)]"
+      }`}
     >
       <span aria-hidden="true">↝</span>
       <span className="hidden sm:inline">Show me around</span>

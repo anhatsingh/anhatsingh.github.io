@@ -379,6 +379,34 @@ body {
 }
 
 /*
+  The first-visit nudge on "Show me around".
+
+  A halo that breathes rather than a flash: the tour is the thing nobody knows
+  is there, and it needs to catch the eye of someone reading the page without
+  interrupting them. It stops on its own after a few cycles — a control that
+  pulses forever stops reading as a suggestion and starts reading as an error.
+
+  Both ends of the cycle are the resting state, so the reduced-motion rule
+  above — which collapses every animation to a single 0.01ms run — leaves the
+  button sitting quietly rather than frozen mid-glow.
+*/
+@keyframes invite-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--invite) 12%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px color-mix(in srgb, var(--invite) 30%, transparent),
+      0 0 18px 2px color-mix(in srgb, var(--invite) 28%, transparent);
+  }
+}
+
+.animate-invite {
+  animation: invite-pulse 2.4s var(--ease) infinite;
+}
+
+/*
   Honour reduced-motion globally. The chatbot's scroll behaviour is handled
   separately in JS (it checks the same media query before choosing smooth vs
   instant), because scroll-behavior alone doesn't cover programmatic scrollIntoView

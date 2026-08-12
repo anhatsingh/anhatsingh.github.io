@@ -353,5 +353,36 @@ console.log("\n── a decline is not a gap ──");
   check("declines get their own panel", /Declined as off-topic/.test(admin));
 }
 
+/*
+  The first-visit nudge.
+
+  The tour is the one thing on this site nobody knows is there, so the button
+  catches the eye once — and only once. The properties worth pinning down are
+  the ones that keep it a suggestion rather than a nag: it stops on its own, it
+  doesn't fire at someone already in a conversation, and it remembers.
+*/
+console.log("\n── the nudge knows when to stop ──");
+{
+  const btn = readFileSync("components/chat/tour-button.tsx", "utf8");
+  check("it arrives after the page settles, not at first paint", /NUDGE_DELAY_MS = \d/.test(btn));
+  check("it stops on its own", /NUDGE_DURATION_MS = /.test(btn));
+  check("nobody mid-conversation is pointed at the chat", /messages\.length > 0\) return/.test(btn));
+  check("it is remembered across visits", /localStorage\.setItem\(SEEN_KEY/.test(btn));
+  check("storage being unavailable doesn't break the button", /catch \{/.test(btn));
+
+  const css = readFileSync("app/globals.css", "utf8");
+  check("the pulse is defined", /@keyframes invite-pulse/.test(css));
+  /*
+    Both ends of the cycle are the resting state, so the global reduced-motion
+    rule — which collapses animations to one 0.01ms run — leaves the button
+    quiet rather than frozen mid-glow.
+  */
+  const frames = css.slice(css.indexOf("@keyframes invite-pulse"));
+  check(
+    "its start and end are the resting state, for reduced motion",
+    /0%,\s*\n\s*100% \{/.test(frames.slice(0, 200)),
+  );
+}
+
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
