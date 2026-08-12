@@ -43,6 +43,18 @@
   --orb-opacity: 0.18;
   --grain-opacity: 0.035;
 
+  /*
+    Violet, and used for exactly one thing: the invitation to be shown around.
+
+    It needed to be neither accent nor success — those two already mean "the
+    chat" and "a conversation is open", and a third control in either colour
+    would read as a fourth state of the same button rather than a different
+    offer. Warm amber was the other candidate and lost: --warn is already
+    spoken for by LeetCode's difficulty coding, and an amber pill beside a
+    teal one reads as a caution.
+  */
+  --invite: #7c3aed; /* violet-600 — 5.55:1 on --bg */
+
   /* #00873d read nicer but landed at 4.40:1 on --bg, just under AA. */
   --success: #007a37;
   /* Medium-difficulty amber. LeetCode's own green/amber/red coding is near
@@ -101,6 +113,7 @@
   --orb-opacity: 0.12;
   --grain-opacity: 0.05;
 
+  --invite: #a78bfa; /* violet-400 — the 600 goes muddy on black */
   --success: #00c758;
   --warn: #e0a33a;
   --danger: #fb2c36;
@@ -136,7 +149,8 @@
     --orb-opacity: 0.12;
     --grain-opacity: 0.05;
 
-    --success: #00c758;
+    --invite: #a78bfa; /* violet-400 — the 600 goes muddy on black */
+  --success: #00c758;
     --warn: #e0a33a;
     --danger: #fb2c36;
 
@@ -159,6 +173,7 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
+  --color-invite: var(--invite);
   --color-success: var(--success);
   --color-warn: var(--warn);
   --color-danger: var(--danger);

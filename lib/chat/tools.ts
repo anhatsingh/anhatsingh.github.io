@@ -67,6 +67,13 @@ export type ToolOutcome =
         label: string;
         /** What to say at this stop. */
         note: string;
+        /*
+          A named thing inside the section to land on, rather than the top of
+          it. "life-graph" is the only one today: it sits below the bio, so the
+          About stop would otherwise show a paragraph instead of the chart it
+          is talking about.
+        */
+        anchor: string | null;
         items: Array<{ itemId: string; note: string }>;
       }>;
     }
@@ -465,6 +472,11 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
               section: z
                 .enum(NAVIGABLE_SECTIONS as [SectionId, ...SectionId[]])
                 .describe("Which section this stop is about."),
+              anchor: z
+                .enum(["life-graph", "none"])
+                .describe(
+                  "Set to 'life-graph' for the about stop so it lands on the chart rather than the bio above it. 'none' everywhere else.",
+                ),
               note: z
                 .string()
                 .max(220)
@@ -483,7 +495,7 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
             }),
           )
           .min(2)
-          .max(6)
+          .max(7)
           .describe("The stops, in the order they should be walked."),
       }),
       execute: async ({ steps }): Promise<ToolOutcome> => {
@@ -496,6 +508,7 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           section: step.section,
           label: SECTION_LABELS[step.section],
           note: step.note,
+          anchor: step.anchor === "none" ? null : step.anchor,
           items: step.items.filter((item) => known.has(item.itemId)),
         }));
 

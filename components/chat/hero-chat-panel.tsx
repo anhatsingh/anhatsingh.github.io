@@ -67,19 +67,13 @@ export function HeroChatPanel() {
     <div className="w-full max-w-lg">
       <div className="overflow-hidden rounded-xl border border-hairline bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.15)]">
         {/* Header — the status pill is what makes it read as "live". */}
-        <div className="flex items-center justify-between border-b border-hairline px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2" aria-hidden="true">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-            </span>
-            <span className="font-mono text-[11px] uppercase tracking-widest text-muted">
-              assistant · online
-            </span>
-          </div>
-          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-accent">
-            <span aria-hidden="true">⌁</span>
-            drives the page
+        <div className="flex items-center gap-2 border-b border-hairline px-4 py-2.5">
+          <span className="relative flex h-2 w-2" aria-hidden="true">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+          </span>
+          <span className="font-mono text-[11px] uppercase tracking-widest text-muted">
+            assistant · online
           </span>
         </div>
 

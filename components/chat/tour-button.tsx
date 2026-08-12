@@ -14,6 +14,10 @@ import { useChatDock } from "./chat-provider";
   model's to plan from current content, and going through the chat leaves the
   request in the transcript, so what happens next reads as an answer to
   something asked rather than the page moving on its own.
+
+  Violet, alone on this site. Teal is the chat and green is a conversation
+  already open, so a third control in either would read as another state of the
+  same button rather than a different offer. This one is a different offer.
 */
 export function TourButton() {
   const { send, open, status } = useChatDock();
@@ -29,7 +33,7 @@ export function TourButton() {
         send("Show me around");
       }}
       title="A guided walk through the site"
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-hairline px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-muted transition-colors hover:border-accent/50 hover:text-text disabled:opacity-40"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-invite/60 bg-invite/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)] transition-colors hover:bg-invite/20 disabled:opacity-40"
     >
       <span aria-hidden="true">↝</span>
       <span className="hidden sm:inline">Show me around</span>

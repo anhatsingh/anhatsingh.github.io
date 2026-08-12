@@ -232,19 +232,23 @@ console.log("\n── spotting an answer the assistant couldn't give ──");
 console.log("\n── a tour stop holds long enough to read ──");
 {
   const shortest = dwellFor("Short.");
-  check("even the shortest stop holds several seconds", shortest >= 9_000, `${shortest}ms`);
+  check("even the shortest stop holds a few seconds", shortest >= 4_000, `${shortest}ms`);
 
   const long = dwellFor(
     "He builds retrieval pipelines and the services around them, which is most of what this role is asking for, and the work below is where that shows.",
   );
   check("a longer note buys more time", long > shortest, `${long}ms vs ${shortest}ms`);
-  check("but never runs away", long <= 24_000, `${long}ms`);
+  /*
+    The ceiling matters as much as the floor. The first pass capped at 24s,
+    tuned against a tour that moved too fast, and turned reading into waiting.
+  */
+  check("but never becomes waiting", long <= 13_000, `${long}ms`);
 
   // Roughly reading speed with room to look up from the text. Below this it is
   // a slideshow again.
   const words = 25;
-  const perWord = (dwellFor(Array(words).fill("word").join(" ")) - 9_000) / words;
-  check("each word buys real time", perWord >= 300, `${Math.round(perWord)}ms/word`);
+  const perWord = (dwellFor(Array(words).fill("word").join(" ")) - 4_000) / words;
+  check("each word buys real reading time", perWord >= 250, `${Math.round(perWord)}ms/word`);
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

@@ -118,6 +118,7 @@ const PAIRS: Array<[fg: string, bg: string, label: string]> = [
   ["--accent", "--surface", "accent on card"],
   ["--accent-ink", "--accent", "button label on accent fill"],
   ["--accent-soft", "--bg", "accent-soft as text"],
+  ["--invite", "--bg", "tour invitation on page"],
   ["--success", "--bg", "success text"],
   ["--warn", "--bg", "warning text"],
   ["--danger", "--bg", "error text"],

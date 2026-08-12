@@ -8,6 +8,8 @@ export interface TourStep {
   section: SectionId;
   label: string;
   note: string;
+  /** Something inside the section to land on instead of its top. */
+  anchor: string | null;
   items: Array<{ itemId: string; note: string }>;
 }
 
@@ -32,20 +34,24 @@ export interface TourStep {
 /*
   How long a stop holds while auto-playing.
 
-  Derived from the narration, not fixed: the reader has to take in the sentence
-  AND look at what the page just scrolled to, so this is deliberately slower
-  than a reading-speed estimate. The floor is what a short stop needs before it
-  stops feeling like a slideshow.
+  Derived from the narration rather than fixed, since the reader has to take in
+  the sentence AND look at what the page scrolled to.
+
+  The first pass was tuned against the failure it replaced — a tour that moved
+  before anything could be read — and overshot: a two-sentence stop sat for
+  twenty seconds, which is waiting, not reading. This is nearer a real reading
+  pace with a little room to look up from the text. Auto-play is a convenience
+  anyway; anyone who wants longer has a stop button and a Previous.
 */
 export function dwellFor(note: string): number {
   const words = note.trim().split(/\s+/).length;
-  return Math.min(24_000, 9_000 + words * 450);
+  return Math.min(13_000, 4_000 + words * 280);
 }
 
 const TICK = 100;
 
 export function TourCard({ steps }: { steps: TourStep[] }) {
-  const { focusSection, setHighlights } = useUIControl();
+  const { focusSection, setHighlights, scrollToLandmark } = useUIControl();
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -62,8 +68,14 @@ export function TourCard({ steps }: { steps: TourStep[] }) {
       if (!target) return;
       focusSection(target.section);
       setHighlights(target.items);
+      /*
+        Last, so it wins. Each of these queues a scroll, and the anchor is the
+        more specific of the two — landing on the About section and then on the
+        graph inside it is the intended order, not a correction.
+      */
+      if (target.anchor) scrollToLandmark(target.anchor);
     },
-    [steps, focusSection, setHighlights],
+    [steps, focusSection, setHighlights, scrollToLandmark],
   );
 
   /*
@@ -112,7 +124,10 @@ export function TourCard({ steps }: { steps: TourStep[] }) {
 
   if (!step) return null;
 
-  const progress = playing ? elapsed / dwellFor(step.note) : 0;
+  const dwell = dwellFor(step.note);
+  const progress = playing ? elapsed / dwell : 0;
+  // Rounded up, so it never shows 0 while the stop is still on screen.
+  const remaining = Math.ceil((dwell - elapsed) / 1000);
 
   return (
     <section
@@ -191,7 +206,22 @@ export function TourCard({ steps }: { steps: TourStep[] }) {
                   : "border-hairline text-muted hover:border-accent/50 hover:text-text"
               }`}
             >
-              {playing ? "◼ stop" : "▶ auto"}
+              {/*
+                The number, not just the bar. Someone reading a stop wants to
+                know how long they have before it moves — a filling hairline
+                answers "roughly" and a count answers it exactly, which is what
+                decides whether to read on or hit stop.
+
+                Tabular figures so the label holds its width as it counts down;
+                without them the button twitches every second.
+              */}
+              {playing ? (
+                <>
+                  ◼ stop <span className="tabular-nums">{remaining}s</span>
+                </>
+              ) : (
+                <>▶ auto</>
+              )}
             </button>
           )}
         </div>

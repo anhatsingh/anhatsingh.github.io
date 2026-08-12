@@ -11,6 +11,7 @@ import {
   type ItemKind,
 } from "@/lib/content/graph";
 import type { Portfolio } from "@/lib/content/types";
+import { useUIControl } from "@/components/ui-control";
 
 /*
   A git network diagram of everything dated, on one continuous track that
@@ -57,6 +58,7 @@ function colorFor(item: GraphItem): string {
 
 export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: number }) {
   const [active, setActive] = useState<GraphItem | null>(null);
+  const { registerLandmark } = useUIControl();
 
   const graph = useMemo(() => buildGraph(portfolio, { now }), [portfolio, now]);
 
@@ -70,11 +72,16 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
   const y = (lane: number) => TOP + lane * LANE_H;
 
   return (
-    <div className="mt-14">
+    /*
+      Registered as a landmark so the tour can land on it. It sits below the
+      bio, so scrolling to the About section alone leaves it off screen — and
+      the About stop of the tour is entirely about this.
+    */
+    <div ref={(el) => registerLandmark("life-graph", el)} className="mt-14">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 className="font-display text-xl">The whole thing, on one track</h3>
         <p className="font-mono text-[11px] uppercase tracking-widest text-muted">
-          one dot = one month · hover a branch · scroll →
+          hover a branch · scroll →
         </p>
       </div>
 

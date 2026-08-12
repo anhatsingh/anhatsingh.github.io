@@ -77,9 +77,9 @@ async function main() {
   const tour = await run(() =>
     call(tools.runTour, {
       steps: [
-        { section: "experience", note: "What he does now.", items: [{ itemId: realId, note: "current role" }] },
-        { section: "projects", note: "The work behind it.", items: [{ itemId: "projects:not-a-real-thing", note: "fake" }] },
-        { section: "contact", note: "How to reach him.", items: [] },
+        { section: "experience", anchor: "none", note: "What he does now.", items: [{ itemId: realId, note: "current role" }] },
+        { section: "projects", anchor: "none", note: "The work behind it.", items: [{ itemId: "projects:not-a-real-thing", note: "fake" }] },
+        { section: "about", anchor: "life-graph", note: "It all lines up.", items: [] },
       ],
     }),
   );
@@ -98,6 +98,20 @@ async function main() {
   check(
     "stops carry the section name the buttons read",
     tour.ok === true && tour.action === "tour" && tour.steps[0].label.length > 0,
+  );
+  /*
+    The graph sits below the bio, so landing on the About section alone showed
+    a paragraph instead of the chart the stop is about. The anchor is what
+    fixes that, and "none" has to come back as nothing rather than as a
+    landmark named "none".
+  */
+  check(
+    "the about stop carries the graph anchor",
+    tour.ok === true && tour.action === "tour" && tour.steps[2].anchor === "life-graph",
+  );
+  check(
+    "'none' is not treated as a landmark",
+    tour.ok === true && tour.action === "tour" && tour.steps[0].anchor === null,
   );
 
   console.log("\n── selectResume: degrades to the static link ──");
@@ -432,10 +446,21 @@ async function main() {
       "it is told not to drive the page itself",
       /Do not call focusSection or highlightItems for a tour/.test(prompt),
     );
+    /*
+      The route, in the order it was asked for: what he does, where he trained,
+      what he works in, the proof, then the graph that ties those together, and
+      only then how to reach him.
+    */
+    const route = ["experience —", "education —", "skills —", "projects —", "about —", "contact —"];
     check(
-      "the stops build a case, in order",
-      prompt.indexOf("experience —") < prompt.indexOf("projects —") &&
-        prompt.indexOf("projects —") < prompt.indexOf("contact —"),
+      "the stops run in the intended order",
+      route.every((stop, i) => i === 0 || prompt.indexOf(route[i - 1]) < prompt.indexOf(stop)),
+      route.filter((s) => !prompt.includes(s)).join(", ") || "all present",
+    );
+    check("the graph stop lands on the graph", /set anchor to life-graph/.test(prompt));
+    check(
+      "contact comes after the summary rather than replacing it",
+      /after the summary, not instead of it/.test(prompt),
     );
     // The card carries the narration. Repeating it in prose means reading
     // everything twice, which is the failure mode of a stepper beside an answer.

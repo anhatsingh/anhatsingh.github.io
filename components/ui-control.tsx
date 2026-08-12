@@ -63,6 +63,15 @@ interface UIControlValue {
   visibleSection: SectionId | null;
   /** Scrolls an element to roughly a third down the viewport. */
   scrollTo: (el: HTMLElement) => void;
+  /*
+    Named things worth landing on that aren't sections and aren't content rows.
+
+    The life graph is the case: it sits at the bottom of About, below the bio,
+    so scrolling to the section leaves it off screen — a tour stop whose whole
+    subject was the graph showed a paragraph instead.
+  */
+  registerLandmark: (name: string, el: HTMLElement | null) => void;
+  scrollToLandmark: (name: string) => void;
   /** The card that should scroll itself into view, if any. */
   scrollTarget: string | null;
   consumeScrollTarget: () => void;
@@ -83,6 +92,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
   const [liveMessage, setLiveMessage] = useState("");
 
   const sectionEls = useRef(new Map<SectionId, HTMLElement>());
+  const landmarkEls = useRef(new Map<string, HTMLElement>());
 
   /*
     Highlighted cards register themselves so a highlight can scroll to the card
@@ -232,6 +242,30 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const registerLandmark = useCallback((name: string, el: HTMLElement | null) => {
+    if (el) landmarkEls.current.set(name, el);
+    else landmarkEls.current.delete(name);
+  }, []);
+
+  /*
+    Queued, so it lands after the focusSection that precedes it. Unqueued it
+    would race the section scroll and lose — smooth scrolling is asynchronous,
+    and the second call would be overwritten by the first still animating.
+
+    Silent when the landmark isn't on this page. The section scroll already
+    took the visitor somewhere reasonable; a missing anchor should refine that,
+    not break it.
+  */
+  const scrollToLandmark = useCallback(
+    (name: string) => {
+      enqueue(() => {
+        const el = landmarkEls.current.get(name);
+        if (el) scrollTo(el);
+      });
+    },
+    [enqueue, scrollTo],
+  );
+
   const focusSection = useCallback(
     (section: SectionId, reason?: string) => {
       enqueue(() => {
@@ -314,6 +348,8 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       setHighlights,
       clearFocus,
       registerSection,
+      registerLandmark,
+      scrollToLandmark,
       registerItem,
       visibleSection,
       scrollTarget,
@@ -328,6 +364,8 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       setHighlights,
       clearFocus,
       registerSection,
+      registerLandmark,
+      scrollToLandmark,
       registerItem,
       visibleSection,
       scrollTarget,
