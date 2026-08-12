@@ -220,6 +220,20 @@ create table if not exists writing (
   updated_at   timestamptz not null default now()
 );
 
+/*
+  A conversation someone chose to share.
+
+  Public read by id only: there is no listing and no way to enumerate, so a
+  transcript is reachable only by the link its owner copied. Sharing is always
+  an explicit act — nothing is stored unless the button is pressed — and the
+  stored copy holds no identifiers, the same rule chat_questions follows.
+*/
+create table if not exists shared_chats (
+  id         uuid primary key default gen_random_uuid(),
+  messages   jsonb not null,
+  created_at timestamptz not null default now()
+);
+
 -- Inbound messages, whether from the contact form or confirmed in the chatbot.
 create table if not exists contact_messages (
   id         uuid primary key default gen_random_uuid(),
@@ -445,6 +459,16 @@ alter table testimonials     enable row level security;
 alter table writing          enable row level security;
 alter table resumes          enable row level security;
 alter table resume_sources   enable row level security;
+alter table shared_chats     enable row level security;
+
+/*
+  Readable by anyone holding the id, which is the whole point of a share link.
+  No insert policy: writes go through the service role after the visitor has
+  clicked, so a link can't be forged into existence.
+*/
+drop policy if exists "public read shared_chats" on shared_chats;
+create policy "public read shared_chats" on shared_chats
+  for select to anon, authenticated using (true);
 alter table contact_messages enable row level security;
 alter table chat_cache       enable row level security;
 

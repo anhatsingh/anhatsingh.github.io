@@ -9,6 +9,7 @@ import { FitReport } from "./fit-report";
 import { Activity, isBusy } from "./activity";
 import { ChatMarkdown } from "./chat-markdown";
 import { FollowUps } from "./follow-ups";
+import { ShareButton } from "./share-button";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
@@ -269,6 +270,8 @@ export function ChatDock() {
               stop
             </button>
           )}
+          {/* Only worth offering once there's something to send. */}
+          {messages.length > 0 && <ShareButton messages={messages} />}
           <button
             onClick={close}
             aria-label="Close chat"

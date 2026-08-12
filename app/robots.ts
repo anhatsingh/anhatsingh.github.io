@@ -9,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         // /admin is behind auth anyway, but keeping it out of the index stops
         // a login page competing with the homepage for the name query.
-        disallow: ["/admin", "/admin/", "/api/"],
+        disallow: ["/c/", "/admin", "/admin/", "/api/"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

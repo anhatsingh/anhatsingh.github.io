@@ -136,7 +136,7 @@ async function main() {
     ).split("\n");
     for (const t of [
       "profile", "experience", "projects", "skills", "education", "certifications",
-      "testimonials", "writing", "resumes", "resume_sources", "content_chunks",
+      "testimonials", "writing", "resumes", "resume_sources", "content_chunks", "shared_chats",
       "contact_messages", "chat_cache", "chat_questions",
     ]) {
       check(`${t} exists`, tables.includes(t));
@@ -164,6 +164,22 @@ async function main() {
       The negative assertions. These four hold nothing a visitor may read, and
       with RLS on, having no policy is what denies them.
     */
+    /*
+      shared_chats is the one table a visitor can cause a write to, and the one
+      public table without an is_published gate — a share link works precisely
+      because anyone holding the id can read it. What must NOT exist is an
+      insert policy: writes go through the service role after an explicit
+      click, so a link can't be forged into existence.
+    */
+    check(
+      "shared_chats is readable by anyone holding the id",
+      psql("fresh", "select count(*) from pg_policies where tablename='shared_chats' and cmd='SELECT';") === "1",
+    );
+    check(
+      "shared_chats has no anon insert policy",
+      psql("fresh", "select count(*) from pg_policies where tablename='shared_chats' and cmd in ('INSERT','ALL');") === "0",
+    );
+
     for (const t of ["resume_sources", "contact_messages", "chat_cache", "chat_questions"]) {
       const count = psql("fresh", `select count(*) from pg_policies where tablename='${t}';`);
       check(`${t} has NO anon policy, so RLS denies reads`, count === "0", `${count} policies`);

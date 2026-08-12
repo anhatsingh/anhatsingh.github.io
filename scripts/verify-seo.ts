@@ -8,6 +8,7 @@
   Run: npx tsx scripts/verify-seo.ts
 */
 
+import { readFileSync } from "node:fs";
 import { seedPortfolio } from "../lib/content/seed";
 import { buildDescription, buildPersonJsonLd, buildProjectsJsonLd, SITE_URL } from "../lib/seo";
 import { detailJsonLd, detailMetadata } from "../lib/content/detail-meta";
@@ -155,6 +156,22 @@ check("projects list omitted when there are none", buildProjectsJsonLd(bare) ===
 check("person graph still builds with nothing optional", (() => {
   try { JSON.parse(JSON.stringify(buildPersonJsonLd(bare, AVATAR))); return true; } catch { return false; }
 })());
+
+/*
+  Shared conversations are somebody's questions, kept because they chose to
+  forward them — not content this site publishes. Two independent guards say so,
+  and both must hold: a crawler that ignores robots.txt still meets the noindex,
+  and a crawler that never fetches the page still reads the disallow.
+*/
+console.log("\n── shared conversations stay out of search ──");
+{
+  const robots = readFileSync("app/robots.ts", "utf8");
+  check("robots.txt disallows /c/", /disallow:\s*\[[^\]]*"\/c\/"/.test(robots));
+
+  const page = readFileSync("app/c/[id]/page.tsx", "utf8");
+  check("the shared page sets robots: index false", /robots:\s*\{[^}]*index:\s*false/.test(page));
+  check("it reads through getSharedConversation, so RLS decides", page.includes("getSharedConversation"));
+}
 
 console.log(failures === 0 ? "\nAll SEO checks passed.\n" : `\n${failures} SEO check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
