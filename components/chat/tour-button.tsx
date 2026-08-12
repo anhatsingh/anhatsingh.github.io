@@ -108,37 +108,38 @@ export function TourButton() {
       {nudge && (
         <span
           aria-hidden="true"
-          className="animate-point pointer-events-none absolute right-1 top-full mt-1 flex flex-col items-end"
+          className="animate-point pointer-events-none absolute left-0 top-full mt-1 flex flex-col items-start"
         >
           <svg
-            width="46"
+            width="30"
             height="40"
-            viewBox="0 0 46 40"
+            viewBox="0 0 36 48"
             fill="none"
             className="text-invite drop-shadow-[0_1px_6px_color-mix(in_srgb,var(--invite)_45%,transparent)]"
           >
             {/*
-              Drawn as one hand-ish curve rather than a straight shaft: a
-              geometric arrow in a header reads as an icon, and this needs to
-              read as somebody pointing.
+              A sweeping stroke with a solid head, not two crossed strokes. The
+              first attempt drew the head as an open V whose axis didn't match
+              the curve's tangent at the tip, and it read as a wedge floating
+              beside a line rather than as an arrow.
+
+              So the head is derived from that tangent: the curve's last control
+              point is (19,20) and it ends at (28,9), giving a direction of
+              about 50° above horizontal. The tip and both barbs are placed
+              along and across that, and the shaft runs a little past the base
+              so its round cap finishes inside the fill instead of poking out
+              the side.
             */}
             <path
-              d="M38 4C39 16 33 27 20 32"
+              d="M5 45C3 32 19 20 28 9L30.4 6"
               stroke="currentColor"
-              strokeWidth="2.5"
+              strokeWidth="2.6"
               strokeLinecap="round"
             />
-            <path
-              d="M36 13.5 38.6 3.6 29.4 7"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
+            <path d="M33.38 2.42 30.63 11.15 25.37 6.85Z" fill="currentColor" />
           </svg>
 
-          <span className="-mt-1 mr-1 whitespace-nowrap font-display text-[13px] italic tracking-tight text-invite drop-shadow-[0_1px_6px_var(--bg)]">
+          <span className="-mt-1 ml-0.5 whitespace-nowrap font-display text-[13px] italic tracking-tight text-invite drop-shadow-[0_1px_6px_var(--bg)]">
             start here
           </span>
         </span>
