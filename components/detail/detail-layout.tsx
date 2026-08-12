@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { DetailHighlight } from "@/components/detail/detail-highlight";
 import { LogoPlate } from "@/components/ui/logo-plate";
+import { TalkButton } from "@/components/chat/talk-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   ENTITY_LABELS,
@@ -114,6 +115,11 @@ export function DetailLayout({
               home
             </Link>
             <ThemeToggle />
+
+            {/* The chat follows the visitor across pages, so the way back into
+                it has to as well — a conversation started on the homepage is
+                still open here, and nothing said so. */}
+            <TalkButton />
           </div>
         </div>
       </header>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { JsonLd } from "@/components/seo/json-ld";
+import { TalkButton } from "@/components/chat/talk-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getBlogEntries, type BlogEntry } from "@/lib/content/entities";
 import { getPortfolio } from "@/lib/content";
@@ -117,7 +118,10 @@ export default async function BlogIndex() {
             {profile.name.toLowerCase().replace(/\s+/g, "")}
             <span className="text-accent">.</span>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <TalkButton />
+          </div>
         </div>
       </header>
 
