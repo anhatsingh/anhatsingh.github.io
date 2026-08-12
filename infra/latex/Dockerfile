@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       texlive-latex-extra \
       # Provides fullpage.sty, which texlive-latex-extra does not.
       texlive-plain-generic \
+      # pdftotext, so the service can hand back what an ATS would read.
+      poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Fail the build rather than the first request if a package the template needs
@@ -31,7 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN set -eux; \
     for f in helvet.sty fullpage.sty titlesec.sty enumitem.sty fancyhdr.sty hyperref.sty glyphtounicode.tex; do \
       kpsewhich "$f" >/dev/null || { echo "missing: $f"; exit 1; }; \
-    done
+    done; \
+    command -v pdftotext >/dev/null || { echo "missing: pdftotext"; exit 1; }
 
 FROM tex AS runtime
 

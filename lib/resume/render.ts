@@ -31,9 +31,72 @@ const ESCAPES: Record<string, string> = {
   "%": "\\%",
 };
 
+/*
+  Characters a model reaches for that pdfTeX cannot typeset directly.
+
+  Smart quotes, dashes and ellipses arrive constantly — they are what any model
+  writes when it writes English prose. With T1 encoding some pass and some
+  don't, so they are mapped to the LaTeX forms rather than gambled on.
+*/
+const PUNCTUATION: Record<string, string> = {
+  "\u2014": "---",
+  "\u2013": "--",
+  "\u2012": "--",
+  "\u2010": "-",
+  "\u2011": "-",
+  "\u2018": "`",
+  "\u2019": "'",
+  "\u201c": "``",
+  "\u201d": "''",
+  "\u2026": "\\ldots{}",
+  "\u2022": "-",
+  "\u00a0": " ",
+  "\u2009": " ",
+  "\u202f": " ",
+  "\u200b": "",
+  "\u2212": "-",
+  "\u00d7": "x",
+  "\u2192": "->",
+  "\u2190": "<-",
+  "\u2713": "",
+};
+
+/*
+  Anything above this is dropped.
+
+  pdflatex with T1 fonts covers Latin and its accents. A CJK character, an
+  emoji or a Devanagari glyph is not merely wrong there — it aborts the
+  compile with "Unicode character not set up for use with LaTeX", taking the
+  whole document with it. That has happened: a draft came back with a stray
+  Korean syllable in it and nothing rendered at all.
+
+  Dropping is the right call over failing. The alternative is a resume that
+  cannot be produced because one character in two thousand was noise, and
+  auditForUnsupported reports what went so it is never silent.
+*/
+const MAX_SUPPORTED_CODEPOINT = 0x02ff;
+
+/** Characters this renderer would silently remove, for the audit to report. */
+export function unsupportedCharacters(value: string): string[] {
+  const found = new Set<string>();
+  for (const char of value) {
+    if (PUNCTUATION[char] !== undefined) continue;
+    if ((char.codePointAt(0) ?? 0) > MAX_SUPPORTED_CODEPOINT) found.add(char);
+  }
+  return [...found];
+}
+
 export function escapeLatex(value: string): string {
   let out = "";
-  for (const char of value) out += ESCAPES[char] ?? char;
+  for (const char of value) {
+    const mapped = PUNCTUATION[char];
+    if (mapped !== undefined) {
+      out += mapped;
+      continue;
+    }
+    if ((char.codePointAt(0) ?? 0) > MAX_SUPPORTED_CODEPOINT) continue;
+    out += ESCAPES[char] ?? char;
+  }
   return out;
 }
 

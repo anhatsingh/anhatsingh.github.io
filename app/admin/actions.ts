@@ -19,7 +19,8 @@ import { getPortfolio } from "@/lib/content";
 import { parseBlocks, type Block } from "@/lib/content/blocks";
 import { orderByDate } from "@/lib/content/timeline";
 import { reindexEntity } from "@/lib/chat/embeddings";
-import { draftResume, draftResumeMeta } from "@/lib/ai/resume";
+import { confirmFidelity, draftResume, draftResumeMeta, reviseResume } from "@/lib/ai/resume";
+import { auditExtraction, hasErrors, type AuditFinding } from "@/lib/resume/audit";
 import { renderResume } from "@/lib/resume/render";
 import { compileTex } from "@/lib/resume/compile";
 import { saveResume } from "@/lib/resume/store";
@@ -520,6 +521,109 @@ export async function requestResumeDraft(jobDescription: string): Promise<Resume
   }
 
   return { ok: true, resume: draft.resume, meta: meta.meta, dropped: draft.dropped };
+}
+
+export type ResumeCheckAction =
+  | {
+      ok: true;
+      resume: Resume;
+      findings: AuditFinding[];
+      revised: boolean;
+      pages: number;
+      /** Data URL, so the draft can be previewed before anything is stored. */
+      previewPdf: string;
+    }
+  | { ok: false; error: string; log?: string };
+
+/**
+ * Compiles a draft, reads the PDF back, and fixes what is wrong.
+ *
+ * The order matters. Deterministic checks run first because they are cheap and
+ * never disagree with themselves — they catch missing content, mangled
+ * headings, leaked escapes. Only then is the model asked to judge fidelity,
+ * which is the part no rule can decide.
+ *
+ * One revision round, not a loop. A second pass that still fails usually means
+ * the source data is thin rather than the wording wrong, and a human reading
+ * the findings will get further than another attempt.
+ *
+ * Nothing is written here. The result is a proposal and a preview.
+ */
+export async function checkResume(input: {
+  resume: Resume;
+  jobDescription: string;
+}): Promise<ResumeCheckAction> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const portfolio = await getPortfolio();
+
+  const compiled = await compileTex(renderResume(input.resume));
+  if (!compiled.ok) return { ok: false, error: `LaTeX: ${compiled.error}`, log: compiled.log };
+
+  let findings = auditExtraction(input.resume, compiled.text, compiled.pages);
+
+  const fidelity = await confirmFidelity(input.resume, compiled.text);
+  if (fidelity.ok) findings = [...findings, ...fidelity.findings];
+
+  // Warnings are for a human to weigh; only errors are worth spending a
+  // revision round and another compile on.
+  if (!hasErrors(findings)) {
+    return {
+      ok: true,
+      resume: input.resume,
+      findings,
+      revised: false,
+      pages: compiled.pages,
+      previewPdf: toDataUrl(compiled.pdf),
+    };
+  }
+
+  const revision = await reviseResume(input.resume, findings, input.jobDescription, portfolio);
+  if (!revision.ok) {
+    return {
+      ok: true,
+      resume: input.resume,
+      findings,
+      revised: false,
+      pages: compiled.pages,
+      previewPdf: toDataUrl(compiled.pdf),
+    };
+  }
+
+  const recompiled = await compileTex(renderResume(revision.resume));
+  if (!recompiled.ok) {
+    // The revision broke the build, so the original stands — better a document
+    // with known flaws than none at all.
+    return {
+      ok: true,
+      resume: input.resume,
+      findings,
+      revised: false,
+      pages: compiled.pages,
+      previewPdf: toDataUrl(compiled.pdf),
+    };
+  }
+
+  const after = auditExtraction(revision.resume, recompiled.text, recompiled.pages);
+  const afterFidelity = await confirmFidelity(revision.resume, recompiled.text);
+
+  return {
+    ok: true,
+    resume: revision.resume,
+    findings: afterFidelity.ok ? [...after, ...afterFidelity.findings] : after,
+    revised: true,
+    pages: recompiled.pages,
+    previewPdf: toDataUrl(recompiled.pdf),
+  };
+}
+
+/** Base64 data URL, so a preview needs no storage and leaves nothing behind. */
+function toDataUrl(pdf: Uint8Array): string {
+  return `data:application/pdf;base64,${Buffer.from(pdf).toString("base64")}`;
 }
 
 export type ResumeSaveAction = { ok: true; slug: string; pdfUrl: string } | { ok: false; error: string };

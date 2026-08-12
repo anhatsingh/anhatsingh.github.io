@@ -23,7 +23,18 @@ const run = promisify(execFile);
 */
 
 export type CompileResult =
-  | { ok: true; pdf: Uint8Array }
+  | {
+      ok: true;
+      pdf: Uint8Array;
+      /*
+        What a text extractor reads out of the PDF — the only thing an ATS ever
+        sees. Returned alongside the bytes so the audit can compare it against
+        the resume it was built from without a PDF toolchain of its own.
+        Empty when extraction wasn't available.
+      */
+      text: string;
+      pages: number;
+    }
   | { ok: false; error: string; log?: string };
 
 /** Compiles twice: the first pass has no page count, so \fancyhf settles on the second. */
@@ -65,8 +76,20 @@ async function compileLocal(tex: string): Promise<CompileResult> {
       }
     }
 
-    const pdf = await readFile(join(dir, "resume.pdf"));
-    return { ok: true, pdf: new Uint8Array(pdf) };
+    const pdfPath = join(dir, "resume.pdf");
+    const pdf = await readFile(pdfPath);
+
+    // Optional locally: a machine without poppler still compiles, it just
+    // can't be audited, and the caller degrades rather than failing.
+    let text = "";
+    try {
+      await run("pdftotext", ["-layout", pdfPath, join(dir, "resume.txt")], { timeout: 15_000 });
+      text = await readFile(join(dir, "resume.txt"), "utf8");
+    } catch {
+      /* no extractor on PATH */
+    }
+
+    return { ok: true, pdf: new Uint8Array(pdf), text, pages: countPages(text) };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   } finally {
@@ -80,6 +103,8 @@ async function compileRemote(tex: string, url: string): Promise<CompileResult> {
       method: "POST",
       headers: {
         "Content-Type": "application/x-tex",
+        // Asks for the extracted text alongside the bytes.
+        Accept: "application/json",
         ...(process.env.LATEX_SERVICE_TOKEN
           ? { Authorization: `Bearer ${process.env.LATEX_SERVICE_TOKEN}` }
           : {}),
@@ -93,10 +118,32 @@ async function compileRemote(tex: string, url: string): Promise<CompileResult> {
       return { ok: false, error: `Compiler returned ${res.status}.`, log: detail.slice(-4000) };
     }
 
-    return { ok: true, pdf: new Uint8Array(await res.arrayBuffer()) };
+    if (res.headers.get("content-type")?.includes("application/json")) {
+      const body = (await res.json()) as { pdfBase64: string; text: string; pages: number };
+      return {
+        ok: true,
+        pdf: Uint8Array.from(Buffer.from(body.pdfBase64, "base64")),
+        text: body.text ?? "",
+        pages: body.pages ?? countPages(body.text ?? ""),
+      };
+    }
+
+    // An older deployment that only speaks PDF still works, without an audit.
+    const pdf = new Uint8Array(await res.arrayBuffer());
+    return { ok: true, pdf, text: "", pages: 0 };
   } catch (err) {
     return { ok: false, error: `Couldn't reach the compiler: ${(err as Error).message}` };
   }
+}
+
+/**
+ * Pages, from extracted text.
+ *
+ * pdftotext writes a form feed after every page including the last, so a bare
+ * split reports one page too many — which reads as a spurious blank page.
+ */
+function countPages(text: string): number {
+  return text.split("\f").filter((p) => p.trim()).length;
 }
 
 export async function compileTex(tex: string): Promise<CompileResult> {

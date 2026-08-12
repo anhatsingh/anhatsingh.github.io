@@ -18,7 +18,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compileTex } from "../lib/resume/compile";
-import { escapeLatex, renderResume, renderRich } from "../lib/resume/render";
+import { escapeLatex, renderResume, renderRich, unsupportedCharacters } from "../lib/resume/render";
+import { auditExtraction, findMarkdownArtifacts, findUnsupportedCharacters, hasErrors } from "../lib/resume/audit";
 import { resumeMetaSchema, resumeSchema } from "../lib/resume/schema";
 import { z } from "zod";
 import type { Resume } from "../lib/resume/schema";
@@ -184,6 +185,89 @@ console.log("\n── the schema OpenAI will actually accept ──");
     check(`${name}: every property is required, as structured output demands`,
       missing.length === 0, missing.slice(0, 5).join(", "));
   }
+}
+
+console.log("\n── characters pdflatex can't typeset ──");
+{
+  /*
+    A draft came back with a stray Korean syllable in it and the compile died
+    outright — "Unicode character not set up for use with LaTeX" takes the
+    whole document, not just the word. Dropping beats failing, and the audit
+    says what went so it is never silent.
+  */
+  check("a CJK character is reported", unsupportedCharacters("Built 리 the thing").length === 1);
+  check("an emoji is reported", unsupportedCharacters("Shipped it 🚀").length === 1);
+  check("plain ASCII is untouched", unsupportedCharacters("Built the thing").length === 0);
+  check("accented Latin is kept — names depend on it",
+    unsupportedCharacters("Café Möller Ångström").length === 0);
+  check("smart punctuation is mapped, not reported",
+    unsupportedCharacters("it\u2019s \u201cquoted\u201d \u2014 really\u2026").length === 0);
+
+  check("an em dash becomes a LaTeX em dash", escapeLatex("a \u2014 b") === "a --- b");
+  check("curly quotes become TeX quotes", escapeLatex("\u201chi\u201d") === "``hi''");
+  check("an apostrophe survives", escapeLatex("it\u2019s") === "it's");
+  check("an unsupported character is removed rather than breaking the build",
+    escapeLatex("a리b") === "ab", escapeLatex("a리b"));
+  check("a non-breaking space becomes a space", escapeLatex("a\u00a0b") === "a b");
+}
+
+console.log("\n── markdown the model shouldn't emit ──");
+{
+  const withMarkdown = {
+    ...fixture,
+    experience: [
+      {
+        ...fixture.experience[0],
+        bullets: [{ text: "Built **FastAPI** services", emphasise: [], sourceId: "experience:x" }],
+      },
+    ],
+  };
+  const found = findMarkdownArtifacts(withMarkdown as typeof fixture);
+  check("**bold** is caught", found.length === 1, found[0]?.detail ?? "");
+  check("it is an error, not a warning", found[0]?.severity === "error");
+  check("clean prose produces nothing", findMarkdownArtifacts(fixture).length === 0);
+
+  for (const [label, text] of [
+    ["backtick code", "Use `pip install`"],
+    ["a markdown link", "See [the repo](https://x.com)"],
+    ["a leading dash", "- Built the thing"],
+    ["a # heading", "# Experience"],
+  ] as Array<[string, string]>) {
+    const r = { ...fixture, achievements: [{ text, emphasise: [] }] };
+    check(`${label} is caught`, findMarkdownArtifacts(r as typeof fixture).length === 1, text);
+  }
+
+  // An asterisk that isn't markup shouldn't trip it.
+  const legit = { ...fixture, achievements: [{ text: "Scored 4.5 * 10^3 ops/sec", emphasise: [] }] };
+  check("a lone asterisk in prose is not flagged",
+    findMarkdownArtifacts(legit as typeof fixture).length === 0);
+}
+
+console.log("\n── the audit reads the PDF, not the draft ──");
+{
+  const nasty = {
+    ...fixture,
+    achievements: [{ text: "Shipped 리 with **bold**", emphasise: [] }],
+  } as typeof fixture;
+  check("unsupported characters surface", findUnsupportedCharacters(nasty).length === 1);
+  check("both defect kinds are errors", hasErrors(auditExtraction(nasty, "", 1)));
+
+  // Nothing extracted means nothing was verified — reported once, not as a
+  // flood of failures against an empty string.
+  const blind = auditExtraction(fixture, "", 1);
+  check("an unreadable PDF reports once and stops",
+    blind.filter((f) => f.check === "extraction").length === 1 && blind.length === 1,
+    `${blind.length} findings`);
+
+  // Content that never made it onto the page is the failure this exists for.
+  const partial = auditExtraction(
+    fixture,
+    "Anhat Singh\nJalandhar, India\nanhatsingh2001@gmail.com\n+91 95010 30147\nFounding Engineer | Mavenzeit\nSenior Full Stack Developer | Dom Ventas India\n",
+    1,
+  );
+  check("missing bullets are caught",
+    partial.some((f) => f.check === "content"),
+    `${partial.filter((f) => f.check === "content").length} missing`);
 }
 
 console.log("\n── rendering ──");

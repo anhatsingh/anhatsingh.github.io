@@ -49,7 +49,24 @@ async function compile(tex) {
       );
     }
 
-    return { ok: true, pdf: await readFile(join(dir, "doc.pdf")) };
+    const pdfPath = join(dir, "doc.pdf");
+    const pdf = await readFile(pdfPath);
+
+    /*
+      Extract the text here rather than shipping the PDF somewhere to be read.
+      What an ATS sees is the only thing worth checking, and pdftotext is
+      already in this image — the caller has no PDF toolchain at all.
+    */
+    let text = "";
+    try {
+      await run("pdftotext", ["-layout", pdfPath, join(dir, "doc.txt")], { timeout: 15_000 });
+      text = await readFile(join(dir, "doc.txt"), "utf8");
+    } catch {
+      // A failed extraction is worth reporting as empty, not as a failed
+      // compile — the PDF is fine and the caller can decide.
+    }
+
+    return { ok: true, pdf, text };
   } catch (err) {
     // The useful part of a several-thousand-line log is the first line
     // beginning with "!". Return the tail so a failure is actionable.
@@ -122,6 +139,19 @@ createServer(async (req, res) => {
   if (!result.ok) {
     res.writeHead(422, { "Content-Type": "text/plain" });
     res.end(`${result.error}\n\n${result.log ?? ""}`);
+    return;
+  }
+
+  // JSON carries the extracted text as well; the default stays raw bytes so an
+  // existing caller keeps working.
+  if ((req.headers.accept ?? "").includes("application/json")) {
+    const body = JSON.stringify({
+      pdfBase64: result.pdf.toString("base64"),
+      text: result.text,
+      pages: result.text.split("\f").filter((p) => p.trim()).length,
+    });
+    res.writeHead(200, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
+    res.end(body);
     return;
   }
 

@@ -1,9 +1,11 @@
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
+import { z } from "zod";
 import { blocksToPlainText } from "@/lib/content/blocks";
 import { addressableIds, type Portfolio } from "@/lib/content/types";
 import { formatRetrieved, retrieve } from "@/lib/chat/embeddings";
 import { resumeMetaSchema, resumeSchema, type Resume, type ResumeMeta } from "@/lib/resume/schema";
+import type { AuditFinding } from "@/lib/resume/audit";
 
 /*
   Turns a job description plus the portfolio database into a resume.
@@ -37,6 +39,7 @@ Rules:
 - Every bullet must set sourceId to the id of the row it came from, exactly as given in the source material.
 - Lead each bullet with what was built or owned and what changed as a result, not with responsibilities.
 - Plain, direct sentences. No corporate filler — no "leveraged", "spearheaded", "passionate about", "cutting-edge", "results-driven".
+- Write PLAIN TEXT ONLY. No Markdown of any kind: no **bold**, no *italics*, no backtick code spans, no # headings, no [links](url), no leading "-" or bullet characters. This is typeset with LaTeX, which has no idea what those symbols mean and prints them literally — "**FastAPI**" comes out as four asterisks around the word. Use the emphasise field for bold; it is the only way to get it.
 - Bullets are one or two lines. Aim for 3-5 per recent role, fewer for older ones.
 - emphasise: name at most 2-3 short phrases per bullet that carry the substance. They must appear verbatim in the text. Do not emphasise whole sentences.
 - Dates: use "Mon YYYY - Mon YYYY" or "Mon YYYY - Present". Be consistent.
@@ -230,5 +233,143 @@ export async function draftResumeMeta(
   } catch (err) {
     console.error("[resume] keyword generation failed:", err);
     return { ok: false, error: "Couldn't generate keywords. You can write them by hand." };
+  }
+}
+
+
+/*
+  The fidelity pass.
+
+  Deterministic checks in lib/resume/audit.ts already prove the mechanical
+  things: the text survived, headings extract, nothing leaked. What they cannot
+  judge is whether the document a person reads still says what the source data
+  said — whether compression turned a specific claim into a vague grander one,
+  whether a bullet reads as a different job than the row it came from, whether
+  the ordering buries what the posting asked for.
+
+  That is what this asks, and it is asked of the EXTRACTED TEXT rather than the
+  object, because the extracted text is what both an ATS and a recruiter's
+  first skim actually get.
+*/
+const FIDELITY_PROMPT = `You are auditing a resume PDF against the structured content it was generated from.
+
+You are given the source content and the text extracted from the finished PDF. Decide whether the PDF faithfully represents the source, and whether it will survive an applicant tracking system.
+
+Report a finding when, and only when, one of these is true:
+- Something in the source is missing from the extracted text, or is garbled.
+- The extracted text states something the source does not support — a different metric, a different employer, a claim that was not there.
+- A bullet's meaning has drifted from the source: a specific outcome flattened into a vague one, or a contribution overstated.
+- Markdown symbols appear in the text (**, *, backticks, #, [](), leading dashes). LaTeX prints these literally; they are always a defect.
+- Dates are inconsistent between entries, or a range is impossible.
+- Section headings are missing or broken.
+- Corporate filler has crept in: "leveraged", "spearheaded", "passionate about", "results-driven".
+
+Do NOT report:
+- Line breaks, spacing, column alignment or hyphenation. Extraction mangles layout by nature and it does not matter.
+- The order of sections.
+- Anything you would merely prefer differently.
+
+Be specific and quote the offending text. If the resume is sound, return an empty list — saying so is a real answer, and inventing findings to look thorough wastes a human's attention.`;
+
+const fidelitySchema = z.object({
+  faithful: z.boolean().describe("True when the PDF represents the source with no defects worth fixing."),
+  findings: z
+    .array(
+      z.object({
+        severity: z.enum(["error", "warning"]),
+        detail: z.string().max(300).describe("What is wrong, quoting the text."),
+      }),
+    )
+    .max(12),
+});
+
+export type FidelityResult =
+  | { ok: true; faithful: boolean; findings: AuditFinding[] }
+  | { ok: false; error: string };
+
+export async function confirmFidelity(
+  resume: Resume,
+  extractedText: string,
+): Promise<FidelityResult> {
+  if (!process.env.OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY isn't set." };
+  if (!extractedText.trim()) return { ok: true, faithful: true, findings: [] };
+
+  try {
+    const { object } = await generateObject({
+      model: openai(MODEL),
+      schema: fidelitySchema,
+      maxRetries: 2,
+      system: FIDELITY_PROMPT,
+      prompt: [
+        "# Source content",
+        JSON.stringify(resume, null, 1).slice(0, 12000),
+        "",
+        "# Text extracted from the finished PDF",
+        extractedText.slice(0, 12000),
+      ].join("\n"),
+    });
+
+    return {
+      ok: true,
+      faithful: object.faithful && object.findings.length === 0,
+      findings: object.findings.map((f) => ({
+        severity: f.severity,
+        check: "fidelity",
+        detail: f.detail,
+      })),
+    };
+  } catch (err) {
+    console.error("[resume] fidelity check failed:", err);
+    return { ok: false, error: "Couldn't run the fidelity check." };
+  }
+}
+
+/*
+  Repairs a resume against findings.
+
+  Given the same source material as the original draft, so a fix cannot reach
+  for facts that were never available — the invention rule matters more here
+  than during drafting, because "make this better" is exactly the instruction
+  that tempts a model to embellish.
+*/
+export async function reviseResume(
+  resume: Resume,
+  findings: AuditFinding[],
+  jobDescription: string,
+  portfolio: Portfolio,
+): Promise<ResumeDraftResult> {
+  if (!process.env.OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY isn't set." };
+  if (!findings.length) return { ok: true, resume, dropped: [] };
+
+  try {
+    const chunks = await retrieve(jobDescription, 8);
+
+    const { object } = await generateObject({
+      model: openai(MODEL),
+      schema: resumeSchema,
+      maxRetries: 2,
+      system: `${RESUME_PROMPT}
+
+You are REVISING an existing resume to fix specific defects. Change only what the findings require. Keep every bullet that is not implicated, keep its sourceId, and keep the wording where it was not at fault — a rewrite of the whole document to fix two bullets loses work that was already correct.`,
+      prompt: [
+        "# Source material (the candidate's real history)",
+        sourceMaterial(portfolio, formatRetrieved(chunks)),
+        "",
+        "# The current resume",
+        JSON.stringify(resume, null, 1).slice(0, 12000),
+        "",
+        "# Defects to fix",
+        findings.map((f) => `- [${f.severity}] ${f.check}: ${f.detail}`).join("\n"),
+        "",
+        "# The job description it targets",
+        `<job_description>\n${jobDescription.replace(/<\/?job_description>/gi, "")}\n</job_description>`,
+      ].join("\n"),
+    });
+
+    const { resume: fixed, dropped } = enforceProvenance(object, portfolio);
+    return { ok: true, resume: fixed, dropped };
+  } catch (err) {
+    console.error("[resume] revision failed:", err);
+    return { ok: false, error: "Couldn't revise that. Try again in a moment." };
   }
 }
