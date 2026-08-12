@@ -396,3 +396,84 @@ body {
 [tabindex="-1"]:focus {
   outline: none;
 }
+
+/*
+  Printing.
+
+  Recruiters print. Printed as it stood, a page carried the chat dock, the
+  launcher, the aurora orbs, the grain overlay and every navigation control —
+  several pages of furniture around the content, in colours that cost ink and
+  say nothing in greyscale.
+
+  The rule throughout: keep what carries information, drop what carries
+  interaction.
+*/
+@media print {
+  /* Interaction has no meaning on paper. */
+  [data-chat-dock],
+  [data-screen-only],
+  .aurora,
+  .grain,
+  header,
+  nav,
+  button,
+  [role="note"] {
+    display: none !important;
+  }
+
+  :root {
+    /* Ink is expensive and a dark theme prints as a black rectangle. */
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --elevated: #ffffff;
+    --text: #000000;
+    --muted: #333333;
+    --accent: #000000;
+    --hairline: #bbbbbb;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /*
+    A link is useless on paper unless its destination comes with it. Internal
+    links are left alone — the path without a host helps nobody.
+  */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.75em;
+    color: #555;
+    word-break: break-all;
+  }
+
+  /*
+    Both are wide, horizontally scrolling and meaningless without colour. The
+    life graph in particular is a row of coloured bars whose whole content is
+    which colour is where.
+  */
+  #about svg,
+  #github {
+    display: none !important;
+  }
+
+  /* Don't split an entry across a page break where it can be avoided. */
+  section,
+  article,
+  li {
+    break-inside: avoid;
+  }
+
+  /* Sections are separated by whitespace on screen; paper needs a rule. */
+  section {
+    border-top: 1px solid #ddd;
+    padding: 12pt 0 !important;
+  }
+
+  /* Full width: the dock's reserved column is gone. */
+  main > div {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+}

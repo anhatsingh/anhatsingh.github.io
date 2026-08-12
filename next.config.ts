@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
+
     /*
       Server actions cap request bodies at 1MB by default, and image uploads go
       through one. Without this a 2MB file is rejected by the framework before

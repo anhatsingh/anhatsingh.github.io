@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { DetailHighlight } from "@/components/detail/detail-highlight";
+import { ReadingProgress } from "@/components/detail/reading-progress";
 import { LogoPlate } from "@/components/ui/logo-plate";
 import { TalkButton } from "@/components/chat/talk-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -103,6 +104,10 @@ export function DetailLayout({
         <div className="aurora-orb aurora-orb-c" />
       </div>
       <div aria-hidden="true" className="grain" />
+
+      {/* Only where there's something to read — on a page of structured facts
+          the bar would sit full from the start and teach people to ignore it. */}
+      {view.body.length > 0 && <ReadingProgress />}
 
       <header className="sticky top-0 z-30 border-b border-hairline bg-bg/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
