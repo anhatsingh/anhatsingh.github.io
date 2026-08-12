@@ -10,6 +10,7 @@ import { getAdminSession } from "@/lib/supabase/auth";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
 import { logQuestion, looksUnanswered } from "@/lib/chat/analytics";
+import { isTourRequest, readCached, writeCached } from "@/lib/chat/cache";
 
 export const maxDuration = 30;
 
@@ -23,6 +24,18 @@ const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 /** Caps the reply length. Recruiters skim, and tokens cost money. */
 const MAX_OUTPUT_TOKENS = 500;
 const OWNER_OUTPUT_TOKENS = 2000;
+/*
+  The tour needs its own ceiling.
+
+  A seven-stop route is a single tool call carrying seven notes and their
+  callouts — comfortably past 500 tokens of arguments — so the plan was being
+  truncated mid-JSON and arriving with two stops in it. The visitor cap is right
+  for prose and simply doesn't apply to a structured plan of a fixed size.
+
+  It costs little in practice: this is the one reply that gets cached, so it is
+  generated about once per deploy.
+*/
+const TOUR_OUTPUT_TOKENS = 1600;
 
 export async function POST(req: Request) {
   if (!process.env.OPENAI_API_KEY) {
@@ -98,6 +111,36 @@ export async function POST(req: Request) {
     : ""
   ).trim();
 
+  /*
+    The tour, served from cache.
+
+    Checked here rather than earlier because it needs the extracted question,
+    and skipped for Anhat — he is the one who changes the content, and being
+    shown a cached tour of what the site used to say would be actively
+    misleading.
+
+    Safe to serve regardless of what came before it: the route is fixed by the
+    prompt, so this reply does not depend on the conversation. That is the
+    property that makes it cacheable, and the reason nothing else is.
+  */
+  const cacheable = !isOwner && isTourRequest(question);
+  if (cacheable) {
+    const cached = await readCached(question);
+    if (cached) {
+      void logQuestion(question, { answered: true });
+      return new Response(cached, {
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          "x-vercel-ai-ui-message-stream": "v1",
+          // Visible in devtools, and the only way to tell a replay from a
+          // fresh generation from outside.
+          "x-chat-cache": "hit",
+        },
+      });
+    }
+  }
+
   const context = await new RetrievalContextProvider(portfolio, { github, leetcode }).getContext(
     question,
   );
@@ -158,7 +201,11 @@ export async function POST(req: Request) {
     stopWhen: stepCountIs(8),
     // Visitors get short answers because recruiters skim. He asked the
     // question and can decide how much of the answer he wants.
-    maxOutputTokens: isOwner ? OWNER_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS,
+    maxOutputTokens: isOwner
+      ? OWNER_OUTPUT_TOKENS
+      : isTourRequest(question)
+        ? TOUR_OUTPUT_TOKENS
+        : MAX_OUTPUT_TOKENS,
     temperature: 0.7,
     maxRetries: 2,
     onError: ({ error }) => {
@@ -171,5 +218,37 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  const response = result.toUIMessageStreamResponse();
+
+  if (!cacheable || !response.body) return response;
+
+  /*
+    Tee'd rather than buffered: the visitor gets their reply as it streams, and
+    the copy accumulates alongside for the next person. Buffering first would
+    make the one visitor who misses the cache wait for the whole generation.
+  */
+  const [toVisitor, toCache] = response.body.tee();
+
+  void (async () => {
+    try {
+      const chunks: string[] = [];
+      const decoder = new TextDecoder();
+      for await (const chunk of toCache as unknown as AsyncIterable<Uint8Array>) {
+        chunks.push(decoder.decode(chunk, { stream: true }));
+      }
+      chunks.push(decoder.decode());
+
+      const payload = chunks.join("");
+      /*
+        A truncated plan is worth less than no cache at all — it would be
+        served to everyone until the next deploy. The finish marker is what
+        says the stream ran to completion.
+      */
+      if (payload.includes("finish")) await writeCached(question, payload);
+    } catch (err) {
+      console.error("[chat] cache capture failed:", err);
+    }
+  })();
+
+  return new Response(toVisitor, { headers: response.headers });
 }

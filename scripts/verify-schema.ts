@@ -180,6 +180,20 @@ async function main() {
       psql("fresh", "select count(*) from pg_policies where tablename='shared_chats' and cmd in ('INSERT','ALL');") === "0",
     );
 
+    /*
+      The cache holds a raw reply stream, scoped to the build that produced it.
+      Without the compound key a release would overwrite rather than invalidate,
+      and a reply generated against the previous prompt would keep being served.
+    */
+    check(
+      "chat_cache is keyed by question AND build",
+      psql("fresh", "select count(*) from pg_indexes where tablename='chat_cache' and indexdef ilike '%question_hash%deploy_id%';") !== "0",
+    );
+    check(
+      "chat_cache stores the stream verbatim",
+      psql("fresh", "select count(*) from information_schema.columns where table_name='chat_cache' and column_name='payload';") === "1",
+    );
+
     for (const t of ["resume_sources", "contact_messages", "chat_cache", "chat_questions"]) {
       const count = psql("fresh", `select count(*) from pg_policies where tablename='${t}';`);
       check(`${t} has NO anon policy, so RLS denies reads`, count === "0", `${count} policies`);

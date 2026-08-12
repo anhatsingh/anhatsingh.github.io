@@ -246,17 +246,37 @@ create table if not exists contact_messages (
   created_at timestamptz not null default now()
 );
 
--- Response cache keyed on a normalised question. Keeps repeat visitors from
--- costing an API call each.
+/*
+  Response cache for the handful of questions everybody asks.
+
+  Only questions whose answer does not depend on the conversation are cached —
+  in practice, "show me around". That one is asked constantly, is the most
+  expensive reply the assistant produces, and is the same every time by
+  construction, since the prompt fixes the route.
+
+  `payload` is the raw UI message stream, stored verbatim and replayed
+  byte-for-byte. Caching the prose and the tool calls separately would mean
+  rebuilding a stream from parts and keeping that reconstruction in step with
+  the SDK's wire format forever.
+
+  Scoped by deploy_id so a release invalidates everything: the prompt, the tool
+  schema and the route all live in the bundle, and a cached reply generated
+  against the previous one is a reply to a question nobody can ask any more. The
+  24-hour window is a second bound, for content edited in the admin without a
+  deploy.
+*/
 create table if not exists chat_cache (
   id            uuid primary key default gen_random_uuid(),
-  question_hash text not null unique,
+  question_hash text not null,
   question      text not null,
-  answer        text not null,
-  -- Tool calls are cached alongside the prose so a cache hit still drives the UI.
-  actions       jsonb not null default '[]'::jsonb,
+  -- The build that produced it. Anything from an older build is dead on
+  -- arrival rather than merely stale.
+  deploy_id     text not null default 'dev',
+  -- The UI message stream exactly as it went over the wire.
+  payload       text not null default '',
   hit_count     int not null default 0,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  unique (question_hash, deploy_id)
 );
 
 -- What visitors actually ask. No IP, no session id, no fingerprint: the useful
@@ -319,6 +339,16 @@ create index if not exists contact_messages_created_idx on contact_messages (cre
 -- exists, so it will NOT add columns introduced after the first run. Anything
 -- added later needs an explicit alter here. These are idempotent, so re-running
 -- the whole file is always safe.
+
+-- chat_cache predates the tour and stored prose and tool calls apart; it now
+-- keeps the raw stream, scoped to the build that produced it.
+alter table chat_cache     add column if not exists deploy_id text not null default 'dev';
+alter table chat_cache     add column if not exists payload text not null default '';
+alter table chat_cache     drop column if exists answer;
+alter table chat_cache     drop column if exists actions;
+alter table chat_cache     drop constraint if exists chat_cache_question_hash_key;
+create unique index if not exists chat_cache_question_deploy_idx
+  on chat_cache (question_hash, deploy_id);
 
 alter table profile        add column if not exists avatar_url text;
 alter table profile        add column if not exists leetcode_username text;
