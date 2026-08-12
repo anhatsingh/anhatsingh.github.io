@@ -7,6 +7,8 @@ import { SiteChrome } from "@/components/site-chrome";
 import { getPortfolio } from "@/lib/content";
 import { listPublishedResumes } from "@/lib/resume/store";
 import { getAdminSession } from "@/lib/supabase/auth";
+import { buildPaletteEntries } from "@/components/command-palette";
+import { addressableIds, entityTypeForId, entityPath, NAVIGABLE_SECTIONS } from "@/lib/content/types";
 import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
@@ -89,6 +91,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   */
   const session = await getAdminSession();
 
+  /*
+    ⌘K entries, built from what the page already loaded. Only entries with a
+    page of their own get a href — the rest are reachable by scrolling to their
+    section, which is what focusSection does.
+  */
+  const paletteEntries = buildPaletteEntries(
+    NAVIGABLE_SECTIONS,
+    [...addressableIds(portfolio).entries()].flatMap(([id, entry]) => {
+      const type = entityTypeForId(id);
+      if (!type) return [];
+      const slug = id.slice(id.indexOf(":") + 1);
+      return [{ id, label: entry.label, href: entityPath(type, slug), kind: entry.section }];
+    }),
+  );
+
   return (
     <html
       lang="en"
@@ -101,6 +118,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             name={portfolio.profile.name}
             avatarUrl={portfolio.profile.avatarUrl}
             resumeOptions={resumeOptions}
+            paletteEntries={paletteEntries}
             adminEmail={session?.email}
           >
             {children}

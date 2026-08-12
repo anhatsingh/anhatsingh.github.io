@@ -6,6 +6,7 @@ import { SelectionPrompt } from "@/components/chat/selection-prompt";
 import { ChatProvider, useChatDock } from "@/components/chat/chat-provider";
 import { UIControlProvider } from "@/components/ui-control";
 import { AdminBar } from "@/components/admin-bar";
+import { CommandPalette, type PaletteEntry } from "@/components/command-palette";
 
 /*
   Everything that wraps every public page.
@@ -50,12 +51,15 @@ export function SiteChrome({
   name,
   avatarUrl,
   resumeOptions,
+  paletteEntries,
   adminEmail,
 }: {
   children: React.ReactNode;
   name: string;
   avatarUrl?: string;
   resumeOptions: string[];
+  /** Sections and entries for ⌘K, resolved on the server. */
+  paletteEntries: PaletteEntry[];
   /*
     Set only when the server verified a session against Supabase AND the email
     is on the allow-list. Never derived from the URL — see AdminBar.
@@ -88,6 +92,7 @@ export function SiteChrome({
         </PageShift>
         <ChatDock />
         <SelectionPrompt />
+        <CommandPalette entries={paletteEntries} />
       </ChatProvider>
     </UIControlProvider>
   );
