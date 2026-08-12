@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { ChatDock } from "@/components/chat/chat-dock";
+import { SelectionPrompt } from "@/components/chat/selection-prompt";
 import { ChatProvider, useChatDock } from "@/components/chat/chat-provider";
 import { UIControlProvider } from "@/components/ui-control";
 import { AdminBar } from "@/components/admin-bar";
@@ -86,6 +87,7 @@ export function SiteChrome({
           {children}
         </PageShift>
         <ChatDock />
+        <SelectionPrompt />
       </ChatProvider>
     </UIControlProvider>
   );

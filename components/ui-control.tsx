@@ -59,6 +59,8 @@ interface UIControlValue {
 
   registerSection: (section: SectionId, el: HTMLElement | null) => void;
   registerItem: (id: string, el: HTMLElement | null) => void;
+  /** The section currently filling most of the viewport, if any. */
+  visibleSection: SectionId | null;
   /** Scrolls an element to roughly a third down the viewport. */
   scrollTo: (el: HTMLElement) => void;
   /** The card that should scroll itself into view, if any. */
@@ -100,6 +102,13 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
   */
   const [scrollTarget, setScrollTarget] = useState<string | null>(null);
 
+  /*
+    Which section is filling most of the viewport, so the assistant can answer
+    "what am I looking at". Derived from the same elements the scroll machinery
+    already registers, so there is nothing extra to keep in step.
+  */
+  const [visibleSection, setVisibleSection] = useState<SectionId | null>(null);
+
   // Serialised navigation queue. Each entry waits out the cooldown from the
   // previous one so a multi-tool turn reads as a guided tour rather than a jump cut.
   const queue = useRef<Array<() => void>>([]);
@@ -138,10 +147,59 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
     [drain],
   );
 
+  /*
+    Bumped whenever the set of sections changes, so the observer above can
+    depend on something rather than on a ref it can't see mutate.
+  */
+  const [observedVersion, setObservedVersion] = useState(0);
+
   const registerSection = useCallback((section: SectionId, el: HTMLElement | null) => {
     if (el) sectionEls.current.set(section, el);
     else sectionEls.current.delete(section);
+    setObservedVersion((v) => v + 1);
   }, []);
+
+  /*
+    Watches the registered sections and keeps the most-visible one.
+
+    Re-created whenever a section registers or unregisters, which is what makes
+    it work on a page that mounts its sections after the provider — the
+    homepage, in other words.
+
+    Thresholds rather than a single number: a tall section never crosses a high
+    threshold at all, and a short one never fails a low one, so a spread is the
+    only way one comparison works for both.
+  */
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const ratios = new Map<SectionId, number>();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const found = [...sectionEls.current.entries()].find(([, el]) => el === entry.target);
+          if (found) ratios.set(found[0], entry.intersectionRatio);
+        }
+
+        let best: SectionId | null = null;
+        let bestRatio = 0;
+        for (const [section, ratio] of ratios) {
+          if (ratio > bestRatio) {
+            bestRatio = ratio;
+            best = section;
+          }
+        }
+        // A sliver of a section at the edge of the screen isn't what anyone
+        // would call the thing they're looking at.
+        setVisibleSection(bestRatio > 0.12 ? best : null);
+      },
+      { threshold: [0, 0.12, 0.25, 0.5, 0.75, 1] },
+    );
+
+    for (const el of sectionEls.current.values()) observer.observe(el);
+    return () => observer.disconnect();
+  }, [observedVersion]);
 
   const registerItem = useCallback((id: string, el: HTMLElement | null) => {
     if (el) itemEls.current.set(id, el);
@@ -257,6 +315,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       clearFocus,
       registerSection,
       registerItem,
+      visibleSection,
       scrollTarget,
       consumeScrollTarget,
       scrollTo,
@@ -270,6 +329,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       clearFocus,
       registerSection,
       registerItem,
+      visibleSection,
       scrollTarget,
       consumeScrollTarget,
       scrollTo,

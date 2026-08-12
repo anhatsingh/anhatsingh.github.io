@@ -5,6 +5,7 @@ import { getGitHubStats } from "@/lib/github/service";
 import { getLeetCodeStats } from "@/lib/leetcode/service";
 import { RetrievalContextProvider } from "@/lib/chat/context";
 import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
+import { describeScreen, sanitizePageContext } from "@/lib/chat/page-context";
 import { getAdminSession } from "@/lib/supabase/auth";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { messages?: UIMessage[] };
+  let body: { messages?: UIMessage[]; pageContext?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
   }
 
   const incoming = Array.isArray(body.messages) ? body.messages : [];
+  const screen = describeScreen(sanitizePageContext(body.pageContext));
   if (!incoming.length) {
     return Response.json({ error: "No messages supplied." }, { status: 400 });
   }
@@ -116,9 +118,17 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: openai(MODEL),
-    system: isOwner
-      ? buildAdminPrompt(portfolio, context)
-      : buildSystemPrompt(portfolio, context),
+    /*
+      Where the visitor is, appended to CONTEXT rather than mixed into it —
+      "explain what's on my screen" is unanswerable without it, and it changes
+      every turn while the rest of CONTEXT doesn't.
+    */
+    system: [
+      isOwner ? buildAdminPrompt(portfolio, context) : buildSystemPrompt(portfolio, context),
+      screen && `\n# ON SCREEN RIGHT NOW\n${screen}`,
+    ]
+      .filter(Boolean)
+      .join("\n"),
     messages: await convertToModelMessages(messages),
         // The search budget exists to stop one visitor draining a metered quota.
     // He is the person paying for it.

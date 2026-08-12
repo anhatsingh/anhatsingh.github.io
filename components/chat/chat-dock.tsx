@@ -235,6 +235,9 @@ export function ChatDock() {
     <aside
       aria-label="Chat with Anhat's assistant"
       data-open={isOpen}
+      // Marks the dock so a selection made inside it doesn't offer to explain
+      // the assistant's own answer back to it.
+      data-chat-dock=""
       className={[
         "fixed z-40 flex flex-col border-hairline bg-surface/95 backdrop-blur transition-all duration-500",
         "[transition-timing-function:var(--ease)]",

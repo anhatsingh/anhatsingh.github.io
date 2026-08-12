@@ -2,9 +2,10 @@
 
 import { useChat } from "@ai-sdk/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useUIControl } from "@/components/ui-control";
+import type { PageContext } from "@/lib/chat/page-context";
 import type { ToolOutcome } from "@/lib/chat/tools";
 import type { SectionId } from "@/lib/content/types";
 
@@ -35,7 +36,13 @@ interface ChatContextValue {
     naming them, while the visitor gets something to click.
   */
   resumeOptions: string[];
-  send: (text: string) => void;
+  /**
+   * Sends a turn, attaching where the visitor is and what they highlighted.
+   *
+   * The selection is per-message rather than sticky: it describes this
+   * question, not the conversation.
+   */
+  send: (text: string, selection?: string) => void;
   open: () => void;
   close: () => void;
   stop: () => void;
@@ -61,7 +68,8 @@ export function ChatProvider({
   const [isOpen, setIsOpen] = useState(false);
   const [restored, setRestored] = useState(false);
   const router = useRouter();
-  const { focusSection, setHighlights, clearFocus } = useUIControl();
+  const { focusSection, setHighlights, clearFocus, visibleSection } = useUIControl();
+  const pathname = usePathname();
 
   const { messages, sendMessage, setMessages, status, error, stop, regenerate } = useChat();
 
@@ -182,13 +190,26 @@ export function ChatProvider({
   }, [messages, focusSection, setHighlights, clearFocus, router]);
 
   const send = useCallback(
-    (text: string) => {
+    (text: string, selection?: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       setIsOpen(true);
-      sendMessage({ text: trimmed });
+
+      /*
+        Read at send time rather than kept in state: the visitor may have
+        scrolled or navigated since the last render, and what matters is where
+        they were when they asked.
+      */
+      const pageContext: PageContext = {
+        path: pathname,
+        title: document.querySelector("h1")?.textContent?.trim() || undefined,
+        visibleSection: visibleSection ?? undefined,
+        selection,
+      };
+
+      sendMessage({ text: trimmed }, { body: { pageContext } });
     },
-    [sendMessage],
+    [sendMessage, pathname, visibleSection],
   );
 
   const close = useCallback(() => {
