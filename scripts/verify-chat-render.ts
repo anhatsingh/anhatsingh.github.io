@@ -18,6 +18,7 @@ import { createElement } from "react";
 import { ChatMarkdown } from "../components/chat/chat-markdown";
 import { statusMessage } from "../components/chat/activity";
 import { describeScreen, idForPath, sanitizePageContext } from "../lib/chat/page-context";
+import { looksUnanswered } from "../lib/chat/analytics";
 import type { UIMessage } from "ai";
 
 let failures = 0;
@@ -183,6 +184,40 @@ console.log("\n── page context is not taken on trust ──");
     String(huge?.selection?.length));
   const longPath = sanitizePageContext({ path: `/${"a".repeat(5000)}` });
   check("an oversized path is truncated", (longPath?.path.length ?? 0) <= 200);
+}
+
+console.log("\n── spotting an answer the assistant couldn't give ──");
+{
+  /*
+    A question it had to refuse names a gap in the content, and the ranked list
+    of those is the most direct to-do list this site can produce. Matching the
+    reply is cruder than asking the model to grade itself, and much cheaper —
+    a tool call per turn would cost more than the signal is worth.
+
+    The patterns lean generous on purpose: a false positive puts one question
+    on a list it didn't belong on, while a false negative loses a gap entirely.
+  */
+  for (const reply of [
+    "That's not something I have on file — want me to send him a message?",
+    "I don't have any details about that.",
+    "There's no record of that in his portfolio.",
+    "I couldn't find anything about that.",
+    "Nothing on file about his GPA.",
+    "I don't know — that isn't in what I have.",
+  ]) {
+    check(`refusal spotted: "${reply.slice(0, 42)}…"`, looksUnanswered(reply));
+  }
+
+  for (const reply of [
+    "He built the retrieval pipeline at Mavenzeit using FastAPI and pgvector.",
+    "Anhat has two e-commerce projects. The first ranked 13th of 700 on Kaggle.",
+    "Yes — he has direct experience with Celery and Redis.",
+    "Here's his CV.",
+    // Mentions not having done something, which is an answer, not a refusal.
+    "He hasn't worked with Kubernetes in production, though he lists it as familiar.",
+  ]) {
+    check(`real answer not flagged: "${reply.slice(0, 42)}…"`, !looksUnanswered(reply));
+  }
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

@@ -251,6 +251,20 @@ create table if not exists chat_cache (
 create table if not exists chat_questions (
   id         uuid primary key default gen_random_uuid(),
   question   text not null,
+  /*
+    Whether the assistant could answer from what it had.
+
+    A question it had to refuse is worth more than one it answered: it names a
+    gap in the content, and the ranked list of them is a to-do list for what to
+    write next.
+  */
+  answered   boolean not null default true,
+  /*
+    'question' or 'role_interest'. What a visitor says they're hiring for is a
+    different kind of signal — market data rather than a content gap — but it
+    is the same shape and the same privacy rules, so it shares the table.
+  */
+  kind       text not null default 'question',
   created_at timestamptz not null default now()
 );
 
@@ -351,6 +365,9 @@ alter table testimonials   add column if not exists author_email text;
 -- When the recommendation was written. LinkedIn's export carries it, and
 -- without it a testimonial has no place on a dated timeline.
 alter table testimonials   add column if not exists received_at text;
+
+alter table chat_questions add column if not exists answered boolean not null default true;
+alter table chat_questions add column if not exists kind text not null default 'question';
 
 -- ---------------------------------------------------------------------
 -- Retrieval (pgvector)

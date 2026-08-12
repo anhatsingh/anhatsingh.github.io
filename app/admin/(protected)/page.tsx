@@ -6,7 +6,27 @@ export const dynamic = "force-dynamic";
 
 interface Question {
   question: string;
+  answered: boolean;
+  kind: string;
   created_at: string;
+}
+
+/** Groups by normalised text so one question asked ten times reads as one row. */
+function tally(rows: Question[]) {
+  return [
+    ...rows
+      .reduce((acc, q) => {
+        const key = q.question.toLowerCase().replace(/[^\w\s]/g, "").trim();
+        const prev = acc.get(key);
+        acc.set(key, {
+          question: prev?.question ?? q.question,
+          count: (prev?.count ?? 0) + 1,
+          last: prev?.last ?? q.created_at,
+        });
+        return acc;
+      }, new Map<string, { question: string; count: number; last: string }>())
+      .values(),
+  ].sort((a, b) => b.count - a.count || b.last.localeCompare(a.last));
 }
 
 interface Message {
@@ -44,11 +64,20 @@ export default async function AdminDashboard() {
 
     const { data: qs } = await db
       .from("chat_questions")
-      .select("question, created_at")
+      .select("question, answered, kind, created_at")
       .order("created_at", { ascending: false })
       .limit(300);
     questions = (qs as Question[]) ?? [];
   }
+
+  /*
+    Three lists out of one table. Unanswered questions are the valuable one —
+    each is a gap in the content, named by somebody who wanted it — so they
+    lead.
+  */
+  const asked = questions.filter((q) => q.kind !== "role_interest");
+  const unanswered = tally(asked.filter((q) => !q.answered));
+  const roleInterests = tally(questions.filter((q) => q.kind === "role_interest"));
 
   return (
     <div className="space-y-12">
@@ -70,35 +99,65 @@ export default async function AdminDashboard() {
         </div>
       </section>
 
+      {unanswered.length > 0 && (
+        <section>
+          <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-warn">
+            Couldn&apos;t answer ({unanswered.length})
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Somebody asked and the assistant had nothing to go on. Each of these is a gap in the
+            content, named by the person who wanted it — the most direct list of what to write next.
+          </p>
+          <ul className="mt-4 divide-y divide-hairline overflow-hidden rounded-[var(--radius)] border border-warn/40">
+            {unanswered.slice(0, 30).map((q) => (
+              <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                <span className="min-w-0 text-sm">{q.question}</span>
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-warn">
+                  ×{q.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {roleInterests.length > 0 && (
+        <section>
+          <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
+            Roles people are hiring for ({roleInterests.length})
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            What visitors said when the assistant asked, in their own words. The closest thing this
+            site collects to market data.
+          </p>
+          <ul className="mt-4 divide-y divide-hairline overflow-hidden rounded-[var(--radius)] border border-hairline">
+            {roleInterests.slice(0, 20).map((q) => (
+              <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                <span className="min-w-0 text-sm">{q.question}</span>
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted">
+                  ×{q.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section>
         <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
-          What visitors ask {questions.length > 0 && `(${questions.length})`}
+          What visitors ask {asked.length > 0 && `(${asked.length})`}
         </h2>
 
-        {questions.length === 0 ? (
+        {asked.length === 0 ? (
           <p className="mt-4 text-sm text-muted">
             Nothing yet. Recurring questions here are the fastest signal for what content is
             missing.
           </p>
         ) : (
           <ul className="mt-4 divide-y divide-hairline overflow-hidden rounded-[var(--radius)] border border-hairline">
-            {/* Grouped by normalised text so a question asked ten times reads as
-                one strong signal rather than ten rows of noise. */}
-            {[
-              ...questions
-                .reduce((acc, q) => {
-                  const key = q.question.toLowerCase().replace(/[^\w\s]/g, "").trim();
-                  const prev = acc.get(key);
-                  acc.set(key, {
-                    question: prev?.question ?? q.question,
-                    count: (prev?.count ?? 0) + 1,
-                    last: prev?.last ?? q.created_at,
-                  });
-                  return acc;
-                }, new Map<string, { question: string; count: number; last: string }>())
-                .values(),
-            ]
-              .sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))
+            {/* Same grouping as the two lists above — one helper, so a change
+                to how questions are counted can't apply to some panels only. */}
+            {tally(asked)
               .slice(0, 40)
               .map((q) => (
                 <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">

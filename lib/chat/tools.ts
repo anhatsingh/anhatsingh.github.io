@@ -4,6 +4,7 @@ import { resumeLinks } from "@/lib/resume";
 import { matchResume } from "@/lib/resume/match";
 import { listPublishedResumes } from "@/lib/resume/store";
 import { formatResults, MAX_QUERIES, research } from "./research";
+import { logQuestion } from "./analytics";
 import {
   entityPath,
   entityTypeForId,
@@ -331,6 +332,14 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           structural guarantee rather than a prompt instruction — and
           scripts/verify-tools.ts asserts the prompt stays free of them.
         */
+        /*
+          What people say they're hiring for is the most direct market signal
+          this site collects, and until now it was read once to pick a variant
+          and thrown away. Same table and same privacy rules as questions: the
+          words, never who said them.
+        */
+        if (interest?.trim()) void logQuestion(interest, { kind: "role_interest" });
+
         const fallback = resumeLinks(portfolio.profile.resumeUrl)?.viewUrl ?? null;
         const match = await matchResume(interest ?? "", fallback);
 

@@ -9,7 +9,7 @@ import { describeScreen, idForPath, sanitizePageContext } from "@/lib/chat/page-
 import { getAdminSession } from "@/lib/supabase/auth";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
-import { logQuestion } from "@/lib/chat/analytics";
+import { logQuestion, looksUnanswered } from "@/lib/chat/analytics";
 
 export const maxDuration = 30;
 
@@ -103,7 +103,15 @@ export async function POST(req: Request) {
   );
 
   // Fire-and-forget: analytics must never delay or fail a reply.
-  if (question) void logQuestion(question);
+  /*
+    Logged at the end of the turn rather than the start, so the answer exists
+    to judge. A question the assistant had to refuse is worth more than one it
+    answered — it names a gap in the content, and the ranked list of them is a
+    to-do list. Logging on arrival could never know that.
+
+    Owner turns are excluded: Anhat asking his own site things would drown the
+    signal in questions he already knows the answer to.
+  */
 
   // Wrap visitor turns so the model can distinguish content from instructions.
   const messages = trimHistory(incoming).map((m) =>
@@ -155,6 +163,11 @@ export async function POST(req: Request) {
     maxRetries: 2,
     onError: ({ error }) => {
       console.error("[chat] stream error:", error);
+    },
+    onFinish: ({ text }) => {
+      // Fire-and-forget, same as before: a logging failure must never cost a
+      // visitor their answer.
+      if (question && !isOwner) void logQuestion(question, { answered: !looksUnanswered(text) });
     },
   });
 
