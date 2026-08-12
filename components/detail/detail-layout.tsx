@@ -1,9 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
+import { DetailHighlight } from "@/components/detail/detail-highlight";
 import { LogoPlate } from "@/components/ui/logo-plate";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ENTITY_LABELS, entityPath, sectionForEntity, type Writing } from "@/lib/content/types";
+import {
+  ENTITY_LABELS,
+  entityPath,
+  itemId,
+  sectionForEntity,
+  type Writing,
+} from "@/lib/content/types";
 import type { DetailView } from "@/lib/content/entities";
 
 /*
@@ -112,6 +119,13 @@ export function DetailLayout({
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-12 md:py-16">
+        {/*
+          Registers this page under the same id its homepage card uses, so a
+          highlight for this entry lands here instead of navigating away from
+          the thing the visitor just asked about.
+        */}
+        <DetailHighlight itemId={itemId(sectionForEntity(view.type), view.slug)} />
+
         <article>
           <div className="flex items-start gap-4">
             {view.logoUrl !== undefined && <LogoPlate src={view.logoUrl} name={view.subtitle ?? view.title} size={80} />}

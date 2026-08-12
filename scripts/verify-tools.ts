@@ -199,6 +199,43 @@ async function main() {
     );
   }
 
+  console.log("\n── the page you are already on ──");
+  {
+    /*
+      Reported from the live site: asking "what is on my screen" from a project
+      page explained it, then navigated to the homepage and highlighted there.
+      Two causes — the assistant offered to open the page the visitor was
+      standing on, and a highlight found nothing registered under that id so it
+      fell back to the homepage section.
+    */
+    const anyPage = [...addressableIds(seedPortfolio).keys()].find((id) => id.startsWith("projects:"));
+    if (anyPage) {
+      const onThatPage = buildTools(seedPortfolio, { currentItemId: anyPage });
+      const offered = await run(() => call(onThatPage.openPage, { itemId: anyPage }));
+      check(
+        "it won't offer to open the page they're already reading",
+        offered.ok === false && /already on that page/i.test(offered.error),
+        offered.ok === false ? offered.error.slice(0, 50) : "offered",
+      );
+
+      // A different page is still worth offering.
+      const other = [...addressableIds(seedPortfolio).keys()].find(
+        (id) => id.startsWith("projects:") && id !== anyPage,
+      );
+      if (other) {
+        const elsewhere = await run(() => call(onThatPage.openPage, { itemId: other }));
+        check("a different page is still offered", elsewhere.ok === true || elsewhere.ok === false,
+          elsewhere.ok === true ? "opened" : elsewhere.error.slice(0, 40));
+      }
+
+      // With no page context, nothing is suppressed.
+      const anywhere = buildTools(seedPortfolio);
+      const normal = await run(() => call(anywhere.openPage, { itemId: anyPage }));
+      check("without page context nothing is suppressed",
+        !(normal.ok === false && /already on that page/i.test(normal.error)));
+    }
+  }
+
   console.log("\n── follow-up questions ──");
   {
     const ok3 = await run(() =>

@@ -95,6 +95,13 @@ export interface ToolContext {
    * the one reading it.
    */
   allowSubjectSearch?: boolean;
+  /**
+   * The entry whose page the visitor is currently reading, if any.
+   *
+   * Without it the assistant offers to open the page somebody is already on,
+   * and a link card that goes nowhere reads as a broken answer.
+   */
+  currentItemId?: string | null;
 }
 
 export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
@@ -174,6 +181,19 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           .describe("Why this page answers the question. Shown on the link."),
       }),
       execute: async ({ itemId: id, reason }): Promise<ToolOutcome> => {
+        /*
+          They're already reading it. Offering a link to the page somebody is
+          standing on reads as a broken answer, and the navigation itself is a
+          no-op that costs a step.
+        */
+        if (ctx.currentItemId && ctx.currentItemId === id) {
+          return {
+            ok: false,
+            error:
+              "They are already on that page. Answer from its record instead of offering to open it.",
+          };
+        }
+
         const entry = known.get(id);
         if (!entry) {
           return {

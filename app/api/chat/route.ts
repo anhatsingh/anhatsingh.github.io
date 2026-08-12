@@ -5,7 +5,7 @@ import { getGitHubStats } from "@/lib/github/service";
 import { getLeetCodeStats } from "@/lib/leetcode/service";
 import { RetrievalContextProvider } from "@/lib/chat/context";
 import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
-import { describeScreen, sanitizePageContext } from "@/lib/chat/page-context";
+import { describeScreen, idForPath, sanitizePageContext } from "@/lib/chat/page-context";
 import { getAdminSession } from "@/lib/supabase/auth";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
@@ -68,7 +68,8 @@ export async function POST(req: Request) {
   }
 
   const incoming = Array.isArray(body.messages) ? body.messages : [];
-  const screen = describeScreen(sanitizePageContext(body.pageContext));
+  const pageContext = sanitizePageContext(body.pageContext);
+  const screen = describeScreen(pageContext);
   if (!incoming.length) {
     return Response.json({ error: "No messages supplied." }, { status: 400 });
   }
@@ -135,6 +136,7 @@ export async function POST(req: Request) {
     tools: buildTools(portfolio, {
       canSearch: () => (isOwner ? true : checkSearchBudget(ip)),
       allowSubjectSearch: isOwner,
+      currentItemId: pageContext ? idForPath(pageContext.path) : null,
     }),
     // Tools resolve, then the model gets another step to write its prose reply.
     // Three is enough for focus + highlight + answer without letting it loop.
