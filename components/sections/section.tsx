@@ -79,10 +79,10 @@ export function Highlightable({
    */
   fill?: boolean;
 }) {
-  const { isHighlighted, note } = useHighlight(itemId);
+  const { isHighlighted, note, ref } = useHighlight(itemId);
 
   return (
-    <div className={`relative ${fill ? "flex h-full flex-col" : ""} ${className}`}>
+    <div ref={ref} className={`relative ${fill ? "flex h-full flex-col" : ""} ${className}`}>
       {isHighlighted && note && (
         <div
           role="note"

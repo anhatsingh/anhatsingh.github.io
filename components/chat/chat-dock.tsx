@@ -13,6 +13,7 @@ import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
 import { RoleChips } from "./role-chips";
+import { useRouter } from "next/navigation";
 import { useUIControl } from "@/components/ui-control";
 import type { ToolOutcome } from "@/lib/chat/tools";
 
@@ -30,11 +31,20 @@ import type { ToolOutcome } from "@/lib/chat/tools";
 /*
   Renders what the bot DID, so its agency reads as deliberate rather than spooky.
 
+  Clickable, because the record of an action is also the way back to it. A
+  visitor who scrolls on, or asks three more questions, loses the highlight and
+  the scroll position — and re-reading "highlighted 1 item" without being able
+  to see which one is worse than not saying it. Clicking replays exactly what
+  the assistant did.
+
   Actions with a card of their own — fit, draft, resume, resumeList,
-  roleOptions — are handled earlier and never reach here; a pill under a card
-  that already says the same thing is noise.
+  roleOptions, followUps — are handled earlier and never reach here; a pill
+  under a card that already says the same thing is noise.
 */
 function ActionPill({ outcome }: { outcome: ToolOutcome }) {
+  const { focusSection, setHighlights } = useUIControl();
+  const router = useRouter();
+
   if (outcome.ok !== true) return null;
 
   let label: string | null = null;
@@ -46,15 +56,38 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
 
   if (!label) return null;
 
+  const replay = () => {
+    if (outcome.action === "focus") focusSection(outcome.section, outcome.reason);
+    else if (outcome.action === "highlight") setHighlights(outcome.items);
+    else if (outcome.action === "navigate") router.push(outcome.url);
+  };
+
+  const replayable =
+    outcome.action === "focus" || outcome.action === "highlight" || outcome.action === "navigate";
+
+  if (!replayable) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">
+        <span aria-hidden="true">↳</span>
+        {label}
+      </span>
+    );
+  }
+
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">
+    <button
+      type="button"
+      onClick={replay}
+      title="Show me again"
+      className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent transition-colors hover:border-accent hover:bg-accent/20"
+    >
       <span aria-hidden="true">↳</span>
       {label}
-    </span>
+    </button>
   );
 }
 
-function MessageParts({ message, isLast = false }: { message: UIMessage; isLast?: boolean }) {
+function MessageParts({ message }: { message: UIMessage }) {
   /*
     Citations belong under the answer, not above it.
 
@@ -64,17 +97,18 @@ function MessageParts({ message, isLast = false }: { message: UIMessage; isLast?
     They're collected out and appended instead.
   */
   /*
-    Follow-ups render only under the newest reply. Older ones answer a
-    conversation that has moved on, and a scrollback of stale menus buries the
-    thread the visitor is following.
+    Kept on every reply, not just the newest.
+
+    Trimming them to the last answer assumed the conversation only moves
+    forward. It doesn't — someone reads three replies, then wants the question
+    they skipped two answers ago, and finding it gone means retyping something
+    that was on screen a moment earlier.
   */
-  const followUps = !isLast
-    ? []
-    : message.parts.flatMap((part) => {
-        if (!isToolUIPart(part) || part.state !== "output-available") return [];
-        const outcome = part.output as ToolOutcome;
-        return outcome?.ok === true && outcome.action === "followUps" ? outcome.questions : [];
-      });
+  const followUps = message.parts.flatMap((part) => {
+    if (!isToolUIPart(part) || part.state !== "output-available") return [];
+    const outcome = part.output as ToolOutcome;
+    return outcome?.ok === true && outcome.action === "followUps" ? outcome.questions : [];
+  });
 
   const sources = message.parts.flatMap((part) => {
     if (!isToolUIPart(part) || part.state !== "output-available") return [];
@@ -273,7 +307,7 @@ export function ChatDock() {
             <div key={m.id} className="flex gap-2.5">
               <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
               <div className="min-w-0 flex-1 space-y-1 text-text">
-                <MessageParts message={m} isLast={m.id === messages[messages.length - 1]?.id} />
+                <MessageParts message={m} />
               </div>
             </div>
           ),

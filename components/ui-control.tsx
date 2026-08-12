@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 import type { SectionId } from "@/lib/content/types";
-import { SECTION_LABELS } from "@/lib/content/types";
+import { SECTION_LABELS, parseItemId } from "@/lib/content/types";
 
 /*
   THE ACTION BUS
@@ -58,6 +58,12 @@ interface UIControlValue {
   clearFocus: () => void;
 
   registerSection: (section: SectionId, el: HTMLElement | null) => void;
+  registerItem: (id: string, el: HTMLElement | null) => void;
+  /** Scrolls an element to roughly a third down the viewport. */
+  scrollTo: (el: HTMLElement) => void;
+  /** The card that should scroll itself into view, if any. */
+  scrollTarget: string | null;
+  consumeScrollTarget: () => void;
   announce: (message: string) => void;
 }
 
@@ -75,6 +81,24 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
   const [liveMessage, setLiveMessage] = useState("");
 
   const sectionEls = useRef(new Map<SectionId, HTMLElement>());
+
+  /*
+    Highlighted cards register themselves so a highlight can scroll to the card
+    rather than to the section holding it. Focusing the section alone put the
+    highlighted item wherever it happened to fall — often below the fold, which
+    is the one place it can't be seen.
+  */
+  const itemEls = useRef(new Map<string, HTMLElement>());
+
+  /*
+    The card a highlight should scroll to, consumed once it has.
+
+    Kept as state rather than acted on directly because the card may not exist
+    yet: highlighting something from a detail page navigates home first, and
+    the card registers only after that page mounts. The target survives the
+    navigation and the card scrolls itself when it arrives.
+  */
+  const [scrollTarget, setScrollTarget] = useState<string | null>(null);
 
   // Serialised navigation queue. Each entry waits out the cooldown from the
   // previous one so a multi-tool turn reads as a guided tour rather than a jump cut.
@@ -119,10 +143,35 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
     else sectionEls.current.delete(section);
   }, []);
 
+  const registerItem = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) itemEls.current.set(id, el);
+    else itemEls.current.delete(id);
+  }, []);
+
+  /** Called by a card once it has scrolled itself into view. */
+  const consumeScrollTarget = useCallback(() => setScrollTarget(null), []);
+
   const announce = useCallback((message: string) => {
     // Clearing first guarantees the region re-announces even if the text repeats.
     setLiveMessage("");
     requestAnimationFrame(() => setLiveMessage(message));
+  }, []);
+
+  /*
+    Puts an element about a third of the way down the viewport.
+
+    scrollIntoView can't express this. "start" tucks the element under the
+    sticky header, and "center" pushes a heading so far down that the content
+    it introduces falls off the bottom. A third down clears the header and
+    leaves what follows on screen, which is the whole reason for scrolling
+    there.
+  */
+  const scrollTo = useCallback((el: HTMLElement) => {
+    const top = window.scrollY + el.getBoundingClientRect().top - window.innerHeight * 0.28;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
   }, []);
 
   const focusSection = useCallback(
@@ -132,10 +181,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
 
         const el = sectionEls.current.get(section);
         if (el) {
-          el.scrollIntoView({
-            behavior: prefersReducedMotion() ? "auto" : "smooth",
-            block: "start",
-          });
+          scrollTo(el);
           // Move the screen-reader cursor too. A visual scroll alone leaves
           // keyboard users stranded wherever they were.
           el.focus({ preventScroll: true });
@@ -154,7 +200,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
         announce(reason ?? `Showing ${SECTION_LABELS[section]}`);
       });
     },
-    [enqueue, announce, router],
+    [enqueue, announce, router, scrollTo],
   );
 
   const setHighlights = useCallback(
@@ -163,6 +209,23 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       enqueue(() => {
         // Replace wholesale — see invariant 2 above.
         setHighlightState(Object.fromEntries(capped.map((h) => [h.itemId, h.note])));
+
+        const first = capped[0]?.itemId;
+        if (first) {
+          setScrollTarget(first);
+
+          /*
+            Nothing with that id is on this page — the visitor is reading a
+            project or a post. Send them to the section that holds it; the
+            highlight and the scroll target survive the navigation, so the card
+            highlights itself on arrival.
+          */
+          if (!itemEls.current.has(first)) {
+            const parsed = parseItemId(first);
+            if (parsed) router.push(`/#${parsed.section}`);
+          }
+        }
+
         if (capped.length) {
           announce(
             capped.length === 1
@@ -172,7 +235,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
         }
       });
     },
-    [enqueue, announce],
+    [enqueue, announce, router],
   );
 
   const clearFocus = useCallback(() => {
@@ -180,6 +243,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
     queue.current.length = 0;
     setFocusedSection(null);
     setHighlightState({});
+    setScrollTarget(null);
     announce("Exited focus view");
   }, [announce]);
 
@@ -192,9 +256,25 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       setHighlights,
       clearFocus,
       registerSection,
+      registerItem,
+      scrollTarget,
+      consumeScrollTarget,
+      scrollTo,
       announce,
     }),
-    [focusedSection, highlights, focusSection, setHighlights, clearFocus, registerSection, announce],
+    [
+      focusedSection,
+      highlights,
+      focusSection,
+      setHighlights,
+      clearFocus,
+      registerSection,
+      registerItem,
+      scrollTarget,
+      consumeScrollTarget,
+      scrollTo,
+      announce,
+    ],
   );
 
   return (
@@ -225,9 +305,36 @@ export function useSectionRef(section: SectionId) {
   );
 }
 
-/** Subscribe a card to its own highlight state. */
-export function useHighlight(itemId: string): { isHighlighted: boolean; note: string | null } {
-  const { highlights } = useUIControl();
+/**
+ * Subscribes a card to its own highlight state, and gives it a ref to register.
+ *
+ * The ref is what lets a highlight scroll to the card rather than to the
+ * section containing it, and — because registration happens on mount — what
+ * makes a highlight requested from a detail page work once the homepage has
+ * loaded. The card scrolls itself when it arrives and finds it is the target.
+ */
+export function useHighlight(itemId: string): {
+  isHighlighted: boolean;
+  note: string | null;
+  ref: (el: HTMLElement | null) => void;
+} {
+  const { highlights, registerItem, scrollTarget, consumeScrollTarget, scrollTo } = useUIControl();
+  const el = useRef<HTMLElement | null>(null);
+
+  const ref = useCallback(
+    (node: HTMLElement | null) => {
+      el.current = node;
+      registerItem(itemId, node);
+    },
+    [registerItem, itemId],
+  );
+
+  useEffect(() => {
+    if (scrollTarget !== itemId || !el.current) return;
+    scrollTo(el.current);
+    consumeScrollTarget();
+  }, [scrollTarget, itemId, scrollTo, consumeScrollTarget]);
+
   const note = highlights[itemId] ?? null;
-  return { isHighlighted: note !== null, note };
+  return { isHighlighted: note !== null, note, ref };
 }
