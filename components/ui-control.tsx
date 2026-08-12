@@ -33,6 +33,9 @@ import { SECTION_LABELS, parseItemId } from "@/lib/content/types";
 /** Minimum spacing between page-moving actions, so answers don't yank the view. */
 const NAV_COOLDOWN_MS = 1200;
 
+/** How long the ring sits on a landmark the page was just sent to. */
+const LANDMARK_RING_MS = 4000;
+
 /** Hard cap on callouts per turn. Also enforced server-side in the tool schema. */
 export const MAX_HIGHLIGHTS = 3;
 
@@ -53,7 +56,16 @@ interface UIControlValue {
   highlights: Record<string, string>;
   isSplit: boolean;
 
-  focusSection: (section: SectionId, reason?: string) => void;
+  /**
+   * Scrolls a section into view and enters focus mode.
+   *
+   * `landmark` lands on something inside the section instead of its top — the
+   * life graph sits below the bio, so About alone shows a paragraph. It's an
+   * option rather than a second call because two calls meant two turns of the
+   * navigation queue: a full cooldown of scrolling to the section before the
+   * scroll to the thing you actually asked for.
+   */
+  focusSection: (section: SectionId, reason?: string, options?: { landmark?: string }) => void;
   /*
     Pins callouts onto cards, and by default scrolls the first into view.
 
@@ -80,7 +92,14 @@ interface UIControlValue {
     subject was the graph showed a paragraph instead.
   */
   registerLandmark: (name: string, el: HTMLElement | null) => void;
-  scrollToLandmark: (name: string) => void;
+  /**
+   * The landmark the page was last sent to, while it's worth pointing at.
+   *
+   * A landmark isn't content, so it can't carry a callout the way a card does —
+   * and a tour stop that scrolled to the graph and said nothing visible about
+   * it looked like the scroll had simply overshot.
+   */
+  activeLandmark: string | null;
   /** The card that should scroll itself into view, if any. */
   scrollTarget: string | null;
   consumeScrollTarget: () => void;
@@ -102,6 +121,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
 
   const sectionEls = useRef(new Map<SectionId, HTMLElement>());
   const landmarkEls = useRef(new Map<string, HTMLElement>());
+  const [activeLandmark, setActiveLandmark] = useState<string | null>(null);
 
   /*
     Highlighted cards register themselves so a highlight can scroll to the card
@@ -256,36 +276,39 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
     else landmarkEls.current.delete(name);
   }, []);
 
-  /*
-    Queued, so it lands after the focusSection that precedes it. Unqueued it
-    would race the section scroll and lose — smooth scrolling is asynchronous,
-    and the second call would be overwritten by the first still animating.
-
-    Silent when the landmark isn't on this page. The section scroll already
-    took the visitor somewhere reasonable; a missing anchor should refine that,
-    not break it.
-  */
-  const scrollToLandmark = useCallback(
-    (name: string) => {
-      enqueue(() => {
-        const el = landmarkEls.current.get(name);
-        if (el) scrollTo(el);
-      });
-    },
-    [enqueue, scrollTo],
-  );
-
   const focusSection = useCallback(
-    (section: SectionId, reason?: string) => {
+    (section: SectionId, reason?: string, options: { landmark?: string } = {}) => {
       enqueue(() => {
         setFocusedSection(section);
 
         const el = sectionEls.current.get(section);
         if (el) {
-          scrollTo(el);
+          /*
+            One scroll, not two. A landmark inside the section is the real
+            destination when one is named, so going to the section first and
+            correcting afterwards would both cost a cooldown and look like an
+            overshoot being fixed.
+          */
+          const landmark = options.landmark ? landmarkEls.current.get(options.landmark) : null;
+          scrollTo(landmark ?? el);
+
           // Move the screen-reader cursor too. A visual scroll alone leaves
           // keyboard users stranded wherever they were.
           el.focus({ preventScroll: true });
+
+          /*
+            Say something about where we landed. A card gets a callout; a
+            landmark gets a ring, and it fades on its own — a permanent outline
+            around the graph would become part of the design.
+          */
+          if (options.landmark && landmark) {
+            setActiveLandmark(options.landmark);
+            const t = setTimeout(() => {
+              timers.current.delete(t);
+              setActiveLandmark((current) => (current === options.landmark ? null : current));
+            }, LANDMARK_RING_MS);
+            timers.current.add(t);
+          }
         } else {
           /*
             The section isn't on this page.
@@ -359,7 +382,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       clearFocus,
       registerSection,
       registerLandmark,
-      scrollToLandmark,
+      activeLandmark,
       registerItem,
       visibleSection,
       scrollTarget,
@@ -375,7 +398,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       clearFocus,
       registerSection,
       registerLandmark,
-      scrollToLandmark,
+      activeLandmark,
       registerItem,
       visibleSection,
       scrollTarget,

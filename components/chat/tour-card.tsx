@@ -52,12 +52,20 @@ export function dwellFor(note: string): number {
 const TICK = 100;
 
 export function TourCard({ steps }: { steps: TourStep[] }) {
-  const { focusSection, setHighlights, scrollToLandmark } = useUIControl();
+  const { focusSection, setHighlights } = useUIControl();
   // His actual first name, so the promise names who it reaches.
   const { assistantName } = useChatDock();
   const first = assistantName.split(" ")[0];
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  /*
+    Playing from the start.
+
+    Someone who asked to be shown around asked to be shown, not handed a
+    stepper to operate — starting paused made the tour wait for a second
+    decision it had already been given. Every control still overrides it: any
+    button press stops the timer, and the countdown says how long is left.
+  */
+  const [playing, setPlaying] = useState(true);
   const [elapsed, setElapsed] = useState(0);
 
   const step = steps[index];
@@ -70,20 +78,21 @@ export function TourCard({ steps }: { steps: TourStep[] }) {
     (i: number) => {
       const target = steps[i];
       if (!target) return;
-      focusSection(target.section);
+      focusSection(target.section, undefined, { landmark: target.anchor ?? undefined });
 
       /*
+        Skipped when there's nothing to pin. Every call takes a turn of the
+        navigation queue, and a queued no-op costs a full cooldown before the
+        next stop can do anything.
+
         A stop with an anchor has already chosen where to land, so its pins
-        don't scroll. Without this the graph stop went to the About section,
+        don't scroll. Without that the graph stop went to the About section,
         then to whichever card it had pinned, then to the graph — three scrolls
         in under a second, which reads as the page having a seizure.
       */
-      setHighlights(target.items, { scroll: !target.anchor });
-
-      // Last, so it wins: it's the more specific of the two destinations.
-      if (target.anchor) scrollToLandmark(target.anchor);
+      if (target.items.length) setHighlights(target.items, { scroll: !target.anchor });
     },
-    [steps, focusSection, setHighlights, scrollToLandmark],
+    [steps, focusSection, setHighlights],
   );
 
   /*

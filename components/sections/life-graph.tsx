@@ -58,7 +58,7 @@ function colorFor(item: GraphItem): string {
 
 export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: number }) {
   const [active, setActive] = useState<GraphItem | null>(null);
-  const { registerLandmark } = useUIControl();
+  const { registerLandmark, activeLandmark } = useUIControl();
 
   const graph = useMemo(() => buildGraph(portfolio, { now }), [portfolio, now]);
 
@@ -77,7 +77,20 @@ export function LifeGraph({ portfolio, now }: { portfolio: Portfolio; now: numbe
       bio, so scrolling to the About section alone leaves it off screen — and
       the About stop of the tour is entirely about this.
     */
-    <div ref={(el) => registerLandmark("life-graph", el)} className="mt-14">
+    <div
+      ref={(el) => registerLandmark("life-graph", el)}
+      /*
+        Rings itself when the page is sent here. A landmark can't carry a
+        callout the way a card can — it isn't a content row — so without this a
+        tour stop scrolled to the graph and said nothing visible about it, which
+        read as the scroll having overshot.
+      */
+      className={`mt-14 rounded-[var(--radius)] transition-shadow duration-500 ${
+        activeLandmark === "life-graph"
+          ? "shadow-[0_0_0_2px_var(--accent),0_0_0_10px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+          : "shadow-none"
+      }`}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 className="font-display text-xl">The whole thing, on one track</h3>
         <p className="font-mono text-[11px] uppercase tracking-widest text-muted">

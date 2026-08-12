@@ -268,5 +268,31 @@ console.log("\n── the tour ends on an offer ──");
   check("and names what to send", /name, email and message/.test(card));
 }
 
+/*
+  Two things the tour has to do without being asked.
+
+  Someone who says "show me around" asked to be shown, not handed a stepper to
+  operate — starting paused waited for a second decision they had already made.
+  And the graph is a landmark rather than a content row, so it can't take a
+  callout; without a ring, the stop scrolled to it and said nothing visible
+  about it, which read as the scroll overshooting.
+*/
+console.log("\n── the tour shows itself ──");
+{
+  const card = readFileSync("components/chat/tour-card.tsx", "utf8");
+  check("auto-play starts on", /const \[playing, setPlaying\] = useState\(true\)/.test(card));
+  check(
+    "a stop with nothing to pin doesn't burn a cooldown",
+    /if \(target\.items\.length\) setHighlights/.test(card),
+  );
+  check(
+    "landing on a landmark is one scroll, not two",
+    /focusSection\(target\.section, undefined, \{ landmark:/.test(card),
+  );
+
+  const graph = readFileSync("components/sections/life-graph.tsx", "utf8");
+  check('the graph rings when the page is sent to it', /activeLandmark === "life-graph"/.test(graph));
+}
+
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
