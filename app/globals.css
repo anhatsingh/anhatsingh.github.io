@@ -381,52 +381,47 @@ body {
 /*
   The first-visit nudge on "Show me around".
 
-  A halo that breathes rather than a flash: the tour is the thing nobody knows
-  is there, and it needs to catch the eye of someone reading the page without
-  interrupting them. It stops on its own after a few cycles — a control that
-  pulses forever stops reading as a suggestion and starts reading as an error.
+  A bright arc that travels around the button's edge, rather than a halo that
+  breathes. The tour is the thing nobody knows is there, and movement along the
+  boundary catches the eye of someone reading the page without interrupting
+  them — a pulse in place reads as a status light, which is the wrong idea.
 
-  Both ends of the cycle are the resting state, so the reduced-motion rule
-  above — which collapses every animation to a single 0.01ms run — leaves the
-  button sitting quietly rather than frozen mid-glow.
+  Built as a rotating conic gradient behind a 1px inset: the button's own
+  background is opaque, so only the ring around it shows through. Which is why
+  the button is wrapped rather than merely bordered — a border can't carry a
+  gradient that moves.
 */
-@keyframes invite-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--invite) 12%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 0 5px color-mix(in srgb, var(--invite) 30%, transparent),
-      0 0 18px 2px color-mix(in srgb, var(--invite) 28%, transparent);
+@keyframes border-sweep {
+  to {
+    transform: rotate(1turn);
   }
 }
 
-.animate-invite {
-  animation: invite-pulse 2.4s var(--ease) infinite;
+.animate-border-sweep {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 58%,
+    color-mix(in srgb, var(--invite) 45%, transparent) 72%,
+    var(--invite) 82%,
+    color-mix(in srgb, var(--invite) 45%, transparent) 92%,
+    transparent 100%
+  );
+  animation: border-sweep 2.8s linear infinite;
 }
 
 /*
-  The arrow that points at it. Nudges toward the button rather than bobbing in
-  place — the motion is what says "up there", and travelling the same direction
-  it points does that better than a bounce.
-
-  It rests at its far position, so reduced motion leaves an arrow that is
-  simply pointing rather than one caught mid-stride.
+  Hidden outright rather than slowed. The global reduced-motion rule collapses
+  animations to a single instant run, which would leave the arc frozen as a
+  bright patch on one side of the button — a decoration that looks like a
+  rendering fault.
 */
-@keyframes point-at {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(3px, -5px);
+@media (prefers-reduced-motion: reduce) {
+  .animate-border-sweep {
+    display: none;
   }
 }
 
-.animate-point {
-  animation: point-at 1.6s var(--ease) infinite;
-}
 
 /*
   Honour reduced-motion globally. The chatbot's scroll behaviour is handled

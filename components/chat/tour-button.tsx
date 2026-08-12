@@ -27,18 +27,15 @@ const SEEN_KEY = "anhat.tour.offered";
 /*
   Late enough to be a change rather than part of the page.
 
-  A halo present at first paint is just how the button looks; one that appears
-  a moment after the page settles is movement in the corner of the eye, which
-  is the entire mechanism. It also keeps the nudge out of the way of whatever
+  An effect present at first paint is just how the button looks; one that
+  starts a moment after the page settles is movement in the corner of the eye,
+  which is the entire mechanism. It also keeps the nudge clear of whatever
   someone came to read first.
 */
 const NUDGE_DELAY_MS = 2200;
 
-/*
-  And it stops. A control that pulses until clicked has stopped suggesting and
-  started nagging, and anyone who ignored six cycles has decided.
-*/
-const NUDGE_DURATION_MS = 15_000;
+/** And it stops. Nothing on a page should move indefinitely. */
+const NUDGE_DURATION_MS = 60_000;
 
 export function TourButton() {
   const { send, open, status, messages } = useChatDock();
@@ -79,71 +76,47 @@ export function TourButton() {
   };
 
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={start}
-      title="A guided walk through the site"
-      className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-invite/60 bg-invite/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite transition-colors hover:bg-invite/20 disabled:opacity-40 ${
-        nudge
-          ? "animate-invite"
-          : "shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)]"
+    /*
+      Wrapped rather than merely bordered.
+
+      A CSS border cannot carry a gradient that moves, so the ring is a 1px
+      inset: this element is the boundary, the rotating arc sits behind it, and
+      the button's own opaque background covers everything but the edge. Idle,
+      the wrapper is a flat violet and reads exactly as a border.
+    */
+    <span
+      className={`relative inline-flex shrink-0 overflow-hidden rounded-[var(--radius)] p-px shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)] transition-colors ${
+        nudge ? "bg-invite/25" : "bg-invite/60"
       }`}
     >
-      <span aria-hidden="true">↝</span>
-      <span className="hidden sm:inline">Show me around</span>
-      <span className="sm:hidden">Tour</span>
-
-      {/*
-        The arrow, hung below the header and pointing back up at the button.
-
-        Decorative and click-through: it overhangs the page, and an arrow that
-        swallowed a click on whatever is underneath would be worse than no
-        arrow. Screen readers skip it — the button already says what it does.
-
-        Below rather than beside because the header is a tight row and the only
-        free space is downward, and because an arrow that comes up from the
-        content is pointing the way the visitor is already looking.
-      */}
       {nudge && (
         <span
           aria-hidden="true"
-          className="animate-point pointer-events-none absolute left-0 top-full mt-1 flex flex-col items-start"
-        >
-          <svg
-            width="30"
-            height="40"
-            viewBox="0 0 36 48"
-            fill="none"
-            className="text-invite drop-shadow-[0_1px_6px_color-mix(in_srgb,var(--invite)_45%,transparent)]"
-          >
-            {/*
-              A sweeping stroke with a solid head, not two crossed strokes. The
-              first attempt drew the head as an open V whose axis didn't match
-              the curve's tangent at the tip, and it read as a wedge floating
-              beside a line rather than as an arrow.
-
-              So the head is derived from that tangent: the curve's last control
-              point is (19,20) and it ends at (28,9), giving a direction of
-              about 50° above horizontal. The tip and both barbs are placed
-              along and across that, and the shaft runs a little past the base
-              so its round cap finishes inside the fill instead of poking out
-              the side.
-            */}
-            <path
-              d="M5 45C3 32 19 20 28 9L30.4 6"
-              stroke="currentColor"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-            />
-            <path d="M33.38 2.42 30.63 11.15 25.37 6.85Z" fill="currentColor" />
-          </svg>
-
-          <span className="-mt-1 ml-0.5 whitespace-nowrap font-display text-[13px] italic tracking-tight text-invite drop-shadow-[0_1px_6px_var(--bg)]">
-            start here
-          </span>
-        </span>
+          /*
+            Oversized and square so the arc sweeps corners as evenly as sides. A
+            layer the size of the button would rotate through a rectangle, and
+            the highlight would visibly stall at each corner.
+          */
+          className="animate-border-sweep pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[240%] -translate-x-1/2 -translate-y-1/2"
+        />
       )}
-    </button>
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={start}
+        title="A guided walk through the site"
+        /*
+          Opaque, and tinted by mixing rather than by alpha over the page: a
+          translucent fill would let the sweeping arc show through the middle of
+          the button instead of only around its edge.
+        */
+        className="relative inline-flex items-center gap-1.5 rounded-[calc(var(--radius)-1px)] bg-[color-mix(in_srgb,var(--invite)_10%,var(--bg))] px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite transition-colors hover:bg-[color-mix(in_srgb,var(--invite)_22%,var(--bg))] disabled:opacity-40"
+      >
+        <span aria-hidden="true">↝</span>
+        <span className="hidden sm:inline">Show me around</span>
+        <span className="sm:hidden">Tour</span>
+      </button>
+    </span>
   );
 }

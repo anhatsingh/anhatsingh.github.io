@@ -365,33 +365,37 @@ console.log("\n── the nudge knows when to stop ──");
 {
   const btn = readFileSync("components/chat/tour-button.tsx", "utf8");
   check("it arrives after the page settles, not at first paint", /NUDGE_DELAY_MS = \d/.test(btn));
-  check("it stops on its own", /NUDGE_DURATION_MS = /.test(btn));
+  check("it stops on its own", /NUDGE_DURATION_MS = 60_000/.test(btn));
   check("nobody mid-conversation is pointed at the chat", /messages\.length > 0\) return/.test(btn));
   check("it is remembered across visits", /localStorage\.setItem\(SEEN_KEY/.test(btn));
   check("storage being unavailable doesn't break the button", /catch \{/.test(btn));
 
   /*
-    The arrow hangs below the header, over the page. It must never take a click
-    — swallowing one on whatever sits underneath would be worse than no arrow —
-    and it must not be read out, since the button already says what it does.
+    The moving edge is a layer behind a 1px inset, not a border — a border
+    can't carry a gradient that moves. Two things make it work: the sweeping
+    layer takes no pointer events, and the button's own fill is opaque, since a
+    translucent one would let the arc show through the middle.
   */
-  check("the arrow only exists during the nudge", /\{nudge && \(/.test(btn));
-  check("it can't swallow a click", /pointer-events-none/.test(btn));
-  check("screen readers skip it", /aria-hidden="true"\n\s*className="animate-point/.test(btn));
+  check("the arc can't swallow a click", /pointer-events-none/.test(btn));
+  check(
+    "the button's fill is opaque, so the arc shows only at the edge",
+    /bg-\[color-mix\(in_srgb,var\(--invite\)_10%,var\(--bg\)\)\]/.test(btn),
+  );
+  check("the arrow is gone", !btn.includes("start here") && !btn.includes("<svg"));
 
   const css = readFileSync("app/globals.css", "utf8");
-  check("the pulse is defined", /@keyframes invite-pulse/.test(css));
-  check("the arrow's motion is defined", /@keyframes point-at/.test(css));
+  check("the sweep is defined", /@keyframes border-sweep/.test(css));
   /*
-    Both ends of the cycle are the resting state, so the global reduced-motion
-    rule — which collapses animations to one 0.01ms run — leaves the button
-    quiet rather than frozen mid-glow.
+    Hidden outright under reduced motion rather than slowed. The global rule
+    collapses animations to one instant run, which would leave the arc frozen
+    as a bright patch on one side — a decoration that reads as a fault.
   */
-  const frames = css.slice(css.indexOf("@keyframes invite-pulse"));
+  const reduced = css.slice(css.indexOf(".animate-border-sweep"));
   check(
-    "its start and end are the resting state, for reduced motion",
-    /0%,\s*\n\s*100% \{/.test(frames.slice(0, 200)),
+    "it is hidden under reduced motion, not frozen mid-sweep",
+    /prefers-reduced-motion: reduce\)\s*\{\s*\.animate-border-sweep\s*\{\s*display: none/.test(reduced),
   );
+  check("nothing still references the removed pulse", !css.includes("invite-pulse") && !css.includes("point-at"));
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
