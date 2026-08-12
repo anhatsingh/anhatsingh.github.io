@@ -9,11 +9,14 @@ import type { DetailView } from "@/lib/content/entities";
 /*
   The shell every detail page shares.
 
-  Deliberately NOT wrapped in SiteShell. That mounts UIControlProvider and
-  ChatProvider, whose whole model is scroll-and-highlight within one long page —
-  none of which applies here, and mounting it would put a chat dock on a
-  document with nothing to highlight. Detail pages get a quiet header that
-  points back to the homepage section they came from.
+  Not wrapped in SiteShell — that carries the homepage's section nav, which
+  points at anchors this page doesn't have. It gets a quiet header pointing
+  back to the section it came from instead.
+
+  The chat dock is still here: it lives in the root layout now, so a
+  conversation started on the homepage continues onto this page rather than
+  resetting. Asking about a section from here works too — focusSection
+  navigates to the homepage anchor when the section isn't on the current page.
 
   Server component: a long post ships no JavaScript for its content.
 */

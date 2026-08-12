@@ -44,6 +44,9 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
+/** One visit, one conversation. Bumped if the stored shape ever changes. */
+const STORAGE_KEY = "anhat.chat.v1";
+
 export function ChatProvider({
   children,
   assistantName,
@@ -56,14 +59,60 @@ export function ChatProvider({
   assistantAvatar?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [restored, setRestored] = useState(false);
   const router = useRouter();
   const { focusSection, setHighlights, clearFocus } = useUIControl();
 
-  const { messages, sendMessage, status, error, stop, regenerate } = useChat();
+  const { messages, sendMessage, setMessages, status, error, stop, regenerate } = useChat();
+
+  /*
+    The conversation outlives the page.
+
+    Client-side navigation keeps this provider mounted, so state survives a
+    link click on its own. A hard reload does not, and that is the case worth
+    handling: somebody who opened the chat, followed a link and refreshed
+    should not find their conversation gone and the dock shut. Only closing it
+    closes it.
+
+    sessionStorage rather than localStorage: this belongs to the visit. A
+    recruiter returning next week should get a clean slate, not a half-finished
+    exchange they no longer remember.
+
+    Restored after mount rather than seeded into useChat, because reading
+    storage during the first render would disagree with the server's empty
+    output and hydration would fail.
+  */
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as { open?: boolean; messages?: UIMessage[] };
+      if (Array.isArray(parsed.messages) && parsed.messages.length) setMessages(parsed.messages);
+      if (parsed.open) setIsOpen(true);
+    } catch {
+      // Corrupt or unavailable storage is not worth failing the page over.
+    }
+    setRestored(true);
+  }, [setMessages]);
 
   // Tool outputs arrive as stream updates, and the same part is re-rendered on
   // every token. Without this we'd re-scroll the page on each chunk.
   const handled = useRef(new Set<string>());
+
+  /*
+    Writing back only after the restore has run. Without this the first render
+    would persist an empty conversation over a real one and undo the restore
+    before it happened.
+  */
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ open: isOpen, messages }));
+    } catch {
+      // Private browsing and full quotas both throw here; neither is a reason
+      // to break the chat.
+    }
+  }, [restored, isOpen, messages]);
 
   useEffect(() => {
     for (const message of messages) {

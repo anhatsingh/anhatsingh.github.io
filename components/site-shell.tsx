@@ -1,11 +1,9 @@
 "use client";
 
-import { ChatDock } from "@/components/chat/chat-dock";
-import { ChatProvider } from "@/components/chat/chat-provider";
 import { ResumeButton } from "@/components/chat/resume-button";
 import { TalkButton } from "@/components/chat/talk-button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { UIControlProvider, useUIControl } from "@/components/ui-control";
+import { useUIControl } from "@/components/ui-control";
 import { DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
 import type { SectionId } from "@/lib/content/types";
@@ -100,48 +98,39 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
   );
 }
 
+/*
+  The dock's shift now happens in SiteChrome, which wraps the header too — a
+  sticky header left at full width would sit underneath the panel.
+*/
 function Content({ children }: { children: React.ReactNode }) {
-  const { isSplit } = useUIControl();
-
   return (
-    <main
-      className={`transition-[padding] duration-500 [transition-timing-function:var(--ease)] ${
-        isSplit ? "lg:pr-[400px]" : ""
-      }`}
-    >
+    <main>
       <div className="mx-auto max-w-5xl px-6">{children}</div>
     </main>
   );
 }
 
+/*
+  The homepage's header and content column.
+
+  The providers, the chat dock and the decorative layers used to live here;
+  they moved to SiteChrome in the root layout so the chat is on every page and
+  survives navigation. What's left is the part that really is homepage-only:
+  a header with section links, and the content column.
+*/
 export function SiteShell({
   name,
-  avatarUrl,
   resumeUrl,
-  resumeOptions,
   children,
 }: {
   name: string;
-  avatarUrl?: string;
   resumeUrl?: string;
-  resumeOptions?: string[];
   children: React.ReactNode;
 }) {
   return (
-    <UIControlProvider>
-      <ChatProvider assistantName={name} assistantAvatar={avatarUrl} resumeOptions={resumeOptions}>
-        {/* Fixed decorative layers, behind everything, non-interactive. */}
-        <div aria-hidden="true" className="aurora">
-          <div className="aurora-orb aurora-orb-a" />
-          <div className="aurora-orb aurora-orb-b" />
-          <div className="aurora-orb aurora-orb-c" />
-        </div>
-        <div aria-hidden="true" className="grain" />
-
-        <Header name={name} resumeUrl={resumeUrl} />
-        <Content>{children}</Content>
-        <ChatDock />
-      </ChatProvider>
-    </UIControlProvider>
+    <>
+      <Header name={name} resumeUrl={resumeUrl} />
+      <Content>{children}</Content>
+    </>
   );
 }

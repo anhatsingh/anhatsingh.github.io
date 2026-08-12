@@ -3,6 +3,9 @@ import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SiteChrome } from "@/components/site-chrome";
+import { getPortfolio } from "@/lib/content";
+import { listPublishedResumes } from "@/lib/resume/store";
 import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
@@ -67,7 +70,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /*
+    Read here rather than per-page so the chat can live above the routing
+    boundary, which is what keeps a conversation alive across a link click.
+    getPortfolio is request-cached, so the page below shares this read rather
+    than issuing a second one.
+  */
+  const portfolio = await getPortfolio();
+  const resumeOptions = (await listPublishedResumes().catch(() => [])).map((r) => r.label);
+
   return (
     <html
       lang="en"
@@ -75,7 +87,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable}`}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <SiteChrome
+            name={portfolio.profile.name}
+            avatarUrl={portfolio.profile.avatarUrl}
+            resumeOptions={resumeOptions}
+          >
+            {children}
+          </SiteChrome>
+        </ThemeProvider>
         {/* Both are cookieless and store no personal data, so no consent banner
             is required. Each is inert outside a Vercel deployment, so local dev
             and any other host are unaffected. */}

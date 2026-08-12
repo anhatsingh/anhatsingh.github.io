@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -68,6 +69,7 @@ function prefersReducedMotion(): boolean {
 }
 
 export function UIControlProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [focusedSection, setFocusedSection] = useState<SectionId | null>(null);
   const [highlights, setHighlightState] = useState<Record<string, string>>({});
   const [liveMessage, setLiveMessage] = useState("");
@@ -137,12 +139,22 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
           // Move the screen-reader cursor too. A visual scroll alone leaves
           // keyboard users stranded wherever they were.
           el.focus({ preventScroll: true });
+        } else {
+          /*
+            The section isn't on this page.
+
+            Now that the chat follows the visitor onto detail pages, asking
+            about projects from a blog post is ordinary rather than a mistake —
+            and doing nothing would look like the assistant had simply failed.
+            Sending them to the homepage anchor is what it meant to do.
+          */
+          router.push(`/#${section}`);
         }
 
         announce(reason ?? `Showing ${SECTION_LABELS[section]}`);
       });
     },
-    [enqueue, announce],
+    [enqueue, announce, router],
   );
 
   const setHighlights = useCallback(
