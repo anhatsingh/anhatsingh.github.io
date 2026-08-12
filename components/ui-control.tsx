@@ -54,7 +54,16 @@ interface UIControlValue {
   isSplit: boolean;
 
   focusSection: (section: SectionId, reason?: string) => void;
-  setHighlights: (items: Highlight[]) => void;
+  /*
+    Pins callouts onto cards, and by default scrolls the first into view.
+
+    `scroll: false` pins without moving. A tour stop that names a landmark has
+    already chosen where to land — the highlight is context for what is being
+    said, not the destination — and letting both scroll made the About stop
+    jump to the section, then to a pinned Experience card, then to the graph,
+    in under a second.
+  */
+  setHighlights: (items: Highlight[], options?: { scroll?: boolean }) => void;
   clearFocus: () => void;
 
   registerSection: (section: SectionId, el: HTMLElement | null) => void;
@@ -296,14 +305,15 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setHighlights = useCallback(
-    (items: Highlight[]) => {
+    (items: Highlight[], options: { scroll?: boolean } = {}) => {
       const capped = items.slice(0, MAX_HIGHLIGHTS);
+      const shouldScroll = options.scroll !== false;
       enqueue(() => {
         // Replace wholesale — see invariant 2 above.
         setHighlightState(Object.fromEntries(capped.map((h) => [h.itemId, h.note])));
 
         const first = capped[0]?.itemId;
-        if (first) {
+        if (first && shouldScroll) {
           setScrollTarget(first);
 
           /*

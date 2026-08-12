@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUIControl } from "@/components/ui-control";
+import { useChatDock } from "./chat-provider";
 import type { SectionId } from "@/lib/content/types";
 
 export interface TourStep {
@@ -52,6 +53,9 @@ const TICK = 100;
 
 export function TourCard({ steps }: { steps: TourStep[] }) {
   const { focusSection, setHighlights, scrollToLandmark } = useUIControl();
+  // His actual first name, so the promise names who it reaches.
+  const { assistantName } = useChatDock();
+  const first = assistantName.split(" ")[0];
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -67,12 +71,16 @@ export function TourCard({ steps }: { steps: TourStep[] }) {
       const target = steps[i];
       if (!target) return;
       focusSection(target.section);
-      setHighlights(target.items);
+
       /*
-        Last, so it wins. Each of these queues a scroll, and the anchor is the
-        more specific of the two — landing on the About section and then on the
-        graph inside it is the intended order, not a correction.
+        A stop with an anchor has already chosen where to land, so its pins
+        don't scroll. Without this the graph stop went to the About section,
+        then to whichever card it had pinned, then to the graph — three scrolls
+        in under a second, which reads as the page having a seizure.
       */
+      setHighlights(target.items, { scroll: !target.anchor });
+
+      // Last, so it wins: it's the more specific of the two destinations.
       if (target.anchor) scrollToLandmark(target.anchor);
     },
     [steps, focusSection, setHighlights, scrollToLandmark],
@@ -170,6 +178,22 @@ export function TourCard({ steps }: { steps: TourStep[] }) {
         </div>
 
         <p className="mt-2 text-sm leading-relaxed text-text">{step.note}</p>
+
+        {/*
+          The one thing the tour should not leave to phrasing.
+
+          Someone who has just been walked through the whole case is as close to
+          getting in touch as they will be, and at that exact moment the contact
+          section is a form below the fold while the chat is right here. Saying
+          so is the difference between a tour that ends and one that converts,
+          so the card states it rather than trusting the model to.
+        */}
+        {step.section === "contact" && (
+          <p className="mt-2 rounded-[var(--radius)] border border-accent/25 bg-accent/[0.06] px-3 py-2 text-sm leading-relaxed text-text">
+            You don&apos;t have to leave this chat — type your name, email and message
+            here and I&apos;ll send it straight to {first}.
+          </p>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button

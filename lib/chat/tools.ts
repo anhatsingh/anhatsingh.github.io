@@ -495,10 +495,19 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
             }),
           )
           .min(2)
-          .max(7)
+          .max(8)
           .describe("The stops, in the order they should be walked."),
       }),
       execute: async ({ steps }): Promise<ToolOutcome> => {
+        /*
+          A stop that lands on a landmark is named after the landmark.
+
+          The graph is its own stop and lives inside About, so both would
+          otherwise read "About" — and Next / Previous naming the same place
+          twice is worse than not naming it.
+        */
+        const ANCHOR_LABELS: Record<string, string> = { "life-graph": "The graph" };
+
         /*
           An unknown id drops out rather than failing the tour. A walk through
           the site is worth more than the one callout the model got wrong, and
@@ -506,7 +515,7 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
         */
         const planned = steps.map((step) => ({
           section: step.section,
-          label: SECTION_LABELS[step.section],
+          label: ANCHOR_LABELS[step.anchor] ?? SECTION_LABELS[step.section],
           note: step.note,
           anchor: step.anchor === "none" ? null : step.anchor,
           items: step.items.filter((item) => known.has(item.itemId)),

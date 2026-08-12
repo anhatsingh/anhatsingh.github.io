@@ -21,6 +21,7 @@ import { describeScreen, idForPath, sanitizePageContext } from "../lib/chat/page
 import { looksUnanswered } from "../lib/chat/analytics";
 import type { UIMessage } from "ai";
 import { dwellFor } from "../components/chat/tour-card";
+import { readFileSync } from "node:fs";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -249,6 +250,22 @@ console.log("\n── a tour stop holds long enough to read ──");
   const words = 25;
   const perWord = (dwellFor(Array(words).fill("word").join(" ")) - 4_000) / words;
   check("each word buys real reading time", perWord >= 250, `${Math.round(perWord)}ms/word`);
+}
+
+/*
+  The offer at the end of the tour.
+
+  Someone walked through the whole case is as close to getting in touch as they
+  will be, and at that moment the contact form is below the fold while the chat
+  is right there. The card says so itself rather than trusting the model to
+  phrase it, so what's assertable is that the text is in the component and not
+  merely in the prompt.
+*/
+console.log("\n── the tour ends on an offer ──");
+{
+  const card = readFileSync("components/chat/tour-card.tsx", "utf8");
+  check("the contact stop offers the chat as the way to write", /step\.section === "contact"/.test(card));
+  check("and names what to send", /name, email and message/.test(card));
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

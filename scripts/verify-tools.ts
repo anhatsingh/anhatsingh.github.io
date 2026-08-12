@@ -80,10 +80,11 @@ async function main() {
         { section: "experience", anchor: "none", note: "What he does now.", items: [{ itemId: realId, note: "current role" }] },
         { section: "projects", anchor: "none", note: "The work behind it.", items: [{ itemId: "projects:not-a-real-thing", note: "fake" }] },
         { section: "about", anchor: "life-graph", note: "It all lines up.", items: [] },
+        { section: "contact", anchor: "none", note: "How to reach him.", items: [] },
       ],
     }),
   );
-  check("a route comes back whole", tour.ok === true && tour.action === "tour" && tour.steps.length === 3);
+  check("a route comes back whole", tour.ok === true && tour.action === "tour" && tour.steps.length === 4);
   /*
     An unknown id drops out instead of failing the call. A walk through the site
     is worth more than the one callout the model got wrong, and the stop still
@@ -112,6 +113,16 @@ async function main() {
   check(
     "'none' is not treated as a landmark",
     tour.ok === true && tour.action === "tour" && tour.steps[0].anchor === null,
+  );
+  /*
+    The graph is its own stop and lives inside About, so two stops would
+    otherwise both read "About" — and Next / Previous naming the same place
+    twice is worse than not naming it at all.
+  */
+  check(
+    "a landmark stop is named after the landmark, not its section",
+    tour.ok === true && tour.action === "tour" && tour.steps[2].label === "The graph",
+    tour.ok === true && tour.action === "tour" ? tour.steps[2].label : "",
   );
 
   console.log("\n── selectResume: degrades to the static link ──");
@@ -451,16 +462,29 @@ async function main() {
       what he works in, the proof, then the graph that ties those together, and
       only then how to reach him.
     */
-    const route = ["experience —", "education —", "skills —", "projects —", "about —", "contact —"];
+    const route = [
+      "experience —",
+      "education —",
+      "skills —",
+      "projects —",
+      "about —",
+      "about again, with anchor set to life-graph",
+      "contact —",
+    ];
     check(
       "the stops run in the intended order",
       route.every((stop, i) => i === 0 || prompt.indexOf(route[i - 1]) < prompt.indexOf(stop)),
       route.filter((s) => !prompt.includes(s)).join(", ") || "all present",
     );
-    check("the graph stop lands on the graph", /set anchor to life-graph/.test(prompt));
+    check("the graph stop lands on the graph", /anchor set to life-graph/.test(prompt));
+    /*
+      The contact card states this itself rather than leaving it to phrasing —
+      it's the moment a tour either converts or ends. The prompt's job is to
+      not say it twice.
+    */
     check(
-      "contact comes after the summary rather than replacing it",
-      /after the summary, not instead of it/.test(prompt),
+      "the model is told the card already offers the chat as the way to write",
+      /do NOT repeat that in the note/.test(prompt),
     );
     // The card carries the narration. Repeating it in prose means reading
     // everything twice, which is the failure mode of a stepper beside an answer.
