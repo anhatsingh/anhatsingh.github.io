@@ -370,8 +370,18 @@ console.log("\n── the nudge knows when to stop ──");
   check("it is remembered across visits", /localStorage\.setItem\(SEEN_KEY/.test(btn));
   check("storage being unavailable doesn't break the button", /catch \{/.test(btn));
 
+  /*
+    The arrow hangs below the header, over the page. It must never take a click
+    — swallowing one on whatever sits underneath would be worse than no arrow —
+    and it must not be read out, since the button already says what it does.
+  */
+  check("the arrow only exists during the nudge", /\{nudge && \(/.test(btn));
+  check("it can't swallow a click", /pointer-events-none/.test(btn));
+  check("screen readers skip it", /aria-hidden="true"\n\s*className="animate-point/.test(btn));
+
   const css = readFileSync("app/globals.css", "utf8");
   check("the pulse is defined", /@keyframes invite-pulse/.test(css));
+  check("the arrow's motion is defined", /@keyframes point-at/.test(css));
   /*
     Both ends of the cycle are the resting state, so the global reduced-motion
     rule — which collapses animations to one 0.01ms run — leaves the button

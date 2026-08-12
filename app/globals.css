@@ -407,6 +407,28 @@ body {
 }
 
 /*
+  The arrow that points at it. Nudges toward the button rather than bobbing in
+  place — the motion is what says "up there", and travelling the same direction
+  it points does that better than a bounce.
+
+  It rests at its far position, so reduced motion leaves an arrow that is
+  simply pointing rather than one caught mid-stride.
+*/
+@keyframes point-at {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(3px, -5px);
+  }
+}
+
+.animate-point {
+  animation: point-at 1.6s var(--ease) infinite;
+}
+
+/*
   Honour reduced-motion globally. The chatbot's scroll behaviour is handled
   separately in JS (it checks the same media query before choosing smooth vs
   instant), because scroll-behavior alone doesn't cover programmatic scrollIntoView
