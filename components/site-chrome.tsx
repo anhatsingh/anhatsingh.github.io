@@ -6,7 +6,8 @@ import { SelectionPrompt } from "@/components/chat/selection-prompt";
 import { ChatProvider, useChatDock } from "@/components/chat/chat-provider";
 import { UIControlProvider } from "@/components/ui-control";
 import { AdminBar } from "@/components/admin-bar";
-import { CommandPalette, type PaletteEntry } from "@/components/command-palette";
+import { CommandPalette } from "@/components/command-palette";
+import type { PaletteEntry } from "@/lib/content/palette";
 
 /*
   Everything that wraps every public page.

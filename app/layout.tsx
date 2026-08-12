@@ -7,7 +7,7 @@ import { SiteChrome } from "@/components/site-chrome";
 import { getPortfolio } from "@/lib/content";
 import { listPublishedResumes } from "@/lib/resume/store";
 import { getAdminSession } from "@/lib/supabase/auth";
-import { buildPaletteEntries } from "@/components/command-palette";
+import { buildPaletteEntries } from "@/lib/content/palette";
 import { addressableIds, entityTypeForId, entityPath, NAVIGABLE_SECTIONS } from "@/lib/content/types";
 import { SITE_URL } from "@/lib/seo";
 import "./globals.css";

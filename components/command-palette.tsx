@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChatDock } from "@/components/chat/chat-provider";
 import { useUIControl } from "@/components/ui-control";
-import { SECTION_LABELS, type SectionId } from "@/lib/content/types";
+import type { PaletteEntry } from "@/lib/content/palette";
 
 /*
   ⌘K.
@@ -19,16 +19,6 @@ import { SECTION_LABELS, type SectionId } from "@/lib/content/types";
   already loads every one of these to render itself, so a second trip would buy
   nothing.
 */
-
-export interface PaletteEntry {
-  /** What to show. */
-  label: string;
-  /** Section, project, post — the kind, for grouping and for scanning. */
-  kind: string;
-  /** Where it goes. A section id scrolls; a path navigates. */
-  section?: SectionId;
-  href?: string;
-}
 
 export function CommandPalette({ entries }: { entries: PaletteEntry[] }) {
   const [open, setOpen] = useState(false);
@@ -191,13 +181,3 @@ export function CommandPalette({ entries }: { entries: PaletteEntry[] }) {
   );
 }
 
-/** Sections plus every addressable entry, as one flat list. */
-export function buildPaletteEntries(
-  sections: SectionId[],
-  items: Array<{ id: string; label: string; href: string; kind: string }>,
-): PaletteEntry[] {
-  return [
-    ...sections.map((s) => ({ label: SECTION_LABELS[s], kind: "section", section: s })),
-    ...items.map((i) => ({ label: i.label, kind: i.kind, href: i.href })),
-  ];
-}
