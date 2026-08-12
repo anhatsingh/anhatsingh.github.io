@@ -7,6 +7,7 @@ import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
 import { FitReport } from "./fit-report";
 import { ResumeCard } from "./resume-card";
+import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
 import { RoleChips } from "./role-chips";
 import { useUIControl } from "@/components/ui-control";
@@ -75,6 +76,12 @@ function MessageParts({ message }: { message: UIMessage }) {
                 gaps={outcome.gaps}
                 summary={outcome.summary}
               />
+            );
+          }
+
+          if (outcome?.ok === true && outcome.action === "sources") {
+            return (
+              <SourceList key={part.toolCallId} topic={outcome.topic} results={outcome.results} />
             );
           }
 

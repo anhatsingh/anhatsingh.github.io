@@ -79,3 +79,43 @@ export function clientIp(req: Request): string {
 export function trimHistory<T>(messages: T[], keep = 8): T[] {
   return messages.length <= keep ? messages : messages.slice(-keep);
 }
+
+
+/*
+  Web search gets its own, much tighter budget.
+
+  A chat turn costs one model call; a turn that searches costs that plus up to
+  three Tavily queries against a metered quota. The general limit is sized for
+  conversation, so search needs its own or one visitor holding the button down
+  drains the month's allowance for everyone.
+
+  Keyed separately from the chat limit — the same namespacing the contact route
+  uses — so hitting the search cap still leaves the visitor able to talk.
+*/
+const SEARCH_PER_WINDOW = 6;
+const SEARCH_WINDOW_MS = 10 * 60 * 1000;
+const SEARCH_PER_DAY_GLOBAL = 300;
+
+const SEARCH_STORE = new Map<string, { count: number; resetAt: number }>();
+let searchDay = { day: today(), count: 0 };
+
+export function checkSearchBudget(ip: string): boolean {
+  const now = Date.now();
+
+  const day = today();
+  if (searchDay.day !== day) searchDay = { day, count: 0 };
+  if (searchDay.count >= SEARCH_PER_DAY_GLOBAL) return false;
+
+  const bucket = SEARCH_STORE.get(ip);
+  if (!bucket || bucket.resetAt < now) {
+    SEARCH_STORE.set(ip, { count: 1, resetAt: now + SEARCH_WINDOW_MS });
+    searchDay.count++;
+    return true;
+  }
+
+  if (bucket.count >= SEARCH_PER_WINDOW) return false;
+
+  bucket.count++;
+  searchDay.count++;
+  return true;
+}

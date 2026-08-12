@@ -113,6 +113,16 @@ if (!latexUrl) {
   ok("LaTeX compiler", latexUrl.replace(/^https:\/\//, ""));
 }
 
+/*
+  Web search. Optional: without it the chatbot answers from the database only,
+  which is the behaviour it had before and is never wrong — just narrower.
+*/
+if (process.env.TAVILY_API_KEY?.trim()) {
+  ok("Tavily", `${process.env.TAVILY_API_KEY.trim().slice(0, 8)}…`);
+} else {
+  warn("TAVILY_API_KEY not set", "The chatbot can't look anything up; it answers from the database alone.");
+}
+
 console.log("\n\x1b[1mResume link\x1b[0m");
 // Not an env var, but the same class of paste-the-wrong-thing mistake.
 const resume = resumeLinks(process.env.RESUME_URL);

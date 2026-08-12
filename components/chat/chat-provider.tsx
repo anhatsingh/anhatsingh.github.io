@@ -148,6 +148,10 @@ export function ChatProvider({
           case "resume":
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
+          case "sources":
+            // Nothing to do — the citation card renders below the answer, and
+            // opening tabs the visitor didn't ask for would be hostile.
+            break;
           case "roleOptions":
             // Nothing to do — the chips render from data the client already
             // holds. Listed so the switch stays exhaustive.

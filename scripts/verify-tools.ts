@@ -110,6 +110,70 @@ async function main() {
     roles.ok === true ? Object.keys(roles).join(",") : "",
   );
 
+  console.log("\n── web search stays off the subject ──");
+  {
+    /*
+      The guardrail this whole integration rests on: search explains the world,
+      only the database describes Anhat. Pointed at him, search returns other
+      people with the same name, and attributing a stranger's history to him is
+      a worse failure than knowing nothing.
+
+      Enforced in code rather than in the prompt, because a prompt rule is one
+      persuasive visitor away from being talked around.
+    */
+    const name = seedPortfolio.profile.name;
+    for (const query of [
+      name,
+      `${name} resume`,
+      `who is ${name}`,
+      `${name.split(" ")[1]} linkedin`,
+      `${name.split(" ")[0]} portfolio`,
+    ]) {
+      const r = await run(() => call(tools.researchTopic, { topic: "him", queries: [query] }));
+      check(`refuses "${query}"`, r.ok === false, r.ok === false ? "" : "SEARCHED");
+    }
+
+    // A blocked query still has to tell the model what to do instead, or the
+    // refusal becomes a dead end rather than a redirect.
+    const blocked = await run(() => call(tools.researchTopic, { topic: "him", queries: [name] }));
+    check(
+      "the refusal points the model back at CONTEXT",
+      blocked.ok === false && /CONTEXT/.test(blocked.error),
+      blocked.ok === false ? blocked.error.slice(0, 60) : "",
+    );
+
+    // Legitimate lookups must not be caught by the same net.
+    for (const query of ["what is dbt", "PostGIS spatial queries", "FastAPI background tasks"]) {
+      const r = await run(() => call(tools.researchTopic, { topic: "tech", queries: [query] }));
+      check(
+        `allows "${query}" through to search`,
+        // Without a key configured this fails at the API rather than the
+        // guard, which is the distinction being checked.
+        r.ok === false && !/other people with similar names/.test(r.error),
+        r.ok === false ? r.error.slice(0, 40) : "searched",
+      );
+    }
+
+    // A budget that has run out must not read as a subject refusal.
+    const spent = buildTools(seedPortfolio, { canSearch: () => false });
+    const denied = await run(() => call(spent.researchTopic, { topic: "x", queries: ["what is dbt"] }));
+    check(
+      "an exhausted search budget refuses without searching",
+      denied.ok === false && /allowance/.test(denied.error),
+      denied.ok === false ? denied.error.slice(0, 50) : "",
+    );
+  }
+
+  console.log("\n── the prompt fences untrusted web text ──");
+  {
+    const prompt = buildSystemPrompt(seedPortfolio, serializePortfolio(seedPortfolio));
+    check("search results are named as untrusted", /<search_result>/.test(prompt));
+    check("CONTEXT is declared to win over the web", /CONTEXT wins, always/.test(prompt));
+    check("searching for the subject is forbidden in prose too",
+      /Facts about/.test(prompt) && /other people with similar names/.test(prompt));
+    check("urls stay out of prose", /sources card lists them/.test(prompt));
+  }
+
   const listed = await run(() => call(withResume.listResumes, {}));
   check(
     "listResumes with an empty library falls back rather than showing nothing",

@@ -6,7 +6,7 @@ import { getLeetCodeStats } from "@/lib/leetcode/service";
 import { RetrievalContextProvider } from "@/lib/chat/context";
 import { buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
 import { buildTools } from "@/lib/chat/tools";
-import { checkRateLimit, clientIp, trimHistory } from "@/lib/chat/guards";
+import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
 import { logQuestion } from "@/lib/chat/analytics";
 
 export const maxDuration = 30;
@@ -31,7 +31,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const { allowed, retryAfterSec } = checkRateLimit(clientIp(req));
+  const ip = clientIp(req);
+  const { allowed, retryAfterSec } = checkRateLimit(ip);
   if (!allowed) {
     return Response.json(
       { error: "That's a lot of questions in a short window. Give it a minute?" },
@@ -98,11 +99,17 @@ export async function POST(req: Request) {
     model: openai(MODEL),
     system: buildSystemPrompt(portfolio, context),
     messages: await convertToModelMessages(messages),
-    tools: buildTools(portfolio),
+    tools: buildTools(portfolio, { canSearch: () => checkSearchBudget(ip) }),
     // Tools resolve, then the model gets another step to write its prose reply.
     // Three is enough for focus + highlight + answer without letting it loop.
     // Room for focus + highlight + openPage + the prose reply.
-    stopWhen: stepCountIs(5),
+    /*
+      Raised from 5 for research. A question that needs a search now costs
+      focus + research + highlight + reply, and a second search when the first
+      angle misses — five left the model out of moves mid-thought, which reads
+      as it giving up.
+    */
+    stopWhen: stepCountIs(8),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     temperature: 0.7,
     maxRetries: 2,

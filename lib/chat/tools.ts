@@ -3,6 +3,7 @@ import { z } from "zod";
 import { resumeLinks } from "@/lib/resume";
 import { matchResume } from "@/lib/resume/match";
 import { listPublishedResumes } from "@/lib/resume/store";
+import { formatResults, MAX_QUERIES, research } from "./research";
 import {
   entityPath,
   entityTypeForId,
@@ -47,6 +48,22 @@ export type ToolOutcome =
     the assistant said.
   */
   | { ok: true; action: "roleOptions" }
+  /*
+    Sources behind an answer. Rendered as a citation list, because a claim
+    drawn from the open web is only as good as the link under it.
+  */
+  | {
+      ok: true;
+      action: "sources";
+      topic: string;
+      /** Titles and links, for the citation card. */
+      results: Array<{ title: string; url: string }>;
+      /**
+       * The snippets, fenced as untrusted web text. Read by the model, ignored
+       * by the client — the visitor gets links, the model gets the content.
+       */
+      content: string;
+    }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
   | {
       ok: true;
@@ -58,7 +75,18 @@ export type ToolOutcome =
     }
   | { ok: false; error: string };
 
-export function buildTools(portfolio: Portfolio) {
+export interface ToolContext {
+  /**
+   * Whether this visitor may run another web search.
+   *
+   * Passed in rather than checked here because the budget is per-IP and tools
+   * are built without a request. The route owns the request; this owns the
+   * behaviour.
+   */
+  canSearch?: () => boolean;
+}
+
+export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
   const known = addressableIds(portfolio);
 
   return {
@@ -161,6 +189,54 @@ export function buildTools(portfolio: Portfolio) {
         "Leave focus view and return the page to its normal full-width layout. Use when the conversation moves off site content.",
       inputSchema: z.object({}),
       execute: async (): Promise<ToolOutcome> => ({ ok: true, action: "clear" }),
+    }),
+
+    researchTopic: tool({
+      description:
+        "Search the web to explain a technology, company or concept that appears in CONTEXT — " +
+        "what dbt is, what a company builds, how a technique works. Give up to 3 short, distinct " +
+        "queries and they run at once. NEVER search for facts about the person this site is " +
+        "about: search returns other people with similar names, and everything about him is " +
+        "already in CONTEXT.",
+      inputSchema: z.object({
+        topic: z
+          .string()
+          .min(2)
+          .max(80)
+          .describe("What you're looking up, in a few words. Shown to the visitor."),
+        queries: z
+          .array(z.string().min(3).max(120))
+          .min(1)
+          .max(MAX_QUERIES)
+          .describe("Distinct angles on the same question. They run in parallel."),
+      }),
+      execute: async ({ topic, queries }): Promise<ToolOutcome> => {
+        if (ctx.canSearch && !ctx.canSearch()) {
+          return {
+            ok: false,
+            error:
+              "You've used this visitor's search allowance. Answer from CONTEXT, and say plainly " +
+              "that you couldn't look it up rather than guessing.",
+          };
+        }
+
+        const found = await research(queries, portfolio.profile.name);
+        if (!found.ok) return { ok: false, error: found.error };
+
+        /*
+          The snippets go back to the model as fenced, untrusted text; the
+          client gets titles and links only. Two audiences, two shapes — the
+          visitor needs somewhere to click, the model needs the content and a
+          reminder of where it came from.
+        */
+        return {
+          ok: true,
+          action: "sources",
+          topic,
+          results: found.results.map((r) => ({ title: r.title, url: r.url })),
+          content: formatResults(found.results),
+        };
+      },
     }),
 
     suggestRoles: tool({
