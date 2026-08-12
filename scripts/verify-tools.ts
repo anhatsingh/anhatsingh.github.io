@@ -12,7 +12,7 @@
 import { buildTools, type ToolOutcome } from "../lib/chat/tools";
 import { seedPortfolio } from "../lib/content/seed";
 import { serializePortfolio } from "../lib/chat/context";
-import { buildSystemPrompt, wrapVisitorMessage } from "../lib/chat/prompt";
+import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "../lib/chat/prompt";
 import { addressableIds } from "../lib/content/types";
 
 let failures = 0;
@@ -162,6 +162,52 @@ async function main() {
       denied.ok === false && /allowance/.test(denied.error),
       denied.ok === false ? denied.error.slice(0, 50) : "",
     );
+  }
+
+  console.log("\n── the subject guard is default-on ──");
+  {
+    /*
+      It lifts only for Anhat, whose session the server verified. The failure
+      that matters is the guard being off for a visitor, so it is asserted from
+      the default construction rather than from an explicit false.
+    */
+    const forVisitors = buildTools(seedPortfolio);
+    const attempt = await run(() =>
+      call(forVisitors.researchTopic, { topic: "him", queries: [seedPortfolio.profile.name] }),
+    );
+    check(
+      "buildTools with no context still blocks subject searches",
+      attempt.ok === false && /other people with similar names/.test(attempt.error),
+    );
+
+    const forOwner = buildTools(seedPortfolio, { allowSubjectSearch: true });
+    const allowed = await run(() =>
+      call(forOwner.researchTopic, { topic: "him", queries: [seedPortfolio.profile.name] }),
+    );
+    check(
+      "the owner may search his own name",
+      allowed.ok === false && !/other people with similar names/.test(allowed.error),
+      allowed.ok === false ? allowed.error.slice(0, 40) : "searched",
+    );
+  }
+
+  console.log("\n── the two prompts differ where it matters ──");
+  {
+    const visitor = buildSystemPrompt(seedPortfolio, serializePortfolio(seedPortfolio));
+    const owner = buildAdminPrompt(seedPortfolio, serializePortfolio(seedPortfolio));
+
+    check("the visitor prompt refuses off-topic questions", /only discuss/i.test(visitor));
+    check("the owner prompt does not", !/only discuss/i.test(owner));
+    check("the owner prompt invites any topic", /Any topic is fair game/.test(owner));
+
+    // The one rule that is correctness rather than restriction, and so survives
+    // into owner mode: advice can be wrong and corrected, a fabricated job ends
+    // up in an application.
+    check("both refuse to invent his history",
+      /Never invent/i.test(visitor) && /Never invent/i.test(owner));
+    check("the owner prompt still fences untrusted input",
+      /<visitor_message>/.test(owner) && /<search_result>/.test(owner));
+    check("CONTEXT is still the record in owner mode", /CONTEXT and that is the record/.test(owner));
   }
 
   console.log("\n── the prompt fences untrusted web text ──");

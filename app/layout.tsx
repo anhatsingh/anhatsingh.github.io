@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SiteChrome } from "@/components/site-chrome";
 import { getPortfolio } from "@/lib/content";
 import { listPublishedResumes } from "@/lib/resume/store";
+import { getAdminSession } from "@/lib/supabase/auth";
 import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
@@ -80,6 +81,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const portfolio = await getPortfolio();
   const resumeOptions = (await listPublishedResumes().catch(() => [])).map((r) => r.label);
 
+  /*
+    getAdminSession revalidates the token with Supabase and checks the email
+    against ADMIN_EMAILS — it never trusts the cookie alone, and it never
+    throws. Anything in the URL is irrelevant to it, which is the point: a
+    "?code=" someone typed is not a session.
+  */
+  const session = await getAdminSession();
+
   return (
     <html
       lang="en"
@@ -92,6 +101,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             name={portfolio.profile.name}
             avatarUrl={portfolio.profile.avatarUrl}
             resumeOptions={resumeOptions}
+            adminEmail={session?.email}
           >
             {children}
           </SiteChrome>

@@ -115,7 +115,8 @@ async function searchOne(query: string, signal: AbortSignal): Promise<SearchResu
  */
 export async function research(
   queries: string[],
-  subjectName: string,
+  /** null lifts the subject guard — see ToolContext.allowSubjectSearch. */
+  subjectName: string | null,
 ): Promise<ResearchResult> {
   const cleaned = queries.map((q) => q.trim()).filter(Boolean).slice(0, MAX_QUERIES);
   if (!cleaned.length) return { ok: false, error: "No query given." };
@@ -128,7 +129,7 @@ export async function research(
     without a key, since every query failed for the same generic reason. A
     guardrail that only holds when a key is present is not a guardrail.
   */
-  const blocked = cleaned.find((q) => isAboutSubject(q, subjectName));
+  const blocked = subjectName ? cleaned.find((q) => isAboutSubject(q, subjectName)) : undefined;
   if (blocked) {
     return {
       ok: false,

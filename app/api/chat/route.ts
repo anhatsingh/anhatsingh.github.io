@@ -4,7 +4,8 @@ import { getPortfolio } from "@/lib/content";
 import { getGitHubStats } from "@/lib/github/service";
 import { getLeetCodeStats } from "@/lib/leetcode/service";
 import { RetrievalContextProvider } from "@/lib/chat/context";
-import { buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
+import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "@/lib/chat/prompt";
+import { getAdminSession } from "@/lib/supabase/auth";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
 import { logQuestion } from "@/lib/chat/analytics";
@@ -20,6 +21,7 @@ const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
 /** Caps the reply length. Recruiters skim, and tokens cost money. */
 const MAX_OUTPUT_TOKENS = 500;
+const OWNER_OUTPUT_TOKENS = 2000;
 
 export async function POST(req: Request) {
   if (!process.env.OPENAI_API_KEY) {
@@ -31,8 +33,25 @@ export async function POST(req: Request) {
     );
   }
 
+  /*
+    Anhat signed in gets a different assistant: no scope rules, longer answers,
+    no rate limit.
+
+    Gated on a session getAdminSession verified against Supabase and checked
+    against ADMIN_EMAILS — not on anything in the request. A header, a query
+    parameter or a cookie value the client chose would all be forgeable, and
+    this switch turns off the guardrails that keep the public bot honest.
+
+    It never throws, so a Supabase outage degrades to the visitor experience
+    rather than to an error.
+  */
+  const session = await getAdminSession();
+  const isOwner = Boolean(session);
+
   const ip = clientIp(req);
-  const { allowed, retryAfterSec } = checkRateLimit(ip);
+  const { allowed, retryAfterSec } = isOwner
+    ? { allowed: true, retryAfterSec: 0 }
+    : checkRateLimit(ip);
   if (!allowed) {
     return Response.json(
       { error: "That's a lot of questions in a short window. Give it a minute?" },
@@ -97,9 +116,16 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: openai(MODEL),
-    system: buildSystemPrompt(portfolio, context),
+    system: isOwner
+      ? buildAdminPrompt(portfolio, context)
+      : buildSystemPrompt(portfolio, context),
     messages: await convertToModelMessages(messages),
-    tools: buildTools(portfolio, { canSearch: () => checkSearchBudget(ip) }),
+        // The search budget exists to stop one visitor draining a metered quota.
+    // He is the person paying for it.
+    tools: buildTools(portfolio, {
+      canSearch: () => (isOwner ? true : checkSearchBudget(ip)),
+      allowSubjectSearch: isOwner,
+    }),
     // Tools resolve, then the model gets another step to write its prose reply.
     // Three is enough for focus + highlight + answer without letting it loop.
     // Room for focus + highlight + openPage + the prose reply.
@@ -110,7 +136,9 @@ export async function POST(req: Request) {
       as it giving up.
     */
     stopWhen: stepCountIs(8),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    // Visitors get short answers because recruiters skim. He asked the
+    // question and can decide how much of the answer he wants.
+    maxOutputTokens: isOwner ? OWNER_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS,
     temperature: 0.7,
     maxRetries: 2,
     onError: ({ error }) => {

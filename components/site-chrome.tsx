@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatProvider, useChatDock } from "@/components/chat/chat-provider";
 import { UIControlProvider } from "@/components/ui-control";
+import { AdminBar } from "@/components/admin-bar";
 
 /*
   Everything that wraps every public page.
@@ -48,11 +49,17 @@ export function SiteChrome({
   name,
   avatarUrl,
   resumeOptions,
+  adminEmail,
 }: {
   children: React.ReactNode;
   name: string;
   avatarUrl?: string;
   resumeOptions: string[];
+  /*
+    Set only when the server verified a session against Supabase AND the email
+    is on the allow-list. Never derived from the URL — see AdminBar.
+  */
+  adminEmail?: string;
 }) {
   const pathname = usePathname();
 
@@ -74,7 +81,10 @@ export function SiteChrome({
         </div>
         <div aria-hidden="true" className="grain" />
 
-        <PageShift>{children}</PageShift>
+        <PageShift>
+          {adminEmail && <AdminBar email={adminEmail} />}
+          {children}
+        </PageShift>
         <ChatDock />
       </ChatProvider>
     </UIControlProvider>

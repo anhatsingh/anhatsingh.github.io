@@ -84,6 +84,15 @@ export interface ToolContext {
    * behaviour.
    */
   canSearch?: () => boolean;
+  /**
+   * Lets search run against the subject's own name.
+   *
+   * Off for visitors, because results are other people with the same name and
+   * a public answer cannot tell them apart. On for Anhat, who can — checking
+   * his own online presence is a reasonable thing for him to want, and he is
+   * the one reading it.
+   */
+  allowSubjectSearch?: boolean;
 }
 
 export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
@@ -220,7 +229,10 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           };
         }
 
-        const found = await research(queries, portfolio.profile.name);
+        const found = await research(
+          queries,
+          ctx.allowSubjectSearch ? null : portfolio.profile.name,
+        );
         if (!found.ok) return { ok: false, error: found.error };
 
         /*
