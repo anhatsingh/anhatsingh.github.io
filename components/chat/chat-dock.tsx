@@ -6,6 +6,8 @@ import { useChatDock } from "./chat-provider";
 import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
 import { FitReport } from "./fit-report";
+import { Activity, activityLabel } from "./activity";
+import { ChatMarkdown } from "./chat-markdown";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
@@ -52,16 +54,28 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
 }
 
 function MessageParts({ message }: { message: UIMessage }) {
+  /*
+    Citations belong under the answer, not above it.
+
+    Tool parts arrive in the order they ran, and research runs before the model
+    writes — so rendering parts in sequence put a list of links where the answer
+    should be, and the reader met the sources before the point they support.
+    They're collected out and appended instead.
+  */
+  const sources = message.parts.flatMap((part) => {
+    if (!isToolUIPart(part) || part.state !== "output-available") return [];
+    const outcome = part.output as ToolOutcome;
+    return outcome?.ok === true && outcome.action === "sources"
+      ? [{ id: part.toolCallId, topic: outcome.topic, results: outcome.results }]
+      : [];
+  });
+
   return (
     <>
       {message.parts.map((part, i) => {
         if (part.type === "text") {
           if (!part.text.trim()) return null;
-          return (
-            <p key={i} className="whitespace-pre-wrap leading-relaxed">
-              {part.text}
-            </p>
-          );
+          return <ChatMarkdown key={i} text={part.text} />;
         }
 
         if (isToolUIPart(part) && part.state === "output-available") {
@@ -76,12 +90,6 @@ function MessageParts({ message }: { message: UIMessage }) {
                 gaps={outcome.gaps}
                 summary={outcome.summary}
               />
-            );
-          }
-
-          if (outcome?.ok === true && outcome.action === "sources") {
-            return (
-              <SourceList key={part.toolCallId} topic={outcome.topic} results={outcome.results} />
             );
           }
 
@@ -118,6 +126,10 @@ function MessageParts({ message }: { message: UIMessage }) {
 
         return null;
       })}
+
+      {sources.map((s) => (
+        <SourceList key={s.id} topic={s.topic} results={s.results} />
+      ))}
     </>
   );
 }
@@ -137,6 +149,15 @@ export function ChatDock() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const busy = status === "submitted" || status === "streaming";
+
+  /*
+    Derived from the last assistant turn's tool parts, so it names the tool that
+    is actually running rather than guessing from the request state.
+  */
+  const last = messages[messages.length - 1];
+  const activity = busy
+    ? activityLabel(last?.role === "assistant" ? last : undefined, status === "streaming")
+    : null;
 
   useEffect(() => {
     // Keep the newest content in view as tokens arrive.
@@ -241,18 +262,16 @@ export function ChatDock() {
           ),
         )}
 
-        {status === "submitted" && (
-          <div className="flex items-center gap-2.5" aria-label="Assistant is typing">
+        {/*
+          Named rather than a bare three dots. A turn can spend seconds
+          searching, and "Searching the web" reads as considered where dots
+          read as stuck. Shown while streaming too, since a tool called
+          mid-answer keeps working long after the first token lands.
+        */}
+        {activity && (
+          <div className="flex items-center gap-2.5">
             <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
-            <span className="flex gap-1">
-            {[0, 150, 300].map((delay) => (
-              <span
-                key={delay}
-                className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted"
-                style={{ animationDelay: `${delay}ms` }}
-              />
-            ))}
-            </span>
+            <Activity label={activity} />
           </div>
         )}
 
