@@ -9,8 +9,12 @@ import { SITE_URL, absoluteUrl } from "@/lib/seo";
 
   Most candidates claim they shipped an LLM feature. The gap between that and
   being hired is showing the judgment — what could go wrong, and what you did
-  about it. So this page is organised around the three failure modes that
-  actually mattered, not around a feature list.
+  about it. So this page is organised around decisions rather than features:
+  every section names something that could have gone wrong, and what stops it.
+
+  Keep it honest as the site changes. A working note that describes a system
+  which no longer exists is worse than no working note — the claim it makes
+  about its author is the opposite of the one intended.
 
   It's also a real page for SEO: TechArticle structured data, its own canonical,
   and it targets queries ("LLM tool calling UI", "portfolio chatbot RAG") that
@@ -20,14 +24,14 @@ import { SITE_URL, absoluteUrl } from "@/lib/seo";
 export const metadata: Metadata = {
   title: "How the chatbot drives this page",
   description:
-    "A working note on building an LLM that manipulates a UI through validated tool calls — the three failure modes that mattered, and what stops each one.",
+    "A working note on an assistant that drives a portfolio: validated tool calls, LaTeX résumés generated per job, retrieval that degrades safely, and the capabilities left out on purpose.",
   alternates: { canonical: absoluteUrl("/how-it-works") },
   openGraph: {
     type: "article",
     url: absoluteUrl("/how-it-works"),
     title: "How the chatbot drives this page",
     description:
-      "Building an LLM that manipulates a UI through validated tool calls: hallucinated IDs, prompt injection, and motion sickness.",
+      "Validated tool calls, per-job LaTeX résumés, retrieval that degrades safely, and the capabilities left out on purpose.",
   },
 };
 
@@ -65,7 +69,7 @@ export default async function HowItWorksPage() {
     "@type": "TechArticle",
     headline: "How the chatbot drives this page",
     description:
-      "Building an LLM that manipulates a UI through validated tool calls: hallucinated IDs, prompt injection, and motion sickness.",
+      "Validated tool calls, per-job LaTeX résumés, retrieval that degrades safely, and the capabilities left out on purpose.",
     url: absoluteUrl("/how-it-works"),
     author: { "@id": `${SITE_URL}/#person` },
     mainEntityOfPage: absoluteUrl("/how-it-works"),
@@ -92,10 +96,12 @@ export default async function HowItWorksPage() {
             How the chatbot drives this page
           </h1>
           <p className="mt-5 text-lg leading-relaxed text-muted">
-            The assistant on this site doesn&apos;t just answer — it scrolls the page, splits the
-            layout, and pins callouts onto the exact entries that answer you. That&apos;s five tool
-            definitions and about four hundred lines. The interesting part isn&apos;t the feature;
-            it&apos;s the three ways it can fail, and what stops each one.
+            The assistant on this site doesn&apos;t just answer — it scrolls the page, pins
+            callouts onto the entries that answer you, walks you through the whole thing on
+            request, searches the web when the question needs it, and typesets a résumé for a job
+            description you paste in. Twelve tools, and about twenty thousand lines around them.
+            The interesting part isn&apos;t any of the features; it&apos;s what each one could do
+            wrong, and what stops it.
           </p>
         </header>
 
@@ -113,9 +119,9 @@ export default async function HowItWorksPage() {
               rather than wrong.
             </p>
             <p>
-              So tools are constructed <strong className="text-text">per request</strong>, closed
-              over the content that actually exists. Validation happens before anything reaches the
-              browser:
+              So the twelve tools are constructed{" "}
+              <strong className="text-text">per request</strong>, closed over the content that
+              actually exists. Validation happens before anything reaches the browser:
             </p>
             <Code>{`const accepted = items.filter((i) => known.has(i.itemId));
 
@@ -132,6 +138,12 @@ if (!accepted.length) {
               retried correctly. A mixed batch keeps the real IDs and drops the invented ones, so
               one bad guess doesn&apos;t cost the whole response.
             </p>
+            <p>
+              The right handling differs by tool, and that&apos;s a judgment rather than a rule.
+              A highlight with no valid target is worth rejecting so the model can try again. A
+              seven-stop tour with one bad callout is worth keeping — the walk is worth more than
+              the callout, and the stop still lands on the right section.
+            </p>
           </Section>
 
           <Section n="02" title="The model cannot send email — by construction">
@@ -140,10 +152,11 @@ if (!accepted.length) {
               a <code className="text-accent">sendEmail</code> tool, and it&apos;s a mistake.
             </p>
             <p>
-              Anything a visitor types reaches the model. Prompt injection against a bot that can
-              only talk is embarrassing. Against a bot that can send mail, it&apos;s an open relay
-              pointed at your own inbox — and no amount of instruction-hardening turns that into a
-              guarantee, because instructions are exactly what an injection attacks.
+              Anything a visitor types reaches the model, and since it can search the web, so does
+              anything on a page it reads. Prompt injection against a bot that can only talk is
+              embarrassing. Against a bot that can send mail, it&apos;s an open relay pointed at
+              your own inbox — and no amount of instruction-hardening turns that into a guarantee,
+              because instructions are exactly what an injection attacks.
             </p>
             <p>
               So the capability doesn&apos;t exist. The model can call{" "}
@@ -153,8 +166,8 @@ if (!accepted.length) {
               holding.
             </p>
             <p className="text-text">
-              The general form: when a capability is dangerous, removing it beats defending it.
-              A test asserts no tool matching <code className="text-accent">/send|email|mail/</code>{" "}
+              The general form: when a capability is dangerous, removing it beats defending it. A
+              test asserts no tool matching <code className="text-accent">/send|email|mail/</code>{" "}
               exists, so re-introducing one fails CI.
             </p>
           </Section>
@@ -172,9 +185,16 @@ if (!accepted.length) {
               covered in stale callouts.
             </p>
             <p>
+              That floor has teeth. A stop that focused a section, pinned a callout and then
+              scrolled to the chart inside it spent two full cooldowns arriving — so landing on
+              something within a section became an argument to the scroll rather than a second
+              call, and a step with nothing to pin skips the queue entirely. A queued no-op still
+              costs 1.2 seconds.
+            </p>
+            <p>
               Every action shows as a pill in the transcript —{" "}
-              <code className="text-accent">↳ focused Experience · highlighted 2 roles</code> — so
-              the agency reads as deliberate rather than as the page having a mind of its own.
+              <code className="text-accent">↳ focused Experience · highlighted 2 roles</code> — and
+              each is clickable, because the record of an action is also the way back to it.
             </p>
             <p>
               Accessibility isn&apos;t a coat of paint here. Scrolling a viewport leaves a keyboard
@@ -185,26 +205,149 @@ if (!accepted.length) {
             </p>
           </Section>
 
-          <Section n="04" title="Why there's no vector database">
+          <Section n="04" title="The tour: planning is the model's job, pacing is yours">
             <p>
-              A portfolio is a few kilobytes. Serialised whole — every role, project and skill,
-              plus live GitHub and LeetCode figures — this one is about 1,700 tokens. Retrieval
-              over that is strictly worse: an embedding call on the request path, a similarity
-              threshold to tune, and a new failure mode where the right chunk doesn&apos;t come
-              back.
+              Ask to be shown around and the assistant walks you through Experience, Education,
+              Skills, Projects, a summary, the timeline chart, and how to get in touch.
             </p>
             <p>
-              So it all goes in the prompt. The seam is still there —{" "}
-              <code className="text-accent">ContextProvider</code> has one implementation today and
-              a pgvector one is a one-file swap — but building it now would be complexity bought
-              against a problem this site doesn&apos;t have.
+              The first version ran the whole thing inside one reply — seven sections scrolled past
+              in a couple of seconds, each highlight replaced by the next before anyone could read
+              it. Correct, and useless. The fix wasn&apos;t slower scrolling; it was giving the
+              wheel to the reader.
             </p>
-            <p className="text-text">
-              Knowing when RAG isn&apos;t the answer is part of knowing how to build it.
+            <p>
+              So the route arrives in <strong className="text-text">one tool call</strong> and the
+              browser owns everything after that. Previous and Next name where they go rather than
+              saying &quot;next&quot;. Auto-play runs by default with a visible countdown, and
+              stops the instant a button is pressed. A round trip to the model per stop would have
+              made every press cost a wait, with the answer arriving somewhere below the fold.
+            </p>
+            <p>
+              It is also the most expensive reply the site produces — seven stops of narration in a
+              single tool call, well past the 500-token ceiling that suits ordinary prose. It gets
+              its own ceiling, and then gets cached, because the prompt fixes the route: the reply
+              genuinely doesn&apos;t depend on the conversation. That property is the entire reason
+              it&apos;s safe to cache, and the reason nothing else is.
             </p>
           </Section>
 
-          <Section n="05" title="Testing an LLM feature without an LLM">
+          <Section n="05" title="A résumé written for one job, in real LaTeX">
+            <p>
+              Paste a job description and you get a PDF typeset from the same template the printed
+              CV uses. The pipeline is five stages, and the interesting decision is where the model
+              is allowed to touch.
+            </p>
+            <Code>{`job description
+  → structured extraction   (typed object, never LaTeX)
+  → render                  (owns every backslash)
+  → pdflatex, twice         (page count settles on pass two)
+  → deterministic ATS audit (read the text layer back)
+  → the model confirms fidelity`}</Code>
+            <p>
+              The model never writes markup. One unbalanced brace from a language model is an
+              unrecoverable compile failure, and model-authored LaTeX can reach{" "}
+              <code className="text-accent">\input</code> and{" "}
+              <code className="text-accent">\write18</code>. So it fills in a typed object and the
+              renderer owns escaping. Even emphasis is data: the model names the phrase it wants
+              bolded, and a phrase that isn&apos;t a verbatim substring is dropped rather than
+              guessed at.
+            </p>
+            <p>
+              Then the PDF is read back and compared to the object it came from — because a résumé
+              can compile perfectly and still be broken for its only real reader, a parser reading
+              the text layer. Those failures are silent: a bullet that didn&apos;t make it, a date
+              format that parses badly, an escape printed literally. Deterministic checks run
+              first, since they&apos;re cheap and never disagree with themselves. The model&apos;s
+              judgment is reserved for what can&apos;t be checked mechanically.
+            </p>
+            <p>
+              One finding from doing this: <code className="text-accent">\scshape</code> made
+              section headings extract as <code className="text-accent">S UMMARY</code>. It looked
+              perfect and parsed wrong, which is exactly the class of bug the audit exists for.
+            </p>
+          </Section>
+
+          <Section n="06" title="Retrieval, with the summaries always in the prompt">
+            <p>
+              A portfolio is small. Serialised whole — every role, project and skill, plus live
+              GitHub and LeetCode figures — it&apos;s a couple of thousand tokens, so the summaries
+              go in the prompt unconditionally.
+            </p>
+            <p>
+              The bodies don&apos;t fit, and that&apos;s what pgvector is for: chunks are embedded
+              on save and the question retrieves the handful that matter. The layering is the
+              point. Retrieval <em>adds</em> depth rather than being the only path to the content,
+              so a missing extension, a cold cache or an embedding outage costs detail rather than
+              producing an assistant that has forgotten who it works for.
+            </p>
+            <p className="text-text">
+              Knowing which half of your content needs RAG is more useful than knowing how to build
+              it.
+            </p>
+          </Section>
+
+          <Section n="07" title="Web search, and treating results as hostile">
+            <p>
+              Ask what dbt is, or what a company in the history builds, and the assistant searches
+              rather than guessing. Two guardrails matter more than the integration.
+            </p>
+            <p>
+              First: it will not search for the subject of this site. Results for a common name are
+              other people, and a public answer can&apos;t tell them apart — everything about him
+              is already in context, so the tool refuses before it checks whether search is even
+              configured.
+            </p>
+            <p>
+              Second: retrieved text is fenced as untrusted. A search result is a page a stranger
+              wrote, and it lands in the same context window as the instructions. The visitor gets
+              the citations, the model gets the content, and the budget is per-IP so one visitor
+              can&apos;t drain a metered quota.
+            </p>
+          </Section>
+
+          <Section n="08" title="The admin is Postgres policies, not a login page">
+            <p>
+              Every table on this site is editable from a private dashboard behind Supabase auth,
+              gated on an allow-list of email addresses. But the login isn&apos;t what protects the
+              data — row-level security is, and the valuable part of it is negative space.
+            </p>
+            <p>
+              With RLS on, <strong className="text-text">absence of a policy means denial</strong>.
+              Published rows are world-readable; unpublished drafts aren&apos;t. And a few tables
+              have no visitor policy at all — the job descriptions behind saved résumés, which
+              reveal where he&apos;s applying, sit in a table that simply has no read policy beside
+              the résumés it&apos;s about.
+            </p>
+            <p>
+              That absence is invisible to anyone reading the schema quickly, and one well-meaning
+              &quot;add a read policy to everything&quot; loop would undo it silently. So the
+              schema is applied to a real Postgres in CI and the missing policies are asserted as
+              tests. The negative properties are the ones worth testing.
+            </p>
+          </Section>
+
+          <Section n="09" title="Sending a conversation on">
+            <p>
+              A recruiter who works out that someone fits usually has to convince a hiring manager
+              next, and until recently the transcript died with the tab.
+            </p>
+            <p>
+              Share stores it and hands back a link. Three decisions carry it: sharing is explicit
+              and per-conversation, so nothing is written until a button is pressed; the stored copy
+              holds only what was said, with no IP, session or identifier, which is why the feature
+              needs no consent flow; and the page is <code className="text-accent">noindex</code>{" "}
+              and disallowed in <code className="text-accent">robots.txt</code>, because these are
+              somebody&apos;s questions rather than content this site publishes.
+            </p>
+            <p>
+              The table has a read policy and deliberately no insert policy. A link works precisely
+              because whoever holds the id can read it — but writes go through the service role
+              after a click, so a link can&apos;t be forged into existence.
+            </p>
+          </Section>
+
+          <Section n="10" title="Testing an LLM feature without an LLM">
             <p>
               Every property above is verified without an API key. Tools are pure functions of
               content and arguments, so the tests hand them fabricated IDs and assert the
@@ -212,17 +355,26 @@ if (!accepted.length) {
               send-shaped tool exists.
             </p>
             <p>
-              133 checks run in about two seconds, covering the tool layer, theme-token parity,
-              contrast in both modes, structured data, and Google Drive link conversion. What they
-              can&apos;t test is whether the model chooses to call the right tool — that&apos;s a
-              judgment, and judgments need evals rather than assertions.
+              Just under 700 checks run in a few seconds, covering the tool layer, theme-token
+              parity, contrast in both modes, structured data, the LaTeX escaper, the schema
+              against a real Postgres, and the client/server boundary — that last one after a
+              helper living in a{" "}
+              <code className="text-accent">&quot;use client&quot;</code> module was called from
+              the server, which compiles, type-checks and builds clean before failing on every
+              request.
+            </p>
+            <p>
+              What they can&apos;t test is whether the model chooses to call the right tool —
+              that&apos;s a judgment, and judgments need evals rather than assertions.
             </p>
           </Section>
         </div>
 
         <footer className="mt-16 border-t border-hairline pt-8">
           <p className="text-muted">
-            Next.js, the Vercel AI SDK, Supabase, and OpenAI for tool calling. The source is{" "}
+            Next.js and the Vercel AI SDK, Supabase for Postgres and pgvector, OpenAI for tool
+            calling and embeddings, Tavily for search, and a container on Cloud Run that does
+            nothing but run pdflatex. The source is{" "}
             <a
               href="https://github.com/anhatsingh/anhatsingh.github.io"
               target="_blank"

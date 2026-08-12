@@ -15,6 +15,7 @@ import { seedPortfolio } from "../lib/content/seed";
 import { serializePortfolio } from "../lib/chat/context";
 import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "../lib/chat/prompt";
 import { addressableIds } from "../lib/content/types";
+import { readFileSync } from "node:fs";
 
 let failures = 0;
 
@@ -624,6 +625,51 @@ console.log("\n── prompt injection wrapper ──");
     "entries with a body are advertised to the model",
     bodyContext.includes("HAS A FULL WRITE-UP"),
   );
+
+  /*
+    The working note has to stay true.
+
+    /how-it-works describes this system to people deciding whether to interview
+    its author, which makes a stale claim on it worse than no page at all — the
+    thing it says about him is the opposite of the one intended. The numbers are
+    what rot silently, so they are pinned to the code they describe.
+  */
+  console.log("\n── the working note still describes this system ──");
+  {
+    const page = readFileSync("app/how-it-works/page.tsx", "utf8");
+    const toolCount = Object.keys(tools).length;
+    const WORDS = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen"];
+
+    check(
+      `it names the number of tools there are (${toolCount})`,
+      page.includes(`${WORDS[toolCount - 10] ?? toolCount} tools`),
+    );
+    check(
+      "the cooldown it quotes is the one enforced",
+      page.includes("1.2-second floor") &&
+        readFileSync("components/ui-control.tsx", "utf8").includes("NAV_COOLDOWN_MS = 1200"),
+    );
+    check(
+      "it describes a capability that still doesn't exist",
+      page.includes("cannot send email") &&
+        !/sendEmail: tool\(/.test(readFileSync("lib/chat/tools.ts", "utf8")),
+    );
+    /*
+      This claim inverted once already: the page argued there was no vector
+      database, and then one arrived. That is the failure this guards.
+    */
+    check("it no longer claims there is no vector database", !page.includes("no vector database"));
+    check(
+      "the retrieval it describes is the retrieval that runs",
+      page.includes("pgvector") &&
+        readFileSync("lib/chat/embeddings.ts", "utf8").includes("match_content_chunks"),
+    );
+    check(
+      "the résumé pipeline it draws is the one that ships",
+      page.includes("pdflatex, twice") &&
+        readFileSync("lib/resume/compile.ts", "utf8").includes("Compiles twice"),
+    );
+  }
 
   console.log(
     failures === 0
