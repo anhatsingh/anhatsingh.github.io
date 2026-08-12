@@ -18,8 +18,16 @@ import { useChatDock } from "./chat-provider";
   of the page instead of remounting when the layout splits.
 */
 
+/*
+  "Show me around" leads deliberately.
+
+  The scroll-and-highlight machinery is the unusual thing about this site and
+  almost nobody finds it, because asking a chat box to drive a page isn't a
+  thing people think to try. Offering it as the first chip is the difference
+  between a feature and a feature somebody uses.
+*/
 const STARTERS = [
-  "What's he built with RAG?",
+  "Show me around",
   "Best project?",
   "Paste a job description",
   "How do I reach him?",

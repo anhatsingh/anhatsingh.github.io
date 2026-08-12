@@ -190,7 +190,7 @@ function MessageParts({ message }: { message: UIMessage }) {
 }
 
 const STARTERS = [
-  "What has Anhat built with RAG?",
+  "Show me around",
   "Walk me through his best project",
   "Paste a job description →",
   "I'd like to reach out",

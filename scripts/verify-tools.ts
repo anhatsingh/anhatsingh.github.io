@@ -387,6 +387,29 @@ async function main() {
       "a refusal is honoured rather than re-asked",
       /Never ask twice/.test(prompt),
     );
+
+    /*
+      The tour is the one behaviour that lives only in the prompt — there is no
+      tour tool to call, because it is a sequence of tools that already exist.
+      What's assertable is that the instruction is present and ordered, and
+      that the chip advertising it still says the words the prompt listens for.
+    */
+    check("the tour is described", /# The tour/.test(prompt));
+    check(
+      "it drives the page in order",
+      prompt.indexOf("focusSection experience") < prompt.indexOf("focusSection projects") &&
+        prompt.indexOf("focusSection projects") < prompt.indexOf("Land on contact"),
+    );
+    check("it is told to keep it short", /under 120 words/.test(prompt));
+    // A fixed list of what to highlight would go stale the moment a row is
+    // added or unpublished.
+    check(
+      "what to highlight comes from CONTEXT, not a hardcoded list",
+      /Pick what to highlight from CONTEXT/.test(prompt),
+    );
+    check("empty sections are skipped rather than announced",
+      /skip it rather than announcing/.test(prompt));
+    check("the prompt answers to the wording on the chip", /shown around/.test(prompt));
   }
 
   console.log("\n── draftContactMessage: never sends ──");
