@@ -11,7 +11,26 @@ export function Hero({ profile }: { profile: Profile }) {
   const socials = socialLinks(profile);
 
   return (
-    <section id="hero" className="flex min-h-[88vh] flex-col justify-center py-20">
+    /*
+      Sized to leave the next section showing.
+
+      At 88vh, plus the sticky header, the hero filled the screen and the only
+      thing below the fold was About's top padding — so the first impression
+      was a chat box and nothing else, and there was no reason to think
+      scrolling would do anything. Now About's eyebrow and heading clear the
+      fold, which says there is a page here far better than an arrow would.
+
+      svh, not vh: on mobile vh is measured against the viewport with browser
+      chrome retracted, so a vh-sized hero is taller than what's actually on
+      screen and eats the reveal exactly where it matters most.
+
+      The 14rem is the header plus the ~170px it takes to bring "00 — About"
+      and its heading into view.
+    */
+    <section
+      id="hero"
+      className="flex min-h-[calc(100svh-14rem)] flex-col justify-center py-16"
+    >
       <div className="flex items-center gap-3">
         <span className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
           /// {profile.tagline}
