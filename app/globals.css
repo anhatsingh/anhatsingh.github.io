@@ -391,23 +391,41 @@ body {
   the button is wrapped rather than merely bordered — a border can't carry a
   gradient that moves.
 */
+/*
+  The centring lives in the keyframes, not in a utility class.
+
+  An animation's transform replaces the property outright rather than composing
+  with it, so a `to { transform: rotate(1turn) }` alongside Tailwind's
+  -translate-x-1/2 threw the layer half its own width off-centre and span it
+  about a point outside the button — which, behind an overflow-hidden edge,
+  showed as nothing moving at all.
+*/
 @keyframes border-sweep {
+  from {
+    transform: translate(-50%, -50%) rotate(0turn);
+  }
   to {
-    transform: rotate(1turn);
+    transform: translate(-50%, -50%) rotate(1turn);
   }
 }
 
 .animate-border-sweep {
+  /*
+    A wide, bright band rather than a thin bright line. The ring it lights is
+    two pixels tall, so an arc that only spans a few degrees is gone before the
+    eye finds it — most of the perimeter should be lit at any moment, with one
+    end clearly leading.
+  */
   background: conic-gradient(
     from 0deg,
     transparent 0%,
-    transparent 58%,
-    color-mix(in srgb, var(--invite) 45%, transparent) 72%,
-    var(--invite) 82%,
-    color-mix(in srgb, var(--invite) 45%, transparent) 92%,
+    transparent 30%,
+    color-mix(in srgb, var(--invite) 50%, transparent) 55%,
+    var(--invite) 78%,
+    color-mix(in srgb, var(--invite) 50%, transparent) 95%,
     transparent 100%
   );
-  animation: border-sweep 2.8s linear infinite;
+  animation: border-sweep 2.2s linear infinite;
 }
 
 /*

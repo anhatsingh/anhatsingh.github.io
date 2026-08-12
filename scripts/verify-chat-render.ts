@@ -365,10 +365,14 @@ console.log("\n── the nudge knows when to stop ──");
 {
   const btn = readFileSync("components/chat/tour-button.tsx", "utf8");
   check("it arrives after the page settles, not at first paint", /NUDGE_DELAY_MS = \d/.test(btn));
-  check("it stops on its own", /NUDGE_DURATION_MS = 60_000/.test(btn));
+  check("it stops on its own", /NUDGE_DURATION_MS = 30_000/.test(btn));
   check("nobody mid-conversation is pointed at the chat", /messages\.length > 0\) return/.test(btn));
-  check("it is remembered across visits", /localStorage\.setItem\(SEEN_KEY/.test(btn));
-  check("storage being unavailable doesn't break the button", /catch \{/.test(btn));
+  /*
+    Every visit, not once per person. The tour walks whatever the site
+    currently says, so it is worth taking more than once, and somebody who
+    ignored it in January has not decided anything.
+  */
+  check("it isn't suppressed after the first visit", !btn.includes("localStorage"));
 
   /*
     The moving edge is a layer behind a 1px inset, not a border — a border
@@ -385,6 +389,16 @@ console.log("\n── the nudge knows when to stop ──");
 
   const css = readFileSync("app/globals.css", "utf8");
   check("the sweep is defined", /@keyframes border-sweep/.test(css));
+  /*
+    An animation's transform replaces the property rather than composing with
+    it, so the centring has to live in the keyframes. Left to a utility class it
+    was thrown half its own width off-centre and span about a point outside the
+    button — which, behind an overflow-hidden edge, showed as nothing moving.
+  */
+  check(
+    "the keyframes carry the centring, not just the rotation",
+    /@keyframes border-sweep \{[\s\S]{0,220}?from \{[\s\S]{0,80}?translate\(-50%, -50%\) rotate\(0turn\)/.test(css),
+  );
   /*
     Hidden outright under reduced motion rather than slowed. The global rule
     collapses animations to one instant run, which would leave the arc frozen

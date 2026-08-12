@@ -21,9 +21,6 @@ import { useChatDock } from "./chat-provider";
   same button rather than a different offer. This one is a different offer.
 */
 
-/** Remembers that this person has been offered the tour. */
-const SEEN_KEY = "anhat.tour.offered";
-
 /*
   Late enough to be a change rather than part of the page.
 
@@ -34,8 +31,17 @@ const SEEN_KEY = "anhat.tour.offered";
 */
 const NUDGE_DELAY_MS = 2200;
 
-/** And it stops. Nothing on a page should move indefinitely. */
-const NUDGE_DURATION_MS = 60_000;
+/*
+  And it stops. Nothing on a page should move indefinitely, and half a minute
+  is long enough to be noticed by someone reading rather than only by someone
+  already looking at the header.
+
+  Deliberately every visit rather than once per person. The tour is worth
+  taking more than once — it walks whatever the site currently says — and
+  somebody who ignored it in January is not somebody who has decided. It costs
+  a returning visitor thirty seconds of a light in the corner of their eye.
+*/
+const NUDGE_DURATION_MS = 30_000;
 
 export function TourButton() {
   const { send, open, status, messages } = useChatDock();
@@ -44,17 +50,12 @@ export function TourButton() {
   const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
-    // Someone already talking has found the chat; pointing at it is noise.
+    /*
+      Someone already talking has found the chat, so pointing at it is noise.
+      This also covers a reload mid-visit: the conversation is restored from
+      session storage, so the nudge doesn't restart on top of it.
+    */
     if (messages.length > 0) return;
-
-    let seen = false;
-    try {
-      seen = localStorage.getItem(SEEN_KEY) === "1";
-    } catch {
-      // Private browsing throws on read. Treat it as a first visit — being
-      // offered the tour twice is a smaller cost than never being offered it.
-    }
-    if (seen) return;
 
     const show = setTimeout(() => setNudge(true), NUDGE_DELAY_MS);
     const hide = setTimeout(() => setNudge(false), NUDGE_DELAY_MS + NUDGE_DURATION_MS);
@@ -66,11 +67,6 @@ export function TourButton() {
 
   const start = () => {
     setNudge(false);
-    try {
-      localStorage.setItem(SEEN_KEY, "1");
-    } catch {
-      /* Nothing to do; the nudge simply reappears next visit. */
-    }
     open();
     send("Show me around");
   };
@@ -79,13 +75,17 @@ export function TourButton() {
     /*
       Wrapped rather than merely bordered.
 
-      A CSS border cannot carry a gradient that moves, so the ring is a 1px
-      inset: this element is the boundary, the rotating arc sits behind it, and
-      the button's own opaque background covers everything but the edge. Idle,
-      the wrapper is a flat violet and reads exactly as a border.
+      A CSS border cannot carry a gradient that moves, so the ring is a two
+      pixel inset: this element is the boundary, the rotating arc sits behind
+      it, and the button's own opaque background covers everything but the
+      edge. Idle, the wrapper is a flat violet and reads exactly as a border.
+
+      Two pixels rather than one because one is what a border is for. The ring
+      has to carry a travelling highlight, and at a single pixel on a control
+      this size the light was gone before the eye found it.
     */
     <span
-      className={`relative inline-flex shrink-0 overflow-hidden rounded-[var(--radius)] p-px shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)] transition-colors ${
+      className={`relative inline-flex shrink-0 overflow-hidden rounded-[var(--radius)] p-[2px] shadow-[0_0_0_3px_color-mix(in_srgb,var(--invite)_12%,transparent)] transition-colors ${
         nudge ? "bg-invite/25" : "bg-invite/60"
       }`}
     >
@@ -96,8 +96,12 @@ export function TourButton() {
             Oversized and square so the arc sweeps corners as evenly as sides. A
             layer the size of the button would rotate through a rectangle, and
             the highlight would visibly stall at each corner.
+
+            No translate utilities here: the keyframes own the whole transform,
+            because an animation replaces the property rather than composing
+            with it.
           */
-          className="animate-border-sweep pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[240%] -translate-x-1/2 -translate-y-1/2"
+          className="animate-border-sweep pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[240%]"
         />
       )}
 
@@ -111,7 +115,7 @@ export function TourButton() {
           translucent fill would let the sweeping arc show through the middle of
           the button instead of only around its edge.
         */
-        className="relative inline-flex items-center gap-1.5 rounded-[calc(var(--radius)-1px)] bg-[color-mix(in_srgb,var(--invite)_10%,var(--bg))] px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite transition-colors hover:bg-[color-mix(in_srgb,var(--invite)_22%,var(--bg))] disabled:opacity-40"
+        className="relative inline-flex items-center gap-1.5 rounded-[calc(var(--radius)-2px)] bg-[color-mix(in_srgb,var(--invite)_10%,var(--bg))] px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-invite transition-colors hover:bg-[color-mix(in_srgb,var(--invite)_22%,var(--bg))] disabled:opacity-40"
       >
         <span aria-hidden="true">↝</span>
         <span className="hidden sm:inline">Show me around</span>
