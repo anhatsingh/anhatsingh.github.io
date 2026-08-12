@@ -3,6 +3,7 @@
 import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatProvider } from "@/components/chat/chat-provider";
 import { ResumeButton } from "@/components/chat/resume-button";
+import { TalkButton } from "@/components/chat/talk-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UIControlProvider, useUIControl } from "@/components/ui-control";
 import { DownloadIcon } from "@/components/ui/icons";
@@ -89,6 +90,10 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
           )}
 
           <ThemeToggle />
+
+          {/* Rightmost: the chat is the thing this site does that others
+              don't, so it gets the last word in the bar. */}
+          <TalkButton />
         </div>
       </div>
     </header>

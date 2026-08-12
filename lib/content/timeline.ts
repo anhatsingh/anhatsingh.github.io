@@ -97,98 +97,102 @@ export function formatMonth(value: string | null | undefined): string {
   return idx >= 0 && idx < 12 ? `${MONTH_LABELS[idx]} ${m[1]}` : m[1];
 }
 
-export interface TimelineEntry {
+/** One role, with its own dates and duration. */
+export interface TimelineRole {
   item: Experience;
   months: number;
   duration: string;
   range: string;
-  /**
-   * Quarters of empty time between this role's end and the *next* role down
-   * (the previous one chronologically). Drives the spacing, so the gap between
-   * two cards reflects the gap between two jobs.
-   */
-  gapQuarters: number;
-  /** Whether that gap is worth drawing a marker for. */
-  gapLabel: string | null;
 }
 
-/*
-  Spacing is quantised to three-month steps rather than being purely linear.
-  Linear spacing makes a four-year gap push the next role off the screen, and
-  makes two roles a month apart collide; quarters keep the proportion legible
-  while bounding both ends.
-*/
-export const QUARTER_GAP_PX = 26;
-export const MAX_GAP_QUARTERS = 6;
+/**
+ * Consecutive roles at one employer, presented as a single tenure.
+ *
+ * Two rows for the same company read as two unrelated jobs, which undersells a
+ * promotion and makes the timeline look busier than the career was. Grouping is
+ * limited to *consecutive* rows on purpose: returning to an employer years
+ * later is a different thing, and collapsing that would hide the gap between.
+ */
+export interface TimelineGroup {
+  company: string;
+  companyUrl?: string;
+  logoUrl?: string;
+  location?: string;
+  roles: TimelineRole[];
+  /** Across every role in the group. */
+  range: string;
+  duration: string;
+  /** True when the most recent role has no end date. */
+  current: boolean;
+}
+
+function describeRole(item: Experience): TimelineRole {
+  const months = durationMonths(item.startDate, item.endDate);
+  return {
+    item,
+    months,
+    duration: formatDuration(months),
+    range: `${formatMonth(item.startDate)} — ${formatMonth(item.endDate)}`,
+  };
+}
 
 /**
- * Decorates roles with duration and the gap to the one below them.
+ * Groups the experience list into employers, preserving the given order.
  *
- * The incoming order is preserved rather than re-sorted. sort_order is set in
- * the admin panel — including by its "sort by date" control — and re-sorting
- * here would silently override whichever direction was chosen there.
- *
- * Gaps are measured symmetrically between the two adjacent roles' date ranges,
- * so they come out the same whether the list runs newest-first or oldest-first,
- * and a hand-ordered list that isn't chronological simply shows no gaps rather
- * than nonsense ones.
+ * The order is not re-derived here: sort_order is set in the admin panel,
+ * including by its "sort by date" control, and re-sorting would silently
+ * override whichever direction was chosen there.
  */
-export function buildTimeline(experience: Experience[]): TimelineEntry[] {
-  const list = [...experience];
+export function buildTimeline(experience: Experience[]): TimelineGroup[] {
+  const groups: TimelineGroup[] = [];
 
-  return list.map((item, i) => {
-    const months = durationMonths(item.startDate, item.endDate);
-    const next = list[i + 1];
+  for (const item of experience) {
+    const last = groups[groups.length - 1];
 
-    let gapQuarters = 0;
-    let gapLabel: string | null = null;
-
-    if (next) {
-      const aStart = monthIndex(item.startDate, false);
-      const aEnd = monthIndex(item.endDate);
-      const bStart = monthIndex(next.startDate, false);
-      const bEnd = monthIndex(next.endDate);
-
-      if (aStart !== null && aEnd !== null && bStart !== null && bEnd !== null) {
-        // Clear months between two intervals; negative when they overlap.
-        const gapMonths = Math.max(aStart, bStart) - Math.min(aEnd, bEnd) - 1;
-        if (gapMonths >= 3) {
-          gapQuarters = Math.min(MAX_GAP_QUARTERS, Math.round(gapMonths / 3));
-          gapLabel = formatDuration(gapMonths);
-        }
-      }
+    if (last && last.company === item.company) {
+      last.roles.push(describeRole(item));
+      continue;
     }
 
-    return {
-      item,
-      months,
-      duration: formatDuration(months),
-      range: `${formatMonth(item.startDate)} — ${formatMonth(item.endDate)}`,
-      gapQuarters,
-      gapLabel,
-    };
-  });
-}
+    groups.push({
+      company: item.company,
+      companyUrl: item.companyUrl,
+      logoUrl: item.logoUrl,
+      location: item.location,
+      roles: [describeRole(item)],
+      range: "",
+      duration: "",
+      current: false,
+    });
+  }
 
-/**
- * Newest first, with a hand-set `sort_order` still winning.
- *
- * Applied in the component rather than the query for the same reason the
- * timeline sorts there: it keeps rendering correct regardless of whether the
- * date columns have been migrated in yet, and a few dozen rows cost nothing.
- * Undated projects sink to the bottom rather than jumping to the top.
- */
-export function sortProjectsByDate<T extends { started?: string; ended?: string }>(
-  projects: T[],
-): T[] {
-  return [...projects].sort((a, b) => {
-    const ai = monthIndex(a.started, false);
-    const bi = monthIndex(b.started, false);
-    if (ai === null && bi === null) return 0;
-    if (ai === null) return 1;
-    if (bi === null) return -1;
-    return bi - ai;
-  });
+  for (const group of groups) {
+    /*
+      The tenure spans the whole group, which is not the sum of its roles —
+      overlapping or back-to-back roles would double-count, and a promotion
+      mid-month would add a month that never happened.
+    */
+    const starts = group.roles.map((r) => monthIndex(r.item.startDate, false)).filter((v): v is number => v !== null);
+    const ongoing = group.roles.some((r) => !r.item.endDate);
+    const ends = group.roles.map((r) => monthIndex(r.item.endDate)).filter((v): v is number => v !== null);
+
+    const first = starts.length ? Math.min(...starts) : null;
+    const lastEnd = ends.length ? Math.max(...ends) : null;
+
+    group.current = ongoing;
+    group.duration = first !== null && lastEnd !== null ? formatDuration(Math.max(1, lastEnd - first + 1)) : "";
+
+    // Earliest start to latest end, whichever rows those came from.
+    const earliest = group.roles.reduce((a, b) =>
+      (monthIndex(a.item.startDate, false) ?? 0) <= (monthIndex(b.item.startDate, false) ?? 0) ? a : b,
+    );
+    const latest = group.roles.reduce((a, b) =>
+      (monthIndex(a.item.endDate) ?? 0) >= (monthIndex(b.item.endDate) ?? 0) ? a : b,
+    );
+    group.range = `${formatMonth(earliest.item.startDate)} — ${formatMonth(latest.item.endDate)}`;
+  }
+
+  return groups;
 }
 
 /**

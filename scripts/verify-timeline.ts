@@ -15,7 +15,6 @@ import {
   formatDuration,
   formatMonth,
   monthIndex,
-  sortProjectsByDate,
 } from "../lib/content/timeline";
 import type { Experience } from "../lib/content/types";
 
@@ -79,109 +78,63 @@ check("YYYY-MM becomes a short month", formatMonth("2024-03") === "Mar 2024", fo
 check("a bare year stays a year", formatMonth("2021") === "2021");
 check("null is Present", formatMonth(null) === "Present");
 
-console.log("\n── buildTimeline ──");
+console.log("\n── grouping by employer ──");
 {
-  // Newest-first, the order sort_order gives after "Newest first" in admin.
-  const entries = buildTimeline([
-    role({ slug: "now", startDate: "2024-03", endDate: null }),
-    role({ slug: "mid", startDate: "2022-01", endDate: "2023-06" }),
-    role({ slug: "old", startDate: "2019-01", endDate: "2019-12" }),
+  /*
+    Two consecutive roles at one company are one tenure. Rendering them as two
+    separate blocks reads as two unrelated jobs, which undersells a promotion.
+  */
+  const groups = buildTimeline([
+    role({ slug: "now", startDate: "2026-04", endDate: null, company: "Mavenzeit", role: "Founding Engineer" }),
+    role({ slug: "senior", startDate: "2025-04", endDate: "2026-03", company: "Dom Ventas", role: "Senior Dev" }),
+    role({ slug: "mid", startDate: "2024-11", endDate: "2025-04", company: "Dom Ventas", role: "Dev" }),
+    role({ slug: "ds", startDate: "2024-01", endDate: "2024-07", company: "Axtria", role: "Data Scientist" }),
   ]);
 
-  // The admin panel owns the order now; re-sorting here would override it.
-  check("input order is preserved, not re-sorted",
-    entries.map((e) => e.item.slug).join(",") === "now,mid,old",
-    entries.map((e) => e.item.slug).join(","));
+  check("one block per employer", groups.length === 3, groups.map((g) => g.company).join(", "));
+  check("the repeated employer holds both roles",
+    groups[1].company === "Dom Ventas" && groups[1].roles.length === 2,
+    `${groups[1].company}: ${groups[1].roles.length}`);
+  check("roles keep the order they were given",
+    groups[1].roles.map((r) => r.item.slug).join(",") === "senior,mid");
+  check("a single-role employer is still a group of one", groups[0].roles.length === 1);
+  check("input order is preserved across groups",
+    groups.map((g) => g.company).join(",") === "Mavenzeit,Dom Ventas,Axtria");
 
-  check("range reads start to end", entries[1].range === "Jan 2022 — Jun 2023", entries[1].range);
-  check("a current role ranges to Present", entries[0].range.endsWith("Present"), entries[0].range);
-  check("duration computed", entries[1].duration === "1 yr 6 mos", entries[1].duration);
+  // The tenure spans the whole group, not the sum of its parts: adding the
+  // roles would double-count an overlap and invent a month at every handover.
+  check("tenure runs from the earliest start to the latest end",
+    groups[1].range === "Nov 2024 — Mar 2026", groups[1].range);
+  check("tenure duration covers the whole span, not the sum of roles",
+    groups[1].duration === "1 yr 5 mos", groups[1].duration);
 
-  // now starts 2024-03, mid ended 2023-06 → 8 clear months → 3 quarters.
-  check("a real gap is measured", entries[0].gapQuarters === 3, String(entries[0].gapQuarters));
-  check("the gap is labelled in months", entries[0].gapLabel === "8 mos", String(entries[0].gapLabel));
-  check("the last entry has no gap below it", entries[2].gapQuarters === 0);
+  check("each role keeps its own range", groups[1].roles[1].range === "Nov 2024 — Apr 2025",
+    groups[1].roles[1].range);
+  check("a current role marks its group current", groups[0].current === true);
+  check("a finished group is not current", groups[1].current === false);
+  check("an ongoing group reads as Present", groups[0].range.endsWith("Present"), groups[0].range);
 }
 {
-  // Same roles, oldest-first — what "Oldest first" in admin produces. Gaps must
-  // come out identical, or the markers would only be right in one direction.
-  const asc = buildTimeline([
-    role({ slug: "old", startDate: "2019-01", endDate: "2019-12" }),
-    role({ slug: "mid", startDate: "2022-01", endDate: "2023-06" }),
-    role({ slug: "now", startDate: "2024-03", endDate: null }),
+  // Returning to an employer years later is a different thing from a
+  // promotion, so only *consecutive* rows collapse.
+  const groups = buildTimeline([
+    role({ slug: "a", startDate: "2024-01", endDate: "2025-01", company: "Acme", role: "Senior" }),
+    role({ slug: "b", startDate: "2022-01", endDate: "2023-01", company: "Other", role: "Dev" }),
+    role({ slug: "c", startDate: "2020-01", endDate: "2021-01", company: "Acme", role: "Junior" }),
   ]);
-  check("ascending order is left alone too",
-    asc.map((e) => e.item.slug).join(",") === "old,mid,now",
-    asc.map((e) => e.item.slug).join(","));
-  // Dec 2019 → Jan 2022 is 24 clear months.
-  check("the 2019→2022 gap is found going up as well as down",
-    asc[0].gapLabel === "2 yrs", String(asc[0].gapLabel));
-  check("the 2023→2024 gap matches the descending run",
-    asc[1].gapLabel === "8 mos", String(asc[1].gapLabel));
-
-  // The point of the symmetric formula: reversing the list must not change a
-  // single gap, only which end of the list they attach to.
-  const desc = buildTimeline([
-    role({ slug: "now", startDate: "2024-03", endDate: null }),
-    role({ slug: "mid", startDate: "2022-01", endDate: "2023-06" }),
-    role({ slug: "old", startDate: "2019-01", endDate: "2019-12" }),
-  ]);
-  check("the same gaps appear in both directions",
-    JSON.stringify(asc.slice(0, 2).map((e) => e.gapLabel).reverse()) ===
-      JSON.stringify(desc.slice(0, 2).map((e) => e.gapLabel)),
-    `${asc.map((e) => e.gapLabel)} vs ${desc.map((e) => e.gapLabel)}`);
+  check("a non-adjacent return to an employer stays separate", groups.length === 3,
+    groups.map((g) => g.company).join(","));
 }
 {
-  const scrambled = buildTimeline([
-    role({ slug: "mid", startDate: "2022-01", endDate: "2023-06" }),
-    role({ slug: "old", startDate: "2019-01", endDate: "2019-12" }),
-    role({ slug: "now", startDate: "2024-03", endDate: null }),
+  const groups = buildTimeline([
+    role({ slug: "a", startDate: "2022-09", endDate: "2022-12", company: "Busineswise", role: "Dev" }),
+    role({ slug: "b", startDate: "2022-09", endDate: "2022-12", company: "IIT Madras", role: "Mentor" }),
   ]);
-  check("a hand-ordered list keeps its order",
-    scrambled.map((e) => e.item.slug).join(",") === "mid,old,now");
-  check("gaps stay non-negative when the order isn't chronological",
-    scrambled.every((e) => e.gapQuarters >= 0));
+  check("concurrent roles at different employers stay separate", groups.length === 2);
 }
 {
-  const back2back = buildTimeline([
-    role({ slug: "a", startDate: "2023-01", endDate: "2023-06" }),
-    role({ slug: "b", startDate: "2023-07", endDate: "2023-12" }),
-  ]);
-  check("consecutive roles draw no gap", back2back[0].gapQuarters === 0,
-    String(back2back[0].gapQuarters));
-}
-{
-  const overlap = buildTimeline([
-    role({ slug: "a", startDate: "2023-01", endDate: "2023-12" }),
-    role({ slug: "b", startDate: "2023-06", endDate: "2024-06" }),
-  ]);
-  check("overlapping roles never produce a negative gap",
-    overlap.every((e) => e.gapQuarters >= 0));
-}
-{
-  const huge = buildTimeline([
-    role({ slug: "a", startDate: "2005-01", endDate: "2005-06" }),
-    role({ slug: "b", startDate: "2024-01", endDate: "2024-06" }),
-  ]);
-  // Without the cap, a 19-year gap would push the older role off the screen.
-  check("an enormous gap is capped", huge[0].gapQuarters <= 6, String(huge[0].gapQuarters));
-}
-
-console.log("\n── sortProjectsByDate ──");
-{
-  const sorted = sortProjectsByDate([
-    { slug: "undated" },
-    { slug: "old", started: "2019-05" },
-    { slug: "new", started: "2024-01" },
-    { slug: "mid", started: "2021-11" },
-  ] as Array<{ slug: string; started?: string }>);
-
-  check("newest first", sorted.slice(0, 3).map((p) => p.slug).join(",") === "new,mid,old",
-    sorted.map((p) => p.slug).join(","));
-  // Undated projects at the top would put the least-known work first.
-  check("undated sinks to the bottom", sorted[3].slug === "undated", sorted[3].slug);
-  check("a bare year sorts against a YYYY-MM",
-    sortProjectsByDate([{ started: "2020-06" }, { started: "2021" }])[0].started === "2021");
+  const groups = buildTimeline([]);
+  check("an empty list produces no groups", groups.length === 0);
 }
 
 console.log(failures === 0 ? "\nAll timeline checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
