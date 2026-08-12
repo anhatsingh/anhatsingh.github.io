@@ -22,6 +22,7 @@ import { looksUnanswered } from "../lib/chat/analytics";
 import type { UIMessage } from "ai";
 import { dwellFor } from "../components/chat/tour-card";
 import { readFileSync } from "node:fs";
+import { classifyReply } from "../lib/chat/analytics";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -292,6 +293,64 @@ console.log("\n── the tour shows itself ──");
 
   const graph = readFileSync("components/sections/life-graph.tsx", "utf8");
   check('the graph rings when the page is sent to it', /activeLandmark === "life-graph"/.test(graph));
+}
+
+/*
+  Telling a decline apart from a gap.
+
+  Both are the assistant not answering, and only one is a to-do. "Couldn't
+  answer" is meant to be the list of things to write next, so a question it can
+  never answer — how to handle a former president — belongs somewhere else or
+  the list stops being a to-do list.
+
+  Order is the subtle part: a scope decline often borrows the wording of a
+  content gap, so off-topic has to be tested first.
+*/
+console.log("\n── a decline is not a gap ──");
+{
+  const declines = [
+    "I can only help with Anhat, his work, or role fit — though \u201chandle Barack Obama\u201d is certainly a memorable job description.",
+    "I only talk about Anhat and his work, but nice try.",
+    "That's a bit outside what I'm here for — ask me about his projects instead.",
+    "I'll stick to his portfolio, but happy to take any question about the work.",
+  ];
+  for (const reply of declines) {
+    const verdict = classifyReply(reply);
+    check(
+      `off-topic: "${reply.slice(0, 44)}…"`,
+      verdict.kind === "off_topic" && !verdict.answered,
+      verdict.kind,
+    );
+  }
+
+  const gaps = [
+    "That's not something I have on file.",
+    "There's no record of that in his portfolio.",
+  ];
+  for (const reply of gaps) {
+    const verdict = classifyReply(reply);
+    check(`still a gap: "${reply.slice(0, 40)}…"`, verdict.kind === "question" && !verdict.answered);
+  }
+
+  const answers = [
+    "He built the retrieval pipeline at Mavenzeit, which is the closest match here.",
+    "Yes — he has direct experience with Celery and Redis.",
+  ];
+  for (const reply of answers) {
+    const verdict = classifyReply(reply);
+    check(`still an answer: "${reply.slice(0, 40)}…"`, verdict.kind === "question" && verdict.answered);
+  }
+
+  /*
+    The case that motivates the ordering: a decline that also sounds like a gap
+    must not land on the to-do list.
+  */
+  const both = "I don't have anything on that — I can only help with Anhat and his work.";
+  check("a decline worded like a gap is still a decline", classifyReply(both).kind === "off_topic");
+
+  const admin = readFileSync("app/admin/(protected)/page.tsx", "utf8");
+  check("the to-do list holds questions only", /kind === "question"/.test(admin));
+  check("declines get their own panel", /Declined as off-topic/.test(admin));
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

@@ -75,9 +75,16 @@ export default async function AdminDashboard() {
     each is a gap in the content, named by somebody who wanted it — so they
     lead.
   */
-  const asked = questions.filter((q) => q.kind !== "role_interest");
+  /*
+    Off-topic asks are kept out of both other lists. They aren't a gap — no
+    amount of writing makes the assistant able to advise on handling Barack
+    Obama — and counting them as questions visitors ask would overstate how much
+    of the traffic is about the work.
+  */
+  const asked = questions.filter((q) => q.kind === "question");
   const unanswered = tally(asked.filter((q) => !q.answered));
   const roleInterests = tally(questions.filter((q) => q.kind === "role_interest"));
+  const offTopic = tally(questions.filter((q) => q.kind === "off_topic"));
 
   return (
     <div className="space-y-12">
@@ -113,6 +120,29 @@ export default async function AdminDashboard() {
               <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">
                 <span className="min-w-0 text-sm">{q.question}</span>
                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-warn">
+                  ×{q.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {offTopic.length > 0 && (
+        <section>
+          <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
+            Declined as off-topic ({offTopic.length})
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Not about Anhat, so the assistant turned them down. Nothing to write here — this is what
+            it looks like when the scope rules are working, and it&apos;s kept out of the two lists
+            above so neither is overstated.
+          </p>
+          <ul className="mt-4 divide-y divide-hairline overflow-hidden rounded-[var(--radius)] border border-hairline">
+            {offTopic.slice(0, 15).map((q) => (
+              <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                <span className="min-w-0 text-sm text-muted">{q.question}</span>
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted">
                   ×{q.count}
                 </span>
               </li>

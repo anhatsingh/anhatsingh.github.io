@@ -497,6 +497,15 @@ async function main() {
     );
     check("empty sections are skipped rather than announced",
       /skip a stop rather than announcing/.test(prompt));
+    /*
+      The decline has a prescribed opening for the same reason the gap
+      phrasings do: the reply is what gets classified, and a decline filed as a
+      gap turns the admin's to-do list into a list of things nobody should write.
+    */
+    check(
+      "declines open with wording the classifier recognises",
+      /Open the decline with "I can only help with"/.test(prompt),
+    );
     check("the prompt answers to the wording on the chip", /shown around/.test(prompt));
   }
 

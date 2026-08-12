@@ -9,7 +9,7 @@ import { describeScreen, idForPath, sanitizePageContext } from "@/lib/chat/page-
 import { getAdminSession } from "@/lib/supabase/auth";
 import { buildTools } from "@/lib/chat/tools";
 import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/chat/guards";
-import { logQuestion, looksUnanswered } from "@/lib/chat/analytics";
+import { classifyReply, logQuestion } from "@/lib/chat/analytics";
 import { isTourRequest, readCached, writeCached } from "@/lib/chat/cache";
 
 export const maxDuration = 30;
@@ -214,7 +214,7 @@ export async function POST(req: Request) {
     onFinish: ({ text }) => {
       // Fire-and-forget, same as before: a logging failure must never cost a
       // visitor their answer.
-      if (question && !isOwner) void logQuestion(question, { answered: !looksUnanswered(text) });
+      if (question && !isOwner) void logQuestion(question, classifyReply(text));
     },
   });
 

@@ -34,13 +34,50 @@ const REFUSALS = [
   /i don'?t know/i,
 ];
 
+/*
+  Declining because the question wasn't about Anhat at all.
+
+  A different thing entirely from a gap, and it has to be tested first, because
+  a scope decline often carries gap-ish wording ("I don't have anything on
+  that") while being the assistant working correctly. Filed under the same
+  heading it would turn the to-do list into a list of things nobody should
+  write: someone asked how to handle Barack Obama, and no amount of content
+  fixes that.
+*/
+const OFF_TOPIC = [
+  /\bi (can )?only (help|talk|discuss|answer)/i,
+  /\bonly (here to )?(help|talk|answer) (with|about)/i,
+  /\b(that'?s|this is) (a bit )?outside (what|my)/i,
+  /\bnot (really )?(what|something) i'?m here (for|to)/i,
+  /\bstick to\b.{0,30}\b(portfolio|work|questions)/i,
+  /\b(afraid|sorry),? (that'?s|i'?m) (not|off)\b.{0,20}\btopic\b/i,
+];
+
+export function looksOffTopic(reply: string): boolean {
+  return OFF_TOPIC.some((p) => p.test(reply));
+}
+
 export function looksUnanswered(reply: string): boolean {
   return REFUSALS.some((p) => p.test(reply));
 }
 
+export type QuestionKind = "question" | "role_interest" | "off_topic";
+
+/**
+ * What to file a turn as, from the assistant's own reply.
+ *
+ * One place, so the three lists in the admin can't disagree about what a reply
+ * meant. Order matters: off-topic is checked first, since a scope decline
+ * frequently borrows the wording of a content gap.
+ */
+export function classifyReply(reply: string): { answered: boolean; kind: QuestionKind } {
+  if (looksOffTopic(reply)) return { answered: false, kind: "off_topic" };
+  return { answered: !looksUnanswered(reply), kind: "question" };
+}
+
 export async function logQuestion(
   raw: string,
-  options: { answered?: boolean; kind?: "question" | "role_interest" } = {},
+  options: { answered?: boolean; kind?: QuestionKind } = {},
 ): Promise<void> {
   const question = raw.trim().slice(0, MAX_LENGTH);
   if (!question) return;
