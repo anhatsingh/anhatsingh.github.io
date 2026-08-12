@@ -16,11 +16,33 @@ import { ExternalIcon } from "@/components/ui/icons";
   onto three lines in a narrow dock helps nobody.
 */
 
+/*
+  The host, or a short stand-in.
+
+  Returning the raw string on failure — which this used to do — turned one
+  malformed result into an eighty-character line of encoded redirect token
+  sitting where a domain should be. Nothing that arrives from a search engine
+  is trusted to be a URL, so the fallback is bounded.
+*/
 function domainOf(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./, "");
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    // Punycode and very long subdomains both exist; neither belongs in a
+    // narrow dock at full length.
+    return host.length > 40 ? `${host.slice(0, 39)}…` : host;
   } catch {
-    return url;
+    return "source";
+  }
+}
+
+/** Only absolute http(s) links are rendered — a relative one resolves against
+    this site and lands the visitor on a 404 of ours. */
+function isLinkable(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
   }
 }
 
@@ -31,7 +53,10 @@ export function SourceList({
   topic: string;
   results: Array<{ title: string; url: string }>;
 }) {
-  if (!results.length) return null;
+  // Belt and braces: research.ts drops these at ingestion, but a stored or
+  // replayed outcome from before that fix would still be in a transcript.
+  const linkable = results.filter((r) => isLinkable(r.url));
+  if (!linkable.length) return null;
 
   return (
     <div className="mt-2 rounded-[var(--radius)] border border-hairline bg-surface p-3">
@@ -40,7 +65,7 @@ export function SourceList({
       </p>
 
       <ol className="mt-2 space-y-1">
-        {results.map((r, i) => (
+        {linkable.map((r, i) => (
           <li key={r.url} className="flex gap-2">
             {/* Numbered so the assistant's prose can point at one if it needs
                 to, without pasting a URL into the sentence. */}
@@ -56,6 +81,8 @@ export function SourceList({
               rel="noopener noreferrer nofollow"
               className="group min-w-0 flex-1"
             >
+              {/* truncate, not wrap: a long headline that reflows to four
+                  lines pushes the rest of the list off the panel. */}
               <span className="block truncate text-sm text-text group-hover:text-accent">
                 {r.title}
               </span>

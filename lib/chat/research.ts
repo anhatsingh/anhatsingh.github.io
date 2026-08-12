@@ -26,6 +26,9 @@ const TAVILY_URL = "https://api.tavily.com/search";
 export const MAX_QUERIES = 3;
 const MAX_RESULTS_PER_QUERY = 3;
 
+/** Sources shown for one answer, across all its queries. */
+const MAX_SOURCES = 5;
+
 /*
   Snippets are cut hard. A long page pasted into context is both an expensive
   way to answer a short question and a large surface for an injected
@@ -68,6 +71,62 @@ function isAboutSubject(query: string, subjectName: string): boolean {
   return parts.some((p) => q.includes(p)) && biographical.test(q);
 }
 
+/*
+  Only absolute http(s) URLs count as sources.
+
+  Tavily sometimes returns a search engine's own redirect path — "/goto?url=CAES…"
+  — rather than the page it points at. Those are worse than useless here: the
+  href resolves against this site, so clicking one lands on a 404 of ours, and
+  the "domain" printed under the title is an eighty-character blob because
+  there is no host in it to extract.
+
+  The wrapped target is an opaque token, not a URL that can be unpacked, so
+  there is nothing to salvage. A result that can't be cited isn't a source.
+*/
+export function absoluteUrl(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Titles differing only in case or punctuation are the same article. */
+function titleKey(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * Turns a raw Tavily payload into citable results.
+ *
+ * Pure, so the filtering can be tested against the shapes the API actually
+ * returns rather than only against the ones it's supposed to.
+ */
+export function normaliseResults(
+  raw: Array<{ title?: string; url?: string; content?: string }> | undefined,
+  query: string,
+): SearchResult[] {
+  const out: SearchResult[] = [];
+
+  for (const r of raw ?? []) {
+    const url = absoluteUrl(r.url);
+    const title = typeof r.title === "string" ? r.title.trim() : "";
+    if (!url || !title) continue;
+
+    out.push({
+      title: title.slice(0, 120),
+      url,
+      snippet: String(r.content ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_SNIPPET_CHARS),
+      query,
+    });
+  }
+
+  return out;
+}
+
 async function searchOne(query: string, signal: AbortSignal): Promise<SearchResult[]> {
   const res = await fetch(TAVILY_URL, {
     method: "POST",
@@ -93,14 +152,7 @@ async function searchOne(query: string, signal: AbortSignal): Promise<SearchResu
     results?: Array<{ title?: string; url?: string; content?: string }>;
   };
 
-  return (body.results ?? [])
-    .filter((r) => r.url && r.title)
-    .map((r) => ({
-      title: String(r.title).slice(0, 120),
-      url: String(r.url),
-      snippet: String(r.content ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_SNIPPET_CHARS),
-      query,
-    }));
+  return normaliseResults(body.results, query);
 }
 
 /**
@@ -154,13 +206,18 @@ export async function research(
     );
 
     const results: SearchResult[] = [];
-    const seen = new Set<string>();
+    const seenUrls = new Set<string>();
+    const seenTitles = new Set<string>();
+
     for (const outcome of settled) {
       if (outcome.status !== "fulfilled") continue;
       for (const r of outcome.value) {
-        // The same page surfacing for two queries is one source, not two.
-        if (seen.has(r.url)) continue;
-        seen.add(r.url);
+        // The same page surfacing for two queries is one source, not two — and
+        // syndicated articles come back under different hosts with the same
+        // headline, which reads as two sources agreeing when it's one.
+        if (seenUrls.has(r.url) || seenTitles.has(titleKey(r.title))) continue;
+        seenUrls.add(r.url);
+        seenTitles.add(titleKey(r.title));
         results.push(r);
       }
     }
@@ -169,7 +226,9 @@ export async function research(
       return { ok: false, error: "Nothing useful came back. Answer from CONTEXT instead." };
     }
 
-    return { ok: true, results };
+    // A citation list longer than this stops being evidence and starts being a
+    // page of links nobody reads.
+    return { ok: true, results: results.slice(0, MAX_SOURCES) };
   } catch (err) {
     console.error("[research] search failed:", err);
     return { ok: false, error: "Search is unavailable right now. Answer from CONTEXT instead." };

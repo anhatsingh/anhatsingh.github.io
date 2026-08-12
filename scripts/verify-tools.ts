@@ -10,6 +10,7 @@
 */
 
 import { buildTools, type ToolOutcome } from "../lib/chat/tools";
+import { absoluteUrl, normaliseResults } from "../lib/chat/research";
 import { seedPortfolio } from "../lib/content/seed";
 import { serializePortfolio } from "../lib/chat/context";
 import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "../lib/chat/prompt";
@@ -109,6 +110,40 @@ async function main() {
     roles.ok === true && roles.action === "roleOptions" && Object.keys(roles).length === 2,
     roles.ok === true ? Object.keys(roles).join(",") : "",
   );
+
+  console.log("\n── search results that aren't usable sources ──");
+  {
+    /*
+      Taken verbatim from what Tavily returned in production: some results carry
+      a search engine's own redirect path instead of the page. Those resolve
+      against this site, so the link 404s, and there is no host to print — the
+      "domain" line came out as an eighty-character encoded token.
+
+      The wrapped target is an opaque blob, not a URL that can be unpacked, so
+      there is nothing to recover. A result that can't be cited is not a source.
+    */
+    const raw = [
+      { title: "What Is a Call Plan Deviation in Pharma Sales?", url: "/goto?url=CAESdgHuR6pNnInth5XyGP_XFrfdKyhF", content: "x" },
+      { title: "The Secret To The Perfect Sales Call", url: "/goto?url=CAESdQHuR6pNufBbzn7nofcq1uw6uiUOLrLf", content: "x" },
+      { title: "Maximizing Pharma Sales Call Effectiveness", url: "https://p360.com/a", content: "x" },
+      { title: "Improving Targeting & Call Planning", url: "https://www.axtria.com/b", content: "x" },
+      { title: "The Secret To The Perfect Sales Call", url: "https://amplity.com/c", content: "x" },
+    ];
+
+    const clean = normaliseResults(raw, "pharma call planning");
+    check("redirect paths are dropped", clean.length === 3, `${clean.length} kept`);
+    check("every survivor is an absolute link",
+      clean.every((r) => /^https?:\/\//.test(r.url)), clean.map((r) => r.url).join(" "));
+    check("the real results are kept",
+      clean.some((r) => r.url.includes("p360.com")) && clean.some((r) => r.url.includes("axtria.com")));
+
+    check("a javascript: url is not a source", absoluteUrl("javascript:alert(1)") === null);
+    check("a bare path is not a source", absoluteUrl("/goto?url=CAES") === null);
+    check("an empty url is not a source", absoluteUrl("") === null);
+    check("a real url survives", absoluteUrl("https://p360.com/a") === "https://p360.com/a");
+    check("a titleless result is dropped",
+      normaliseResults([{ title: "", url: "https://x.dev" }], "q").length === 0);
+  }
 
   console.log("\n── web search stays off the subject ──");
   {
