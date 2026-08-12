@@ -16,7 +16,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { ChatMarkdown } from "../components/chat/chat-markdown";
-import { activityLabel } from "../components/chat/activity";
+import { statusMessage } from "../components/chat/activity";
 import type { UIMessage } from "ai";
 
 let failures = 0;
@@ -87,17 +87,50 @@ console.log("\n── what the assistant says it's doing ──");
       parts: [{ type: `tool-${name}`, toolCallId: "c1", state, input: {} }],
     }) as unknown as UIMessage;
 
-  check("a running search says so",
-    activityLabel(withTool("researchTopic", "input-available"), true) === "Searching the web",
-    String(activityLabel(withTool("researchTopic", "input-available"), true)));
+  const running = withTool("researchTopic", "input-available");
+
+  check("a running search says so", statusMessage(running, true, 0) === "Searching the web",
+    String(statusMessage(running, true, 0)));
+
+  /*
+    The message has to move. A frozen line looks identical at one second and at
+    twenty, so a slow turn is indistinguishable from a dead one — which is the
+    whole reason this exists rather than three dots.
+  */
+  check("it moves on as the call runs",
+    statusMessage(running, true, 2500) === "Reading the results",
+    String(statusMessage(running, true, 2500)));
+  check("and again", statusMessage(running, true, 5000) === "Comparing sources");
+
+  // Cycling back to "Searching" would read as a retry that never happened.
+  check("it holds on the last phase rather than looping",
+    statusMessage(running, true, 30000) === "Comparing sources",
+    String(statusMessage(running, true, 30000)));
+
   check("a finished tool no longer claims to be running",
-    activityLabel(withTool("researchTopic", "output-available"), true) === "Thinking");
+    statusMessage(withTool("researchTopic", "output-available"), true, 0) !== "Searching the web");
   check("an unknown tool still says something",
-    activityLabel(withTool("somethingNew", "input-available"), true) === "Working on it");
-  check("no tool and no stream says nothing at all",
-    activityLabel(undefined, false) === null);
-  check("waiting on the first token is thinking",
-    activityLabel(undefined, true) === "Thinking");
+    statusMessage(withTool("somethingNew", "input-available"), true, 0) === "Working on it");
+
+  console.log("\n── before the model answers ──");
+  check("it opens on connecting", statusMessage(undefined, false, 0) === "Connecting");
+  check("connecting gives way to thinking",
+    statusMessage(undefined, false, 3000) !== "Connecting",
+    String(statusMessage(undefined, false, 3000)));
+  check("streaming never says connecting",
+    statusMessage(undefined, true, 0) !== "Connecting",
+    String(statusMessage(undefined, true, 0)));
+
+  // Somebody twenty seconds in is wondering whether it broke. Cheerful
+  // rotation at that point is worse than saying so.
+  check("a long wait is acknowledged rather than dressed up",
+    /longer than usual/.test(statusMessage(undefined, true, 25000) ?? ""),
+    String(statusMessage(undefined, true, 25000)));
+
+  const seen = new Set<string>();
+  for (let t = 1500; t < 20000; t += 900) seen.add(String(statusMessage(undefined, true, t)));
+  check("the wait cycles through several phrases", seen.size >= 4, `${seen.size} distinct`);
+  check("none of them is empty", ![...seen].some((s) => !s || s === "null"));
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

@@ -6,8 +6,9 @@ import { useChatDock } from "./chat-provider";
 import { AssistantAvatar } from "./assistant-avatar";
 import { ContactCard } from "./contact-card";
 import { FitReport } from "./fit-report";
-import { Activity, activityLabel } from "./activity";
+import { Activity, isBusy } from "./activity";
 import { ChatMarkdown } from "./chat-markdown";
+import { FollowUps } from "./follow-ups";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
@@ -53,7 +54,7 @@ function ActionPill({ outcome }: { outcome: ToolOutcome }) {
   );
 }
 
-function MessageParts({ message }: { message: UIMessage }) {
+function MessageParts({ message, isLast = false }: { message: UIMessage; isLast?: boolean }) {
   /*
     Citations belong under the answer, not above it.
 
@@ -62,6 +63,19 @@ function MessageParts({ message }: { message: UIMessage }) {
     should be, and the reader met the sources before the point they support.
     They're collected out and appended instead.
   */
+  /*
+    Follow-ups render only under the newest reply. Older ones answer a
+    conversation that has moved on, and a scrollback of stale menus buries the
+    thread the visitor is following.
+  */
+  const followUps = !isLast
+    ? []
+    : message.parts.flatMap((part) => {
+        if (!isToolUIPart(part) || part.state !== "output-available") return [];
+        const outcome = part.output as ToolOutcome;
+        return outcome?.ok === true && outcome.action === "followUps" ? outcome.questions : [];
+      });
+
   const sources = message.parts.flatMap((part) => {
     if (!isToolUIPart(part) || part.state !== "output-available") return [];
     const outcome = part.output as ToolOutcome;
@@ -97,6 +111,11 @@ function MessageParts({ message }: { message: UIMessage }) {
             return <ResumeCard key={part.toolCallId} url={outcome.url} label={outcome.label} />;
           }
 
+          if (outcome?.ok === true && outcome.action === "followUps") {
+            // Rendered below the answer, not inline where it ran.
+            return null;
+          }
+
           if (outcome?.ok === true && outcome.action === "roleOptions") {
             return <RoleChips key={part.toolCallId} />;
           }
@@ -130,6 +149,8 @@ function MessageParts({ message }: { message: UIMessage }) {
       {sources.map((s) => (
         <SourceList key={s.id} topic={s.topic} results={s.results} />
       ))}
+
+      {followUps.length > 0 && <FollowUps questions={followUps} />}
     </>
   );
 }
@@ -150,14 +171,10 @@ export function ChatDock() {
 
   const busy = status === "submitted" || status === "streaming";
 
-  /*
-    Derived from the last assistant turn's tool parts, so it names the tool that
-    is actually running rather than guessing from the request state.
-  */
+  // The turn in flight, if the assistant has started one — its tool parts are
+  // what the indicator reads to name what's running.
   const last = messages[messages.length - 1];
-  const activity = busy
-    ? activityLabel(last?.role === "assistant" ? last : undefined, status === "streaming")
-    : null;
+  const inFlight = last?.role === "assistant" ? last : undefined;
 
   useEffect(() => {
     // Keep the newest content in view as tokens arrive.
@@ -256,7 +273,7 @@ export function ChatDock() {
             <div key={m.id} className="flex gap-2.5">
               <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
               <div className="min-w-0 flex-1 space-y-1 text-text">
-                <MessageParts message={m} />
+                <MessageParts message={m} isLast={m.id === messages[messages.length - 1]?.id} />
               </div>
             </div>
           ),
@@ -268,10 +285,14 @@ export function ChatDock() {
           read as stuck. Shown while streaming too, since a tool called
           mid-answer keeps working long after the first token lands.
         */}
-        {activity && (
+        {/*
+          Last in the list, under the conversation, so it sits where the next
+          answer will appear rather than above what has already been said.
+        */}
+        {isBusy(status) && (
           <div className="flex items-center gap-2.5">
             <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
-            <Activity label={activity} />
+            <Activity message={inFlight} streaming={status === "streaming"} />
           </div>
         )}
 

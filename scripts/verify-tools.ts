@@ -164,6 +164,44 @@ async function main() {
     );
   }
 
+  console.log("\n── follow-up questions ──");
+  {
+    const ok3 = await run(() =>
+      call(tools.suggestFollowUps, {
+        questions: [
+          "How did he build the retrieval pipeline?",
+          "What did he ship at Dom Ventas?",
+          "Is he a fit for a backend role?",
+        ],
+      }),
+    );
+    check("three distinct questions are accepted",
+      ok3.ok === true && ok3.action === "followUps" && ok3.questions.length === 3);
+
+    /*
+      Near-identical suggestions look worse than none — the model reaches for
+      variations on a theme when the answer was narrow, so they're deduplicated
+      rather than trusted.
+    */
+    const dupes = await run(() =>
+      call(tools.suggestFollowUps, {
+        questions: ["Tell me about RAG", "Tell me about RAG", "Tell me about RAG"],
+      }),
+    );
+    check("three copies of one question are refused", dupes.ok === false,
+      dupes.ok === false ? dupes.error.slice(0, 45) : "accepted");
+
+    const partial = await run(() =>
+      call(tools.suggestFollowUps, {
+        questions: ["What did he build?", "What did he build?", "Where does he want to work?"],
+      }),
+    );
+    check("a repeated question is dropped, not the whole set",
+      partial.ok === true && partial.action === "followUps" && partial.questions.length === 2,
+      partial.ok === true && partial.action === "followUps" ? String(partial.questions.length) : "",
+    );
+  }
+
   console.log("\n── the subject guard is default-on ──");
   {
     /*
@@ -197,6 +235,9 @@ async function main() {
     const owner = buildAdminPrompt(seedPortfolio, serializePortfolio(seedPortfolio));
 
     check("the visitor prompt refuses off-topic questions", /only discuss/i.test(visitor));
+    check("both prompts ask for follow-ups",
+      /suggestFollowUps/.test(visitor) && /suggestFollowUps/.test(owner));
+    check("follow-ups are skipped for greetings", /clutter/.test(visitor));
     check("the owner prompt does not", !/only discuss/i.test(owner));
     check("the owner prompt invites any topic", /Any topic is fair game/.test(owner));
 

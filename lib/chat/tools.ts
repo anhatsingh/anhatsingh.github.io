@@ -48,6 +48,8 @@ export type ToolOutcome =
     the assistant said.
   */
   | { ok: true; action: "roleOptions" }
+  /** Three questions that follow from the answer, offered as one-click prompts. */
+  | { ok: true; action: "followUps"; questions: string[] }
   /*
     Sources behind an answer. Rendered as a citation list, because a claim
     drawn from the open web is only as good as the link under it.
@@ -248,6 +250,35 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           results: found.results.map((r) => ({ title: r.title, url: r.url })),
           content: formatResults(found.results),
         };
+      },
+    }),
+
+    suggestFollowUps: tool({
+      description:
+        "Offer three questions the visitor might naturally ask next. Call this once, AFTER you " +
+        "have written your answer, on every substantive reply. Skip it for greetings, one-word " +
+        "replies and goodbyes, where a menu of questions is clutter.",
+      inputSchema: z.object({
+        questions: z
+          .array(z.string().min(8).max(90))
+          .length(3)
+          .describe(
+            "Written in the visitor's voice, as they would type them. Specific to what was just " +
+              "discussed — not generic prompts that would fit any answer. Each should open a " +
+              "genuinely different direction rather than rephrasing the others.",
+          ),
+      }),
+      execute: async ({ questions }): Promise<ToolOutcome> => {
+        /*
+          Deduplicated and trimmed here rather than trusted. Three near-identical
+          questions look worse than none, and the model reaches for variations on
+          a theme when the answer was narrow.
+        */
+        const unique = [...new Set(questions.map((q) => q.trim()).filter(Boolean))];
+        if (unique.length < 2) {
+          return { ok: false, error: "Give three genuinely different questions, or skip this." };
+        }
+        return { ok: true, action: "followUps", questions: unique };
       },
     }),
 

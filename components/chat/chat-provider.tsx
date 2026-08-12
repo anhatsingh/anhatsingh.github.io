@@ -148,6 +148,10 @@ export function ChatProvider({
           case "resume":
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
+          case "followUps":
+            // Nothing to do — the questions render under the answer and only
+            // do anything when clicked.
+            break;
           case "sources":
             // Nothing to do — the citation card renders below the answer, and
             // opening tabs the visitor didn't ask for would be hostile.
