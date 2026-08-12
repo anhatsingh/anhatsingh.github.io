@@ -27,18 +27,30 @@ export function TalkButton() {
       // The dock can be open while the header is still visible, so this stays
       // useful as a way back to it rather than being hidden.
       aria-expanded={isOpen}
+      /*
+        Both states carry a coloured border. Idle used to sit on the hairline
+        grey every other chrome element uses, which made the one genuinely
+        unusual thing on this site look like a utility control next to the
+        theme toggle.
+
+        It stays an outline while Download CV stays filled — that keeps the
+        hierarchy honest. The CV is what a recruiter came for; this is the
+        thing they didn't know was here, and it needs to be noticed without
+        outranking the download.
+      */
       className={
         started
-          ? "inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-success/50 bg-success/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-success transition-colors hover:bg-success/20"
-          : "inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-hairline px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
+          ? "inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-success/60 bg-success/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-success shadow-[0_0_0_3px_color-mix(in_srgb,var(--success)_12%,transparent)] transition-colors hover:bg-success/20"
+          : "inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-accent/60 bg-accent/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-accent shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_12%,transparent)] transition-colors hover:border-accent hover:bg-accent/15"
       }
     >
       {/*
-        A filled dot once the conversation exists, hollow before — the same
-        present/absent grammar the timeline nodes use.
+        The dot carries the state's colour rather than its fill. Green once a
+        conversation exists, accent before — with the border coloured in both
+        states, a hollow dot read as a rendering fault rather than a signal.
       */}
       <span
-        className={`h-1.5 w-1.5 rounded-full ${started ? "bg-success" : "bg-current opacity-50"}`}
+        className={`h-1.5 w-1.5 rounded-full ${started ? "bg-success" : "bg-accent"}`}
         aria-hidden="true"
       />
       {started ? (
