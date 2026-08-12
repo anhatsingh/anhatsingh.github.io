@@ -20,6 +20,7 @@ import { statusMessage } from "../components/chat/activity";
 import { describeScreen, idForPath, sanitizePageContext } from "../lib/chat/page-context";
 import { looksUnanswered } from "../lib/chat/analytics";
 import type { UIMessage } from "ai";
+import { dwellFor } from "../components/chat/tour-card";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -218,6 +219,32 @@ console.log("\n── spotting an answer the assistant couldn't give ──");
   ]) {
     check(`real answer not flagged: "${reply.slice(0, 42)}…"`, !looksUnanswered(reply));
   }
+}
+
+/*
+  The pace of an auto-playing tour.
+
+  The complaint that produced the stepper was that nothing could be read before
+  the page moved on, so the floor is the assertion that matters: every stop
+  holds long enough to read its narration AND look at what the page scrolled
+  to. Anything under a few seconds is the bug coming back.
+*/
+console.log("\n── a tour stop holds long enough to read ──");
+{
+  const shortest = dwellFor("Short.");
+  check("even the shortest stop holds several seconds", shortest >= 9_000, `${shortest}ms`);
+
+  const long = dwellFor(
+    "He builds retrieval pipelines and the services around them, which is most of what this role is asking for, and the work below is where that shows.",
+  );
+  check("a longer note buys more time", long > shortest, `${long}ms vs ${shortest}ms`);
+  check("but never runs away", long <= 24_000, `${long}ms`);
+
+  // Roughly reading speed with room to look up from the text. Below this it is
+  // a slideshow again.
+  const words = 25;
+  const perWord = (dwellFor(Array(words).fill("word").join(" ")) - 9_000) / words;
+  check("each word buys real time", perWord >= 300, `${Math.round(perWord)}ms/word`);
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

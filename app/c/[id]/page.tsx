@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { UIMessage } from "ai";
 import { getSharedConversation } from "@/app/chat-share";
 import { ChatMarkdown } from "@/components/chat/chat-markdown";
+import { ContinueButton } from "./continue-button";
 import { getPortfolio } from "@/lib/content";
 
 /*
@@ -38,7 +39,8 @@ export default async function SharedChatPage({ params }: { params: Promise<{ id:
       </p>
       <h1 className="mt-2 font-display text-3xl">About {profile.name}</h1>
       <p className="mt-2 text-sm text-muted">
-        Someone asked {first}&apos;s assistant these questions and shared the answers.
+        Someone asked {first}&apos;s assistant these questions and shared the answers. You can
+        pick it up where they left off.
       </p>
 
       <div className="mt-10 space-y-6">
@@ -64,12 +66,13 @@ export default async function SharedChatPage({ params }: { params: Promise<{ id:
         })}
       </div>
 
-      <div className="mt-12 border-t border-hairline pt-6">
+      <div className="mt-12 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-hairline pt-6">
+        <ContinueButton messages={messages} />
         <Link
           href="/"
-          className="font-mono text-xs uppercase tracking-widest text-accent hover:underline"
+          className="font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:text-text"
         >
-          Ask your own questions →
+          Or start fresh →
         </Link>
       </div>
     </main>

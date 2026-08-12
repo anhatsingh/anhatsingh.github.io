@@ -2,6 +2,7 @@
 
 import { ResumeButton } from "@/components/chat/resume-button";
 import { TalkButton } from "@/components/chat/talk-button";
+import { TourButton } from "@/components/chat/tour-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useUIControl } from "@/components/ui-control";
 import { DownloadIcon } from "@/components/ui/icons";
@@ -60,6 +61,16 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/*
+            Theme first, and away from the rest.
+
+            It used to sit between Download CV and Talk with AI, splitting the
+            two things a visitor is actually here to do with a preference
+            control. Leading the group puts the utility at the quiet end and
+            leaves the actions contiguous at the other.
+          */}
+          <ThemeToggle />
+
           {focusedSection && (
             <button
               onClick={clearFocus}
@@ -87,7 +98,10 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
             </ResumeButton>
           )}
 
-          <ThemeToggle />
+          {/* The tour was reachable only from inside the chat, which is the
+              step most visitors skip. Outlined and quiet — it sits beside the
+              CV without competing with it. */}
+          <TourButton />
 
           {/* Rightmost: the chat is the thing this site does that others
               don't, so it gets the last word in the bar. */}

@@ -49,6 +49,27 @@ export type ToolOutcome =
     the assistant said.
   */
   | { ok: true; action: "roleOptions" }
+  /*
+    A planned walk through the site, handed over whole.
+
+    The steps arrive in one call rather than a step per reply on purpose. The
+    visitor drives it — Next, Previous, or hand it the wheel — and a round trip
+    to the model between stops would make every button press cost a wait, with
+    the answer arriving somewhere below the fold. Planning is the model's job;
+    pacing is the reader's.
+  */
+  | {
+      ok: true;
+      action: "tour";
+      steps: Array<{
+        section: SectionId;
+        /** Section name, as it reads on the Next / Previous buttons. */
+        label: string;
+        /** What to say at this stop. */
+        note: string;
+        items: Array<{ itemId: string; note: string }>;
+      }>;
+    }
   /** Three questions that follow from the answer, offered as one-click prompts. */
   | { ok: true; action: "followUps"; questions: string[] }
   /*
@@ -427,6 +448,58 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           gaps,
           summary,
         };
+      },
+    }),
+
+    runTour: tool({
+      description:
+        "Plan a guided walk through the site and hand it to the visitor as a stepper they control. " +
+        "Call this ONCE, with every stop, when someone asks to be shown around, for the highlights, " +
+        "or for the short version — do NOT call focusSection or highlightItems for a tour, this does both " +
+        "at each stop. Order the stops so the case builds: what he does now, the work that backs it up, " +
+        "the shape of the whole thing, then how to reach him. Skip a stop rather than including an empty section.",
+      inputSchema: z.object({
+        steps: z
+          .array(
+            z.object({
+              section: z
+                .enum(NAVIGABLE_SECTIONS as [SectionId, ...SectionId[]])
+                .describe("Which section this stop is about."),
+              note: z
+                .string()
+                .max(220)
+                .describe(
+                  "What to say at this stop, in one or two sentences. This is the narration — the visitor reads it at their own pace, so make it worth the stop.",
+                ),
+              items: z
+                .array(
+                  z.object({
+                    itemId: z.string().describe("Exact id from the CONTENT INDEX."),
+                    note: z.string().max(90).describe("Why this one. Very short."),
+                  }),
+                )
+                .max(MAX_HIGHLIGHTS)
+                .describe("What to pin at this stop. Empty is fine for a section that speaks for itself."),
+            }),
+          )
+          .min(2)
+          .max(6)
+          .describe("The stops, in the order they should be walked."),
+      }),
+      execute: async ({ steps }): Promise<ToolOutcome> => {
+        /*
+          An unknown id drops out rather than failing the tour. A walk through
+          the site is worth more than the one callout the model got wrong, and
+          the stop still lands on the right section.
+        */
+        const planned = steps.map((step) => ({
+          section: step.section,
+          label: SECTION_LABELS[step.section],
+          note: step.note,
+          items: step.items.filter((item) => known.has(item.itemId)),
+        }));
+
+        return { ok: true, action: "tour", steps: planned };
       },
     }),
 

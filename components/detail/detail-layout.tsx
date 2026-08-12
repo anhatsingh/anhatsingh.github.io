@@ -5,6 +5,7 @@ import { DetailHighlight } from "@/components/detail/detail-highlight";
 import { ReadingProgress } from "@/components/detail/reading-progress";
 import { LogoPlate } from "@/components/ui/logo-plate";
 import { TalkButton } from "@/components/chat/talk-button";
+import { TourButton } from "@/components/chat/tour-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   ENTITY_LABELS,
@@ -113,13 +114,17 @@ export function DetailLayout({
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <BackLink view={view} />
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link
               href="/"
               className="font-mono text-xs uppercase tracking-widest text-muted hover:text-accent"
             >
               home
             </Link>
-            <ThemeToggle />
+            {/* Works from here too: the first stop scrolls to a homepage
+                section, and focusSection navigates when the section isn't on
+                this page. */}
+            <TourButton />
 
             {/* The chat follows the visitor across pages, so the way back into
                 it has to as well — a conversation started on the homepage is

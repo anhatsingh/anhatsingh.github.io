@@ -72,6 +72,34 @@ async function main() {
     mixed.ok === true && mixed.action === "highlight" ? `kept ${mixed.items[0].itemId}` : "",
   );
 
+  console.log("\n── runTour: a route the visitor drives ──");
+
+  const tour = await run(() =>
+    call(tools.runTour, {
+      steps: [
+        { section: "experience", note: "What he does now.", items: [{ itemId: realId, note: "current role" }] },
+        { section: "projects", note: "The work behind it.", items: [{ itemId: "projects:not-a-real-thing", note: "fake" }] },
+        { section: "contact", note: "How to reach him.", items: [] },
+      ],
+    }),
+  );
+  check("a route comes back whole", tour.ok === true && tour.action === "tour" && tour.steps.length === 3);
+  /*
+    An unknown id drops out instead of failing the call. A walk through the site
+    is worth more than the one callout the model got wrong, and the stop still
+    lands on the right section — unlike highlightItems, where a rejected batch
+    leaves the model something to retry.
+  */
+  check(
+    "a bad id drops the callout, not the stop",
+    tour.ok === true && tour.action === "tour" &&
+      tour.steps[1].items.length === 0 && tour.steps[1].section === "projects",
+  );
+  check(
+    "stops carry the section name the buttons read",
+    tour.ok === true && tour.action === "tour" && tour.steps[0].label.length > 0,
+  );
+
   console.log("\n── selectResume: degrades to the static link ──");
   /*
     With no database configured these exercise the fallback path, which is the
@@ -389,26 +417,37 @@ async function main() {
     );
 
     /*
-      The tour is the one behaviour that lives only in the prompt — there is no
-      tour tool to call, because it is a sequence of tools that already exist.
-      What's assertable is that the instruction is present and ordered, and
-      that the chip advertising it still says the words the prompt listens for.
+      The tour now has a tool. The route is planned in one call and handed to
+      the visitor as a stepper they drive, because the earlier version — a
+      sequence of focusSection and highlightItems inside one reply — scrolled
+      through four sections faster than anyone could read them.
+
+      So what matters here is that the model is told to hand over the whole
+      route and NOT to drive the page itself. A model that still calls
+      focusSection for a tour reproduces exactly the behaviour that was wrong.
     */
     check("the tour is described", /# The tour/.test(prompt));
+    check("it hands the route over in one call", /call runTour ONCE/.test(prompt));
     check(
-      "it drives the page in order",
-      prompt.indexOf("focusSection experience") < prompt.indexOf("focusSection projects") &&
-        prompt.indexOf("focusSection projects") < prompt.indexOf("Land on contact"),
+      "it is told not to drive the page itself",
+      /Do not call focusSection or highlightItems for a tour/.test(prompt),
     );
-    check("it is told to keep it short", /under 120 words/.test(prompt));
+    check(
+      "the stops build a case, in order",
+      prompt.indexOf("experience —") < prompt.indexOf("projects —") &&
+        prompt.indexOf("projects —") < prompt.indexOf("contact —"),
+    );
+    // The card carries the narration. Repeating it in prose means reading
+    // everything twice, which is the failure mode of a stepper beside an answer.
+    check("it is told not to repeat the stops in prose", /read everything twice/.test(prompt));
     // A fixed list of what to highlight would go stale the moment a row is
     // added or unpublished.
     check(
-      "what to highlight comes from CONTEXT, not a hardcoded list",
-      /Pick what to highlight from CONTEXT/.test(prompt),
+      "what to pin comes from CONTEXT, not a hardcoded list",
+      /Pick what to pin from CONTEXT/.test(prompt),
     );
     check("empty sections are skipped rather than announced",
-      /skip it rather than announcing/.test(prompt));
+      /skip a stop rather than announcing/.test(prompt));
     check("the prompt answers to the wording on the chip", /shown around/.test(prompt));
   }
 

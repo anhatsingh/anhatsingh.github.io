@@ -44,6 +44,14 @@ interface ChatContextValue {
    */
   send: (text: string, selection?: string) => void;
   open: () => void;
+  /**
+   * Loads a transcript into the live chat and opens it.
+   *
+   * For someone who arrived on a shared conversation and wants to carry it on.
+   * The read-only page can show them what was said; only this can hand it back
+   * to a model that will answer, with everything already said as context.
+   */
+  resume: (messages: UIMessage[]) => void;
   close: () => void;
   stop: () => void;
   retry: () => void;
@@ -156,6 +164,14 @@ export function ChatProvider({
           case "resume":
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
+          case "tour":
+            /*
+              Deliberately inert. The tour card drives the page itself, one stop
+              at a time, at whatever pace the visitor sets — firing the route
+              from here would run the whole walk the moment the reply landed,
+              which is the behaviour the card exists to replace.
+            */
+            break;
           case "followUps":
             // Nothing to do — the questions render under the answer and only
             // do anything when clicked.
@@ -212,6 +228,22 @@ export function ChatProvider({
     [sendMessage, pathname, visibleSection],
   );
 
+  const resume = useCallback(
+    (transcript: UIMessage[]) => {
+      /*
+        The visitor's own conversation wins if there is one. Someone who has
+        been talking here and follows a shared link back has more invested in
+        what they typed than in what a stranger did, and replacing it silently
+        would be the one thing this can do that cannot be undone.
+      */
+      setMessages((current) =>
+        current.length ? current : (transcript as typeof current),
+      );
+      setIsOpen(true);
+    },
+    [setMessages],
+  );
+
   const close = useCallback(() => {
     setIsOpen(false);
     clearFocus();
@@ -229,6 +261,7 @@ export function ChatProvider({
         resumeOptions,
         send,
         open: () => setIsOpen(true),
+        resume,
         close,
         stop,
         retry: () => regenerate(),

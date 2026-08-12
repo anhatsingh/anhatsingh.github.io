@@ -10,6 +10,7 @@ import { Activity, isBusy } from "./activity";
 import { ChatMarkdown } from "./chat-markdown";
 import { FollowUps } from "./follow-ups";
 import { ShareButton } from "./share-button";
+import { TourCard } from "./tour-card";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
@@ -140,6 +141,10 @@ function MessageParts({ message }: { message: UIMessage }) {
                 summary={outcome.summary}
               />
             );
+          }
+
+          if (outcome?.ok === true && outcome.action === "tour") {
+            return <TourCard key={part.toolCallId} steps={outcome.steps} />;
           }
 
           if (outcome?.ok === true && outcome.action === "resume") {

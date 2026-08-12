@@ -1,0 +1,201 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useUIControl } from "@/components/ui-control";
+import type { SectionId } from "@/lib/content/types";
+
+export interface TourStep {
+  section: SectionId;
+  label: string;
+  note: string;
+  items: Array<{ itemId: string; note: string }>;
+}
+
+/*
+  A guided walk the visitor drives.
+
+  The first version ran the whole tour inside one reply: four sections scrolled
+  past in a couple of seconds, each highlight replaced by the next before
+  anyone could read it. The page moved, the narration arrived all at once, and
+  the effect was of being shown around by someone already leaving.
+
+  So the model still plans the route, but the reader sets the pace. One stop is
+  on screen at a time, and it stays there until they say otherwise. Previous
+  and Next name where they go rather than saying "next" — knowing the stop is
+  Projects is what makes the choice a choice.
+
+  Auto-play is opt-in and stoppable, because handing control to a timer is
+  exactly what went wrong before. When it is on, the bar shows the time left,
+  so the countdown is visible rather than a surprise.
+*/
+
+/*
+  How long a stop holds while auto-playing.
+
+  Derived from the narration, not fixed: the reader has to take in the sentence
+  AND look at what the page just scrolled to, so this is deliberately slower
+  than a reading-speed estimate. The floor is what a short stop needs before it
+  stops feeling like a slideshow.
+*/
+export function dwellFor(note: string): number {
+  const words = note.trim().split(/\s+/).length;
+  return Math.min(24_000, 9_000 + words * 450);
+}
+
+const TICK = 100;
+
+export function TourCard({ steps }: { steps: TourStep[] }) {
+  const { focusSection, setHighlights } = useUIControl();
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  const step = steps[index];
+  const isFirst = index === 0;
+  const isLast = index === steps.length - 1;
+
+  /* Drives the page to a stop. Scroll first, pin second — a highlight applied
+     before the section arrives lands off screen. */
+  const applyStep = useCallback(
+    (i: number) => {
+      const target = steps[i];
+      if (!target) return;
+      focusSection(target.section);
+      setHighlights(target.items);
+    },
+    [steps, focusSection, setHighlights],
+  );
+
+  /*
+    The first stop lands on its own, once.
+
+    Guarded by a ref rather than an empty dependency list because an older tour
+    card stays mounted as the conversation grows; without this, anything that
+    remounted the list would yank the page back to a walk finished ten messages
+    ago.
+  */
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    applyStep(0);
+  }, [applyStep]);
+
+  const go = (i: number, byHand = false) => {
+    const next = Math.max(0, Math.min(steps.length - 1, i));
+    setIndex(next);
+    setElapsed(0);
+    applyStep(next);
+    // Reaching for a button means wanting the wheel, and the end of the tour is
+    // the end of the tour.
+    if (byHand || next === steps.length - 1) setPlaying(false);
+  };
+
+  useEffect(() => {
+    if (!playing) return;
+
+    const dwell = dwellFor(step.note);
+    const timer = setInterval(() => {
+      setElapsed((ms) => {
+        if (ms + TICK < dwell) return ms + TICK;
+        // Advancing inside the updater would fight React; defer by a tick.
+        queueMicrotask(() => go(index + 1));
+        return 0;
+      });
+    }, TICK);
+
+    return () => clearInterval(timer);
+    // `go` is recreated every render; depending on it would restart the timer
+    // constantly. The stop and whether we're playing are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, index, step.note]);
+
+  if (!step) return null;
+
+  const progress = playing ? elapsed / dwellFor(step.note) : 0;
+
+  return (
+    <section
+      aria-label="Guided tour"
+      className="my-3 overflow-hidden rounded-[var(--radius)] border border-accent/30 bg-accent/[0.04]"
+    >
+      {/* The countdown, as a hairline. Present only while playing, so a manual
+          tour carries no ticking clock. */}
+      <div className="h-0.5 bg-transparent">
+        <div
+          className="h-full bg-accent/60 transition-[width] duration-100 ease-linear"
+          style={{ width: `${progress * 100}%` }}
+          aria-hidden="true"
+        />
+      </div>
+
+      <div className="p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-accent">
+            Stop {index + 1} of {steps.length} · {step.label}
+          </p>
+
+          {/* Dots, not a number: the shape of what's left reads faster than a
+              fraction, and each is a way back to a stop already seen. */}
+          <ol className="flex items-center gap-1">
+            {steps.map((s, i) => (
+              <li key={`${s.section}-${i}`}>
+                <button
+                  type="button"
+                  onClick={() => go(i, true)}
+                  aria-label={`Go to ${s.label}`}
+                  aria-current={i === index ? "step" : undefined}
+                  className={`block size-1.5 rounded-full transition-colors ${
+                    i === index ? "bg-accent" : i < index ? "bg-accent/40" : "bg-hairline"
+                  }`}
+                />
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <p className="mt-2 text-sm leading-relaxed text-text">{step.note}</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => go(index - 1, true)}
+            disabled={isFirst}
+            className="rounded-full border border-hairline px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent/50 hover:text-text disabled:pointer-events-none disabled:opacity-30"
+          >
+            ← {isFirst ? "Back" : steps[index - 1].label}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => go(index + 1, true)}
+            disabled={isLast}
+            className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-30"
+          >
+            {isLast ? "That's the tour" : steps[index + 1].label} →
+          </button>
+
+          {/* Last, and quiet. Auto-play is the thing that went wrong before, so
+              it is offered rather than assumed — and it stops on any manual
+              move, because someone who reached for a button wants the wheel. */}
+          {!isLast && (
+            <button
+              type="button"
+              onClick={() => {
+                setElapsed(0);
+                setPlaying((v) => !v);
+              }}
+              className={`ml-auto rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                playing
+                  ? "border-accent/50 text-accent"
+                  : "border-hairline text-muted hover:border-accent/50 hover:text-text"
+              }`}
+            >
+              {playing ? "◼ stop" : "▶ auto"}
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -7,7 +7,7 @@ import { useChatDock } from "./chat-provider";
 
   It changes with the conversation rather than staying a static label. Before
   anything is said it invites — "Talk with AI". Once there is a transcript it
-  becomes "Continue conv with AI" and switches colour, because at that point it
+  becomes "Continue chat" and switches colour, because at that point it
   is doing a different job: not an invitation but a way back to something the
   visitor already has open. Somebody who scrolled away mid-conversation needs
   to find their way back more than they need to be asked again.
@@ -55,7 +55,7 @@ export function TalkButton() {
       />
       {started ? (
         <>
-          <span className="hidden sm:inline">Continue conv with AI</span>
+          <span className="hidden sm:inline">Continue chat</span>
           <span className="sm:hidden">Continue</span>
         </>
       ) : (
