@@ -627,6 +627,44 @@ console.log("\n── prompt injection wrapper ──");
   );
 
   /*
+    Two things the model cannot work out for itself.
+  */
+  console.log("\n── what the context has to supply ──");
+  {
+    const ctx = serializePortfolio(seedPortfolio);
+    /*
+      Without today's date, every question about "now" is answered against a
+      training cutoff — how long he has been in the current role, whether a
+      2024 project is recent. Confidently wrong, and checkable by the reader
+      against the dates rendered beside the answer.
+    */
+    check("context states today's date", /## TODAY/.test(ctx));
+    check(
+      "and says to compute from it rather than from memory",
+      /never from what you remember/.test(ctx),
+    );
+    check(
+      "the date is written out, not an ISO string to do arithmetic on",
+      /\d{1,2} [A-Z][a-z]+ \d{4}/.test(ctx),
+      ctx.split("\n")[1],
+    );
+
+    /*
+      The cap is a safety net, not a style guide. At 500 it sat at the length
+      the prompt already asks for, so ordinary replies were cut mid-sentence
+      and read as terseness.
+    */
+    const route = readFileSync("app/api/chat/route.ts", "utf8");
+    const cap = Number(/const MAX_OUTPUT_TOKENS = (\d+)/.exec(route)?.[1] ?? 0);
+    check("the token cap is well clear of the requested length", cap >= 1000, `${cap}`);
+    check("running out of room is reported", /finishReason === "length"/.test(route));
+    check(
+      "and a truncated reply is not logged as answered",
+      /answered: false/.test(route),
+    );
+  }
+
+  /*
     The working note has to stay true.
 
     /how-it-works describes this system to people deciding whether to interview

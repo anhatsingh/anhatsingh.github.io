@@ -100,6 +100,28 @@ function line(label: string, value?: string | null): string {
 export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string {
   const parts: string[] = [];
 
+  /*
+    Today's date, because the model does not have one.
+
+    Without it every question about the present is answered against a training
+    cutoff: how long he has been in the current role, whether a "2024" project
+    is recent, what "currently" means. Those answers are confidently wrong in a
+    way a reader can check against the dates on the page right beside them,
+    which costs more trust than not answering at all.
+
+    Rendered long-form and in UTC. An ISO string invites the model to do
+    arithmetic on it and get the months wrong; a written date it can compare
+    against the written dates in the entries below.
+  */
+  parts.push(
+    `## TODAY\n${new Date().toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    })}. Work out anything about "now", "currently" or how long something has run from this date, never from what you remember.`,
+  );
+
   parts.push(
     `## PROFILE\n` +
       `Name: ${p.profile.name}\n` +

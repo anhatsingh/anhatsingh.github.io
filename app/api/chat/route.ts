@@ -21,8 +21,21 @@ export const maxDuration = 30;
 */
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
-/** Caps the reply length. Recruiters skim, and tokens cost money. */
-const MAX_OUTPUT_TOKENS = 500;
+/*
+  A safety net, not a style guide.
+
+  This was 500, which is roughly the length the prompt already asks for — so it
+  stopped being a cost ceiling and became a guillotine. A reply that ran long,
+  or that spent its budget on a tool call before writing, was cut mid-sentence
+  and nothing told anyone: not the visitor, who reads it as the assistant being
+  abrupt, and not the logs. The tour made it visible only because two stops
+  instead of seven is obvious; a truncated paragraph is not.
+
+  Brevity is the prompt's job — it asks for under 90 words and gets it. This is
+  now high enough that hitting it means something went wrong, which is what
+  makes the finishReason check below worth having.
+*/
+const MAX_OUTPUT_TOKENS = 1200;
 const OWNER_OUTPUT_TOKENS = 2000;
 /*
   The tour needs its own ceiling.
@@ -211,10 +224,28 @@ export async function POST(req: Request) {
     onError: ({ error }) => {
       console.error("[chat] stream error:", error);
     },
-    onFinish: ({ text }) => {
+    onFinish: ({ text, finishReason }) => {
+      /*
+        A reply that ended because it ran out of room is a broken reply, and it
+        is invisible from the outside — it looks like a short answer. Logged
+        loudly rather than silently tolerated, since the fix is a number in this
+        file and nobody will change it without evidence.
+      */
+      if (finishReason === "length") {
+        console.error(
+          `[chat] reply truncated at the token cap — question: ${JSON.stringify(question.slice(0, 120))}`,
+        );
+      }
+
       // Fire-and-forget, same as before: a logging failure must never cost a
       // visitor their answer.
-      if (question && !isOwner) void logQuestion(question, classifyReply(text));
+      if (question && !isOwner) {
+        void logQuestion(question, {
+          ...classifyReply(text),
+          // A cut-off answer is not an answered question, whatever it says.
+          ...(finishReason === "length" ? { answered: false } : {}),
+        });
+      }
     },
   });
 
