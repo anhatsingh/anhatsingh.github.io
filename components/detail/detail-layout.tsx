@@ -163,7 +163,7 @@ export function DetailLayout({
             <dl className="mt-6 flex flex-wrap gap-x-6 gap-y-2 border-y border-hairline py-3 font-mono text-xs">
               {view.meta.map((item) => (
                 <div key={item.label} className="flex gap-2">
-                  <dt className="text-muted">{item.label}</dt>
+                  <dt className="uppercase tracking-widest text-muted">{item.label}</dt>
                   <dd>
                     {item.href ? (
                       <a
@@ -182,7 +182,7 @@ export function DetailLayout({
               ))}
               {hasBody && (
                 <div className="flex gap-2">
-                  <dt className="text-muted">read</dt>
+                  <dt className="uppercase tracking-widest text-muted">read</dt>
                   <dd>{view.readingMinutes} min</dd>
                 </div>
               )}
@@ -216,7 +216,17 @@ export function DetailLayout({
           )}
 
           {hasBody ? (
-            <div className="mt-10">
+            /*
+              Narrower than the page. The header, the hero image and the facts
+              list want the full 3xl; running text does not — at 48rem a line
+              is around ninety characters, well past the point where the eye
+              loses its place returning to the left margin. Around 68 is the
+              range every publication settles on.
+
+              Applied here rather than inside the renderer so a code block or a
+              wide image can still break out to the full width if it needs to.
+            */
+            <div className="mt-10 max-w-[68ch]">
               <BlockRenderer blocks={view.body} />
             </div>
           ) : (

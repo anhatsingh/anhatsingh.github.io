@@ -15,7 +15,74 @@ import { normalizeVideoUrl, type Block } from "@/lib/content/blocks";
   unreachable repo or an unparseable video URL costs that block, not the page.
 */
 
-const PROSE = "leading-relaxed text-[1.0625rem] text-muted";
+/*
+  Body copy, and it is the reader's primary text rather than a caption.
+
+  It was --muted, which is the grey this site uses for secondary information —
+  right for a date or a label, wrong for eight paragraphs somebody is expected
+  to actually read. Long-form at reduced contrast is what makes a page look
+  like filler around the facts above it.
+*/
+const PROSE = "leading-[1.75] text-[1.0625rem] text-text/90";
+
+/*
+  A text block is a document, not a sentence.
+
+  It was rendered as a single <p> with inline markdown, so every paragraph
+  break inside it was thrown away and a full write-up arrived as one
+  unbroken wall. Bullets fared worse: a line starting "- " rendered as a
+  hyphen mid-paragraph.
+
+  Blocks are authored in the admin as structured JSON, but the text within one
+  is written as prose — which means blank lines and list markers, because that
+  is how people write. This reads them.
+*/
+type Chunk =
+  | { kind: "p"; text: string }
+  | { kind: "list"; ordered: boolean; items: string[] }
+  | { kind: "quote"; text: string }
+  | { kind: "sub"; text: string };
+
+export function splitProse(markdown: string): Chunk[] {
+  const chunks: Chunk[] = [];
+
+  for (const paragraph of markdown.split(/\n\s*\n/)) {
+    const lines = paragraph.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+
+    const bulleted = lines.every((l) => /^[-*•]\s+/.test(l));
+    const numbered = lines.every((l) => /^\d+[.)]\s+/.test(l));
+
+    if (bulleted || numbered) {
+      chunks.push({
+        kind: "list",
+        ordered: numbered,
+        items: lines.map((l) => l.replace(/^([-*•]|\d+[.)])\s+/, "")),
+      });
+      continue;
+    }
+
+    if (lines.every((l) => l.startsWith(">"))) {
+      chunks.push({ kind: "quote", text: lines.map((l) => l.replace(/^>\s?/, "")).join(" ") });
+      continue;
+    }
+
+    /*
+      A ### inside a text block is a sub-heading somebody wrote in prose. The
+      heading BLOCK type exists, but nobody drafting a paragraph stops to
+      create one, and rendering the hashes literally is the worse outcome.
+    */
+    const heading = /^#{2,4}\s+(.*)$/.exec(lines[0]);
+    if (heading && lines.length === 1) {
+      chunks.push({ kind: "sub", text: heading[1] });
+      continue;
+    }
+
+    chunks.push({ kind: "p", text: lines.join(" ") });
+  }
+
+  return chunks;
+}
 
 /*
   Live repo metadata, fetched at render.
@@ -113,19 +180,71 @@ const CALLOUT_STYLE = {
 
 function BlockView({ block }: { block: Block }) {
   switch (block.type) {
-    case "text":
+    case "text": {
+      const chunks = splitProse(block.markdown);
       return (
-        <p className={PROSE}>
-          <InlineMarkdown text={block.markdown} />
-        </p>
+        <div className="space-y-4">
+          {chunks.map((chunk, i) => {
+            if (chunk.kind === "sub") {
+              return (
+                <h3 key={i} className="pt-2 font-display text-xl text-text">
+                  {chunk.text}
+                </h3>
+              );
+            }
+
+            if (chunk.kind === "quote") {
+              return (
+                <blockquote
+                  key={i}
+                  className="border-l-2 border-accent/40 pl-4 text-[1.0625rem] italic leading-relaxed text-muted"
+                >
+                  <InlineMarkdown text={chunk.text} />
+                </blockquote>
+              );
+            }
+
+            if (chunk.kind === "list") {
+              const Tag = chunk.ordered ? "ol" : "ul";
+              return (
+                <Tag
+                  key={i}
+                  className={`${PROSE} ml-5 space-y-1.5 ${
+                    chunk.ordered ? "list-decimal" : "list-disc"
+                  } marker:text-accent`}
+                >
+                  {chunk.items.map((item, j) => (
+                    <li key={j} className="pl-1">
+                      <InlineMarkdown text={item} />
+                    </li>
+                  ))}
+                </Tag>
+              );
+            }
+
+            return (
+              <p key={i} className={PROSE}>
+                <InlineMarkdown text={chunk.text} />
+              </p>
+            );
+          })}
+        </div>
       );
+    }
 
     case "heading":
+      /*
+        Padding, not margin. The list wrapper below sets space-y, whose
+        `margin-top` on every sibling beats an `mt-*` utility on specificity —
+        so the mt-4 that used to sit here did nothing at all, and a heading was
+        spaced exactly like the paragraph before it. Which is to say it did not
+        read as a heading.
+      */
       // h2/h3 only — the page title owns h1, so heading order stays valid.
       return block.level === 2 ? (
-        <h2 className="mt-4 font-display text-2xl md:text-3xl">{block.text}</h2>
+        <h2 className="pt-6 font-display text-2xl text-text md:text-3xl">{block.text}</h2>
       ) : (
-        <h3 className="mt-2 font-display text-xl">{block.text}</h3>
+        <h3 className="pt-4 font-display text-xl text-text">{block.text}</h3>
       );
 
     case "code":

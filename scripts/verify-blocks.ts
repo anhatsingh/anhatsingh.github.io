@@ -27,6 +27,7 @@ import {
 // Static import: tsx compiles these scripts to CJS, where top-level await is a
 // syntax error. chunkText is pure, so importing the module costs nothing.
 import { chunkText } from "../lib/chat/embeddings";
+import { splitProse } from "../components/blocks/block-renderer";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -137,6 +138,68 @@ console.log("\n── retrieval chunking ──");
   const giant = chunkText("x".repeat(50) + ". " + "sentence here. ".repeat(200), 900);
   check("an oversized single paragraph still splits", giant.length > 1, `${giant.length} chunks`);
   check("no empty chunks", giant.every((c) => c.trim().length > 0));
+}
+
+/*
+  A text block is a document, not a sentence.
+
+  It rendered as a single <p> with inline markdown, so a full write-up — which
+  is how these are actually authored, one block holding the whole thing —
+  arrived as one unbroken wall with every paragraph break discarded. A bullet
+  list fared worse: "- " rendered as a hyphen mid-sentence.
+*/
+console.log("\n── prose inside a text block ──");
+{
+  const paras = splitProse("First paragraph.\n\nSecond paragraph.");
+  check("blank lines separate paragraphs", paras.length === 2, `${paras.length}`);
+  check("both are paragraphs", paras.every((c) => c.kind === "p"));
+
+  // A hard-wrapped paragraph is still one paragraph. Treating each line as its
+  // own would shred anything pasted from an editor that wraps at 80 columns.
+  const wrapped = splitProse("A sentence that was\nhard wrapped by an editor.");
+  check("single newlines do not split a paragraph", wrapped.length === 1);
+  check("and the line break becomes a space", wrapped[0].kind === "p" && wrapped[0].text.includes("was hard"));
+
+  const bullets = splitProse("Intro line.\n\n- first\n- second\n- third");
+  check("a bulleted block becomes a list", bullets[1]?.kind === "list");
+  check("with every item", bullets[1]?.kind === "list" && bullets[1].items.length === 3);
+  check("and the markers stripped", bullets[1]?.kind === "list" && bullets[1].items[0] === "first");
+  check("unordered stays unordered", bullets[1]?.kind === "list" && !bullets[1].ordered);
+
+  const numbered = splitProse("1. one\n2. two");
+  check("a numbered block becomes an ordered list", numbered[0]?.kind === "list" && numbered[0].ordered);
+
+  /*
+    A line that merely starts with a dash mid-paragraph is not a list. Getting
+    this wrong turns an em-dash aside into a one-item bullet.
+  */
+  const notAList = splitProse("- a bullet\nbut this line is not");
+  check("a mixed block is not a list", notAList[0]?.kind === "p");
+
+  const quoted = splitProse("> something someone said");
+  check("a quote is a quote", quoted[0]?.kind === "quote");
+  check("and loses its marker", quoted[0]?.kind === "quote" && quoted[0].text === "something someone said");
+
+  /*
+    Nobody drafting a paragraph stops to create a heading block, so a ### in
+    prose is a sub-heading. Rendering the hashes literally is the worse outcome.
+  */
+  const sub = splitProse("### A sub-heading");
+  check("hashes in prose become a sub-heading", sub[0]?.kind === "sub");
+  check("without the hashes", sub[0]?.kind === "sub" && sub[0].text === "A sub-heading");
+
+  // The real entry that prompted all of this: one heading, one enormous text
+  // block with four paragraphs inside it.
+  const real = splitProse(
+    "As one of the top-performing students in the **Java** course, I was selected.\n\n" +
+      "My primary responsibility was to help students.\n\n" +
+      "In addition to teaching, I collaborated with a team of three.\n\n" +
+      "This experience strengthened my technical knowledge.",
+  );
+  check("the entry that started this now has four paragraphs", real.length === 4, `${real.length}`);
+  check("and its bold survives for the inline renderer", real[0].kind === "p" && real[0].text.includes("**Java**"));
+
+  check("empty input yields nothing rather than a blank paragraph", splitProse("").length === 0);
 }
 
 console.log(failures === 0 ? "\nAll block checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

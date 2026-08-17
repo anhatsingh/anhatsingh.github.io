@@ -2,6 +2,7 @@ import { cache } from "react";
 import { getPortfolio } from "./index";
 import { blocksToPlainText, readingMinutes, type Block } from "./blocks";
 import { getPublicClient } from "@/lib/supabase/server";
+import { formatMonth } from "./timeline";
 import {
   entityPath,
   type Certification,
@@ -92,7 +93,13 @@ function experienceView(e: Experience): DetailView {
     logoUrl: e.logoUrl,
     showInBlogList: e.showInBlogList,
     meta: [
-      { label: "dates", value: `${e.startDate} — ${end}` },
+      /*
+        Formatted, not raw. The homepage timeline has always rendered these as
+        "Sep 2022 — Dec 2022"; this list was printing the stored "2022-09",
+        so the same fact appeared twice on the site in two different notations
+        and the detail page looked like the one that had been forgotten.
+      */
+      { label: "dates", value: `${formatMonth(e.startDate)} — ${formatMonth(e.endDate)}` },
       ...(e.location ? [{ label: "location", value: e.location }] : []),
       ...(e.companyUrl ? [{ label: "company", value: e.company, href: e.companyUrl }] : []),
     ],
