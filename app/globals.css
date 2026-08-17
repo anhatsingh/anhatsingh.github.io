@@ -560,6 +560,56 @@ details[open] > summary span[aria-hidden] {
   transform: rotate(90deg);
 }
 
+/*
+  The passage the assistant answered from.
+
+  A wash rather than a fill, and deliberately much lighter than ::selection
+  above — that is a full-strength accent, and two teals a shade apart would
+  read as a rendering fault the moment somebody dragged a cursor across a
+  marked sentence.
+
+  ::highlight() takes only a few properties and background-color is one, which
+  is exactly what a highlighter is. Painted from a Range, so it sits inside the
+  line box like a selection does instead of spilling into the 1.75 leading
+  above and below.
+
+  Both themes here rather than a token: accent already exists in all three
+  blocks, and a new token would need its own row in the contrast table for a
+  colour no text is ever set in.
+*/
+::highlight(passage) {
+  /*
+    Written as rgba rather than color-mix, deliberately.
+
+    color-mix compiles with an automatic fallback for browsers that lack it,
+    and that fallback is the colour at FULL strength — an opaque teal block
+    over the words, which is worse than no highlight at all. The accent values
+    are pinned by verify:theme, so writing them out costs nothing that matters
+    and removes a failure mode nobody would see until it happened.
+  */
+  background-color: rgba(14, 116, 144, 0.16); /* --accent, light */
+}
+
+:root[data-theme="dark"] ::highlight(passage),
+:root:not([data-theme="light"]) ::highlight(passage) {
+  /* Heavier, because cyan on black carries less than teal on cream. */
+  background-color: rgba(34, 211, 238, 0.24); /* --accent, dark */
+}
+
+/*
+  Where a browser cannot paint a range. The whole paragraph washes instead —
+  a visible degradation rather than a break.
+*/
+[data-passage] {
+  background-color: rgba(14, 116, 144, 0.1);
+  border-radius: 2px;
+}
+
+:root[data-theme="dark"] [data-passage],
+:root:not([data-theme="light"]) [data-passage] {
+  background-color: rgba(34, 211, 238, 0.14);
+}
+
 /* --- Focus ------------------------------------------------------------ */
 
 :focus-visible {

@@ -16,6 +16,8 @@ import { serializePortfolio } from "../lib/chat/context";
 import { buildAdminPrompt, buildSystemPrompt, wrapVisitorMessage } from "../lib/chat/prompt";
 import { addressableIds } from "../lib/content/types";
 import { readFileSync } from "node:fs";
+import { blocksToPlainText } from "../lib/content/blocks";
+import { parseBlocks } from "../lib/content/blocks";
 
 let failures = 0;
 
@@ -145,6 +147,70 @@ async function main() {
     tour.ok === true && tour.action === "tour" && tour.steps[2].label === "The graph",
     tour.ok === true && tour.action === "tour" ? tour.steps[2].label : "",
   );
+
+  console.log("\n── highlightItems: a quote is checked like an id is ──");
+  {
+    /*
+      A fixture rather than the seed, which has no experience write-up — and
+      the whole point of a quote is that there is prose to find it in.
+    */
+    const prose =
+      "The first challenge wasn't analytics. It was convincing all three sources to speak the same language.";
+    const withBody = {
+      ...seedPortfolio,
+      experience: [
+        {
+          ...seedPortfolio.experience[0],
+          slug: "has-a-writeup",
+          body: parseBlocks([{ type: "text", markdown: prose }]),
+        },
+      ],
+    } as typeof seedPortfolio;
+
+    const quoting = buildTools(withBody);
+    const id = "experience:has-a-writeup";
+
+    const kept = await run(() =>
+      call(quoting.highlightItems, {
+        items: [{ itemId: id, note: "here", quote: "convincing all three sources to speak the same language" }],
+      }),
+    );
+    check(
+      "a quote from the write-up survives",
+      kept.ok === true && kept.action === "highlight" && Boolean(kept.items[0].quote),
+      kept.ok === true && kept.action === "highlight" ? String(kept.items[0].quote).slice(0, 40) : "",
+    );
+
+    /*
+      The failure this guards. The model can see an entry's summary and
+      highlights as well as its body, and the first thing it quoted was a
+      bullet — accurate, and nowhere in the page a reader is looking at.
+    */
+    const dropped = await run(() =>
+      call(quoting.highlightItems, {
+        items: [{ itemId: id, note: "here", quote: "Reduced call plan generation from 2 days to 3.5 hours with Spark" }],
+      }),
+    );
+    check(
+      "one that isn't in the write-up is dropped",
+      dropped.ok === true && dropped.action === "highlight" && dropped.items[0].quote === null,
+    );
+    check(
+      "but the highlight itself still lands",
+      dropped.ok === true && dropped.action === "highlight" && dropped.items[0].itemId === id,
+    );
+
+    // A card has no prose, so a quote against one is meaningless rather than wrong.
+    const noBody = await run(() =>
+      call(tools.highlightItems, {
+        items: [{ itemId: `skills:${seedPortfolio.skills[0].slug}`, note: "x", quote: "anything at all here" }],
+      }),
+    );
+    check(
+      "a quote against something with no write-up is dropped",
+      noBody.ok === true && noBody.action === "highlight" && noBody.items[0].quote === null,
+    );
+  }
 
   console.log("\n── skillTenure: the arithmetic the model was forbidden from doing ──");
   {

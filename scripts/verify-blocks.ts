@@ -28,6 +28,10 @@ import {
 // syntax error. chunkText is pure, so importing the module costs nothing.
 import { chunkText } from "../lib/chat/embeddings";
 import { splitProse } from "../components/blocks/block-renderer";
+import { findPassage, normalise } from "../lib/content/find-passage";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
+import { BlockRenderer } from "../components/blocks/block-renderer";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -239,6 +243,165 @@ console.log("\n── fenced blocks ──");
 
   const two = splitProse("```mermaid\ngraph TD\nA-->B\n```\n\ntext\n\n```mermaid\ngraph LR\nC-->D\n```");
   check("two diagrams in one block both render", two.filter((c) => c.kind === "mermaid").length === 2);
+}
+
+/*
+  Locating the sentence an answer came from.
+
+  The assistant quotes what it used and the page finds it. This is the half
+  that fails invisibly: a wrong offset highlights the wrong sentence, which is
+  worse than no highlight, and nothing in a build would notice.
+
+  The cases below are the two real gaps. What the model quotes from is the
+  INDEXED copy — blocksToPlainText strips inline markdown before embedding — so
+  a quote says "Java" where the source says "**Java**". And that same flattening
+  invents sentences for code, video and embed blocks, and indexes mermaid source
+  as text, none of which exist in the rendered page at all.
+*/
+console.log("\n── finding the passage a quote came from ──");
+{
+  const body =
+    "When people hear the term Data Scientist, they usually imagine neural networks.\n\n" +
+    "The pipeline ran weekly, cutting call-plan generation from two days to 3.5 hours.";
+
+  const exact = findPassage(body, "cutting call-plan generation from two days to 3.5 hours");
+  check("an exact quote is found", exact !== null);
+  check(
+    "and points at the real text",
+    exact !== null && body.slice(exact.start, exact.end) === "cutting call-plan generation from two days to 3.5 hours",
+    exact ? JSON.stringify(body.slice(exact.start, exact.end)) : "",
+  );
+  check("a whole match is not marked partial", exact?.partial === false);
+
+  check("case is not a difference", findPassage(body, "CUTTING CALL-PLAN GENERATION FROM TWO DAYS") !== null);
+  check(
+    "nor is wrapping",
+    findPassage(body, "cutting  call-plan\n  generation   from two days to 3.5 hours") !== null,
+  );
+
+  /*
+    The markdown gap. The source is bolded, the indexed copy is not, and the
+    rendered page has no asterisks either — so normalising them away is what
+    lets the one form the model saw match the one the reader sees.
+  */
+  const bolded = "He worked mostly in **Java** and Python across the pipeline.";
+  check(
+    "markdown in the source doesn't block a quote that lost it",
+    findPassage(bolded, "He worked mostly in Java and Python across") !== null,
+  );
+
+  // Curly quotes and em dashes, in either direction.
+  const typeset = "It wasn\u2019t simple \u2014 three sources, three shapes, one deadline.";
+  check("smart punctuation in the body matches plain in the quote",
+    findPassage(typeset, "It wasn't simple - three sources, three shapes") !== null);
+  check("and the other way round",
+    findPassage("It wasn't simple - three sources, three shapes, one deadline.",
+      "It wasn\u2019t simple \u2014 three sources, three shapes") !== null);
+
+  /*
+    A model that trails off or paraphrases the tail should still land on the
+    right sentence rather than nothing.
+  */
+  const trailed = findPassage(body, "cutting call-plan generation from two days to about three and a half hours or so");
+  check("a quote that drifts still finds its opening", trailed !== null);
+  check("and says it only matched part", trailed?.partial === true);
+
+  console.log("\n── and refusing to guess ──");
+  check("a quote that appears nowhere finds nothing", findPassage(body, "he rewrote the scheduler in Rust") === null);
+  /*
+    Mermaid source is indexed as text and rendered as an SVG, so a quote drawn
+    from a diagram exists in what the model read and nowhere in what the reader
+    sees. It has to miss rather than half-match something adjacent.
+  */
+  check(
+    "diagram source is not found in prose",
+    findPassage(body, "A[Prescription Data] --> B[Physician Data] --> E[Data Processing]") === null,
+  );
+  // blocksToPlainText writes these; they exist in no rendered page.
+  check(
+    "an invented sentence for a code block is not found",
+    findPassage(body, "Code sample (rerank.py) in python.") === null,
+  );
+  /*
+    Too short to be distinctive. "the data" appears in almost any article, and
+    a highlighter landing on the wrong sentence is worse than one that never
+    appears.
+  */
+  check("a fragment too short to be distinctive is refused", findPassage(body, "two days") === null);
+
+  const twice = "the pipeline ran weekly and then the pipeline ran weekly again, at scale";
+  const first = findPassage(twice, "the pipeline ran weekly and then");
+  check("a repeated phrase takes the first", first?.start === 0, `${first?.start}`);
+}
+
+/*
+  The locator against what actually reaches the page.
+
+  Everything above tests it on a string I wrote. This runs a real body through
+  the real renderer, strips the tags, and locates a quote in what comes out —
+  so splitProse, InlineMarkdown and the matcher are exercised together, which
+  is where a mismatch would actually live.
+
+  Text and heading blocks only: GitHubCard is async and Mermaid is a client
+  component, so neither renders in this harness.
+*/
+console.log("\n── against the rendered page ──");
+{
+  const blocks = parseBlocks([
+    { type: "heading", level: 3, text: "The Challenge: 100+ GB of Data" },
+    {
+      type: "text",
+      markdown:
+        "The project focused on automating **AstraZeneca's Q2 2024 call planning process**.\n\n" +
+        "The existing workflow was manual and slow. A pipeline that ran weekly cut call-plan " +
+        "generation from two days to 3.5 hours.\n\n" +
+        "- Which doctors should be visited.\n- Which products should be promoted.",
+    },
+  ]);
+
+  const html = renderToStaticMarkup(createElement(BlockRenderer, { blocks }));
+
+  /*
+    What a reader sees, which is what the browser walker will search.
+
+    The entities have to be decoded or this harness tests a string no browser
+    ever produces: renderToStaticMarkup escapes an apostrophe to &#x27;, while
+    textContent gives back the character. Getting this wrong makes a working
+    matcher look broken on exactly the quotes that contain punctuation.
+  */
+  const rendered = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  check("the body rendered", rendered.includes("call-plan"), `${rendered.length} chars`);
+
+  const hit = findPassage(rendered, "A pipeline that ran weekly cut call-plan generation from two days to 3.5 hours");
+  check("a quote is found in the rendered output", hit !== null);
+  check(
+    "and lands on the sentence, not near it",
+    hit !== null && normalise(rendered.slice(hit.start, hit.end)).text.startsWith("a pipeline that ran weekly"),
+    hit ? JSON.stringify(rendered.slice(hit.start, hit.end).trim().slice(0, 60)) : "",
+  );
+
+  /*
+    The bold survives as an element, so the paragraph's text is a tree rather
+    than one node — and the quote the model has lost the asterisks. Both sides
+    normalise to the same thing, which is the whole reason this works.
+  */
+  check(
+    "a quote spanning a bold run still matches",
+    findPassage(rendered, "automating AstraZeneca's Q2 2024 call planning process") !== null,
+  );
+
+  // A list item is prose too, and the renderer puts each in its own <li>.
+  check(
+    "a quote from a list item matches",
+    findPassage(rendered, "Which products should be promoted") !== null,
+  );
 }
 
 console.log(failures === 0 ? "\nAll block checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

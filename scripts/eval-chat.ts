@@ -169,9 +169,23 @@ async function main() {
   }
 
   const portfolio = await getPortfolio();
-  const context = await new RetrievalContextProvider(portfolio, {}).getContext("");
+
+  /*
+    Context is built per case, from that case's question.
+
+    It used to be built once with an empty string, which meant retrieval
+    contributed nothing and every case ran against the portfolio summary alone.
+    Anything that depends on the write-ups — quoting the sentence an answer came
+    from, most obviously — could not pass here no matter how well it worked in
+    production, and the harness reported that as the model's fault.
+
+    One embedding call per case. The route does the same thing for every turn.
+  */
+  const contextFor = async (question: string) =>
+    new RetrievalContextProvider(portfolio, {}).getContext(question);
+
   const ctx = {
-    system: buildSystemPrompt(portfolio, context),
+    system: "",
     /*
       Search is allowed but the subject guard stays on, exactly as a visitor
       gets it. Evaluating a configuration nobody is served would score the
@@ -187,7 +201,8 @@ async function main() {
 
   for (const test of cases) {
     for (let run = 0; run < runs; run++) {
-      const result = await runCase(test, ctx).catch(
+      const system = buildSystemPrompt(portfolio, await contextFor(test.ask));
+      const result = await runCase(test, { ...ctx, system }).catch(
         (err): Result => ({
           id: test.id,
           passed: false,

@@ -4,6 +4,7 @@ import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { DetailHighlight } from "@/components/detail/detail-highlight";
 import { ReadingProgress } from "@/components/detail/reading-progress";
 import { ReadingSurface } from "@/components/detail/reading-surface";
+import { PassageHighlight } from "@/components/detail/passage-highlight";
 import { LogoPlate } from "@/components/ui/logo-plate";
 import { TalkButton } from "@/components/chat/talk-button";
 import { TourButton } from "@/components/chat/tour-button";
@@ -228,9 +229,16 @@ export function DetailLayout({
               wide image can still break out to the full width if it needs to.
             */
             <ReadingSurface>
-              <div className="mt-10">
-                <BlockRenderer blocks={view.body} />
-              </div>
+              {/*
+                Wraps the body so the highlighter has a root to search. The
+                body stays a server component either way — it comes through as
+                children, so nothing inside becomes client code.
+              */}
+              <PassageHighlight itemId={itemId(sectionForEntity(view.type), view.slug)}>
+                <div className="mt-10">
+                  <BlockRenderer blocks={view.body} />
+                </div>
+              </PassageHighlight>
             </ReadingSurface>
           ) : (
             // Honest rather than blank: the page exists because it's linked

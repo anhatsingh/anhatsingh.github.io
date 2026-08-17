@@ -248,6 +248,13 @@ export const EVAL_CASES: EvalCase[] = [
     expect: [{ kind: "avoids", tools: ["think", "investigate"] }],
   },
 
+  {
+    id: "quotes-the-passage-it-used",
+    ask: "What was the hardest part of integrating the three data sources?",
+    why: "Answerable only from the Axtria write-up. Without a quote the reader lands at the top of two thousand words, which tells them what they already knew — and a quote taken from the entry's summary rather than its body looks right and marks nothing.",
+    expect: [{ kind: "calls", tools: ["highlightItems"] }],
+  },
+
   /* ── follow-ups ────────────────────────────────────────────────────── */
   {
     id: "offers-follow-ups-after-substance",

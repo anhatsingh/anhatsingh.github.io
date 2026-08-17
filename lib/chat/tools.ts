@@ -6,10 +6,13 @@ import { listPublishedResumes } from "@/lib/resume/store";
 import { formatResults, MAX_QUERIES, research } from "./research";
 import { logQuestion } from "./analytics";
 import { skillTenure } from "@/lib/content/skill-tenure";
+import { blocksToPlainText } from "@/lib/content/blocks";
+import { findPassage } from "@/lib/content/find-passage";
 import { LENSES, durationsBlock, formatFindings, investigateStream, type Finding } from "./investigate";
 import {
   entityPath,
   entityTypeForId,
+  parseItemId,
   NAVIGABLE_SECTIONS,
   SECTION_LABELS,
   addressableIds,
@@ -38,7 +41,16 @@ export const MAX_HIGHLIGHTS = 3;
 /** Shape the client reads off tool parts to drive the UI. */
 export type ToolOutcome =
   | { ok: true; action: "focus"; section: SectionId; label: string; reason?: string }
-  | { ok: true; action: "highlight"; items: Array<{ itemId: string; note: string }> }
+  | {
+      ok: true;
+      action: "highlight";
+      /*
+        `quote` names the sentence an answer came from, for entries with a page
+        of prose. Ignored on the homepage, where a card has no text to find it
+        in.
+      */
+      items: Array<{ itemId: string; note: string; quote?: string | null }>;
+    }
   | { ok: true; action: "clear" }
   | { ok: true; action: "navigate"; url: string; label: string; reason?: string }
   | { ok: true; action: "resume"; url: string; label?: string }
@@ -230,18 +242,59 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
             z.object({
               itemId: z.string().describe("Exact id from the CONTENT INDEX, e.g. 'experience:ml-engineer-acme'."),
               note: z.string().max(90).describe("Why this item answers the question. Very short."),
+              /*
+                Nullable, never optional: OpenAI's structured outputs require
+                every property in `required` and reject an optional one — the
+                convention lib/resume/schema.ts documents.
+              */
+              quote: z
+                .string()
+                .max(300)
+                .nullable()
+                .describe(
+                  "When your answer came from that entry's own write-up, the sentence you took it from, copied from RETRIEVED DETAIL. The page finds it and marks it. Null when you're pointing at an entry rather than quoting one — a card has no prose to mark.",
+                ),
             }),
           )
           .min(1)
           .max(MAX_HIGHLIGHTS),
       }),
       execute: async ({ items }): Promise<ToolOutcome> => {
-        const accepted: Array<{ itemId: string; note: string }> = [];
+        /*
+          A quote is checked against the entry's actual write-up before it
+          travels, the same way an id is checked against the content index.
+
+          It fails in a way worth guarding: the model can see an entry's
+          summary and highlights as well as its body, and the first thing it
+          quoted was a bullet — accurate, and nowhere in the page a reader
+          would be looking at. A quote that cannot be found is dropped and the
+          highlight still lands, so the answer degrades to what happened before
+          this existed rather than pointing at nothing.
+        */
+        const bodyOf = (id: string): string => {
+          const parsed = parseItemId(id);
+          if (!parsed) return "";
+          const row =
+            parsed.section === "experience"
+              ? portfolio.experience.find((e) => e.slug === parsed.slug)
+              : parsed.section === "projects"
+                ? portfolio.projects.find((x) => x.slug === parsed.slug)
+                : null;
+          return row?.body?.length ? blocksToPlainText(row.body) : "";
+        };
+
+        const accepted: Array<{ itemId: string; note: string; quote?: string | null }> = [];
         const rejected: string[] = [];
 
         for (const item of items) {
-          if (known.has(item.itemId)) accepted.push(item);
-          else rejected.push(item.itemId);
+          if (!known.has(item.itemId)) {
+            rejected.push(item.itemId);
+            continue;
+          }
+
+          const quote = item.quote?.trim() ? item.quote : null;
+          const findable = quote && findPassage(bodyOf(item.itemId), quote) !== null;
+          accepted.push({ itemId: item.itemId, note: item.note, quote: findable ? quote : null });
         }
 
         if (!accepted.length) {

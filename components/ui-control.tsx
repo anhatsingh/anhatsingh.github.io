@@ -42,6 +42,12 @@ export const MAX_HIGHLIGHTS = 3;
 export interface Highlight {
   itemId: string;
   note: string;
+  /*
+    The sentence the answer came from, when the assistant is pointing into a
+    long page rather than at a card. Absent everywhere else — a project card
+    has no prose to find it in.
+  */
+  quote?: string | null;
 }
 
 /** A record of something the chatbot did, rendered as a pill in the transcript. */
@@ -53,7 +59,7 @@ export interface UIAction {
 
 interface UIControlValue {
   focusedSection: SectionId | null;
-  highlights: Record<string, string>;
+  highlights: Record<string, { note: string; quote?: string | null }>;
   isSplit: boolean;
 
   /**
@@ -116,7 +122,13 @@ function prefersReducedMotion(): boolean {
 export function UIControlProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [focusedSection, setFocusedSection] = useState<SectionId | null>(null);
-  const [highlights, setHighlightState] = useState<Record<string, string>>({});
+  /*
+    Keyed by id, holding the note and any quote. This was a plain
+    Record<string, string> of notes; the passage highlighter needs the quote
+    for the page it is on, and threading it separately would mean two maps that
+    could disagree about which highlight is current.
+  */
+  const [highlights, setHighlightState] = useState<Record<string, { note: string; quote?: string | null }>>({});
   const [liveMessage, setLiveMessage] = useState("");
 
   const sectionEls = useRef(new Map<SectionId, HTMLElement>());
@@ -333,7 +345,7 @@ export function UIControlProvider({ children }: { children: React.ReactNode }) {
       const shouldScroll = options.scroll !== false;
       enqueue(() => {
         // Replace wholesale — see invariant 2 above.
-        setHighlightState(Object.fromEntries(capped.map((h) => [h.itemId, h.note])));
+        setHighlightState(Object.fromEntries(capped.map((h) => [h.itemId, { note: h.note, quote: h.quote ?? null }])));
 
         const first = capped[0]?.itemId;
         if (first && shouldScroll) {
@@ -466,6 +478,6 @@ export function useHighlight(itemId: string): {
     consumeScrollTarget();
   }, [scrollTarget, itemId, scrollTo, consumeScrollTarget]);
 
-  const note = highlights[itemId] ?? null;
+  const note = highlights[itemId]?.note ?? null;
   return { isHighlighted: note !== null, note, ref };
 }

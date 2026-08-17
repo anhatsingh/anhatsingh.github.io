@@ -563,5 +563,61 @@ console.log("\n── the thinking is visible as it happens ──");
   check("but a visitor's own toggle wins", /if \(touched \|\| !ref\.current\) return/.test(card));
 }
 
+/*
+  Painting the passage without touching the DOM.
+
+  The body is server-rendered React. A <mark> wrapped around the text is DOM
+  React owns, so it either gets reconciled away or kept and lost track of, and
+  the next answer would have to unpick the first. A Highlight paints a Range
+  and leaves the tree alone.
+*/
+console.log("\n── the highlighter marks without mutating ──");
+{
+  const hl = readFileSync("components/detail/passage-highlight.tsx", "utf8");
+  check("it paints a range", /CSS\.highlights\.set/.test(hl));
+  /*
+    The calls that would actually mutate, rather than the word "mark" — the
+    first version of this check matched the comment explaining why there is no
+    <mark>, which is a test asserting its own documentation.
+  */
+  check(
+    "and never mutates the tree",
+    !/appendChild|insertBefore|innerHTML|surroundContents|replaceWith|removeChild/.test(hl),
+  );
+  check("it clears the previous one first", /CSS\.highlights\.delete/.test(hl));
+  /*
+    A diagram's <svg> carries text nodes that read like sentences, and mermaid
+    source is indexed as text — so a quote from a diagram would otherwise land
+    on a label inside the picture rather than missing cleanly.
+  */
+  check("diagrams and code are not searched", /closest\("svg, pre, code, figcaption"\)/.test(hl));
+  check("there is a fallback where ranges can't be painted", /data-passage/.test(hl));
+
+  /*
+    Comments stripped first. Twice now an assertion here has matched the
+    comment explaining why the thing it forbids is absent — a test asserting
+    its own documentation passes for the wrong reason, or fails for one.
+  */
+  const css = readFileSync("app/globals.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  check("the wash is declared", /::highlight\(passage\)/.test(css));
+  /*
+    ::selection is already a full-strength accent fill. Two teals a shade apart
+    would read as a rendering fault the moment somebody dragged a cursor over a
+    marked sentence, so the wash has to be much lighter.
+  */
+  const wash = Number(/::highlight\(passage\) \{[^}]*rgba\([^)]*?([\d.]+)\)/.exec(css)?.[1] ?? 1);
+  check("and is far lighter than a text selection", wash <= 0.3, `${wash}`);
+  /*
+    Not color-mix. It compiles with an automatic fallback at FULL strength —
+    an opaque block over the words for any browser without it, which is worse
+    than no highlight. Caught by reading the shipped stylesheet, not the source.
+  */
+  check(
+    "and cannot fall back to an opaque block",
+    !/::highlight\(passage\) \{[^}]*color-mix/.test(css),
+  );
+  check("with its own value on the dark ground", /data-theme="dark"\] ::highlight\(passage\)/.test(css));
+}
+
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);
