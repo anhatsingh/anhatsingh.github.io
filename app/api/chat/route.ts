@@ -219,7 +219,12 @@ export async function POST(req: Request) {
       : isTourRequest(question)
         ? TOUR_OUTPUT_TOKENS
         : MAX_OUTPUT_TOKENS,
-    temperature: 0.7,
+    /*
+      No temperature. The model in use is a reasoning model, which rejects the
+      setting outright — it was being silently dropped, so the 0.7 that sat
+      here described nothing and invited the belief that variability had been
+      tuned. A setting that does nothing is worse than no setting.
+    */
     maxRetries: 2,
     onError: ({ error }) => {
       console.error("[chat] stream error:", error);
