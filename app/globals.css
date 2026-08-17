@@ -183,6 +183,7 @@
   --font-display: var(--font-space-grotesk);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-reading: var(--font-reading-serif);
 }
 
 /*
@@ -459,6 +460,46 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/*
+  A long page, set to the reader's preferences.
+
+  The four properties come from components/detail/reader.tsx and default here,
+  so the styles hold even when no preference has been expressed and nothing has
+  hydrated yet.
+
+  The measure applies to running text only. A diagram, a code sample or an
+  image is not prose and should not be cropped to sixty-eight characters, which
+  is why the constraint sits on the paragraph rather than on the column.
+*/
+.reading {
+  --reading-font: var(--font-sans);
+  --reading-size: 1;
+  --reading-measure: 68ch;
+  --reading-leading: 1.75;
+
+  font-family: var(--reading-font);
+  font-size: calc(1.0625rem * var(--reading-size));
+  line-height: var(--reading-leading);
+}
+
+.reading p,
+.reading ul,
+.reading ol,
+.reading blockquote {
+  max-width: var(--reading-measure);
+}
+
+/*
+  Headings stay in the display face whatever the body is set to. The contrast
+  between the two is what makes a page scannable, and setting both in the same
+  serif collapses it.
+*/
+.reading h2,
+.reading h3 {
+  font-family: var(--font-display);
+  max-width: var(--reading-measure);
 }
 
 /* --- Focus ------------------------------------------------------------ */

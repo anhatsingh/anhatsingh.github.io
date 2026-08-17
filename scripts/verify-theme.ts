@@ -144,6 +144,36 @@ for (const [mode, overrides] of [["LIGHT", new Map()], ["DARK", dark]] as const)
   }
 }
 
+/*
+  The reading surface.
+
+  Four preferences, defaulted in CSS so the styles hold before anything
+  hydrates and for anyone who never opens the panel. The measure has to apply
+  to running text only — a diagram or a code sample cropped to sixty-eight
+  characters is worse than one that scrolls.
+*/
+console.log("\n── reading preferences ──");
+{
+  const reading = CSS.slice(CSS.indexOf(".reading {"));
+  for (const token of ["--reading-font", "--reading-size", "--reading-measure", "--reading-leading"]) {
+    check(`${token} has a default`, new RegExp(`${token}:\\s*\\S`).test(reading.slice(0, 400)));
+  }
+  check(
+    "the measure constrains prose, not the column",
+    /\.reading p,[\s\S]{0,120}max-width: var\(--reading-measure\)/.test(reading),
+  );
+  /*
+    Headings stay in the display face whatever the body is set to. The contrast
+    between the two is what makes a page scannable, and setting both in one
+    serif collapses it.
+  */
+  check(
+    "headings keep the display face",
+    /\.reading h2,[\s\S]{0,120}font-family: var\(--font-display\)/.test(reading),
+  );
+  check("a reading face is registered", /--font-reading:/.test(CSS));
+}
+
 console.log(
   failures === 0
     ? "\nTheme system verified: parity holds and every pair clears AA in both modes.\n"

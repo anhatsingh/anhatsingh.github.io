@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BlockRenderer } from "@/components/blocks/block-renderer";
 import { DetailHighlight } from "@/components/detail/detail-highlight";
 import { ReadingProgress } from "@/components/detail/reading-progress";
+import { ReadingSurface } from "@/components/detail/reading-surface";
 import { LogoPlate } from "@/components/ui/logo-plate";
 import { TalkButton } from "@/components/chat/talk-button";
 import { TourButton } from "@/components/chat/tour-button";
@@ -226,9 +227,11 @@ export function DetailLayout({
               Applied here rather than inside the renderer so a code block or a
               wide image can still break out to the full width if it needs to.
             */
-            <div className="mt-10 max-w-[68ch]">
-              <BlockRenderer blocks={view.body} />
-            </div>
+            <ReadingSurface>
+              <div className="mt-10">
+                <BlockRenderer blocks={view.body} />
+              </div>
+            </ReadingSurface>
           ) : (
             // Honest rather than blank: the page exists because it's linked
             // from the homepage, and a structured summary is still useful.

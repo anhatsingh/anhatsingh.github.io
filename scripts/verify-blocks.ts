@@ -202,5 +202,44 @@ console.log("\n── prose inside a text block ──");
   check("empty input yields nothing rather than a blank paragraph", splitProse("").length === 0);
 }
 
+/*
+  Fenced blocks, and why they come out first.
+
+  A mermaid diagram or a code sample contains blank lines of its own. Splitting
+  prose on blank lines before extracting fences tears a diagram into fragments
+  that then parse as paragraphs — which is exactly how a flowchart reached the
+  Axtria page as several lines of literal "A[Prescription Data] --> B[...]".
+*/
+console.log("\n── fenced blocks ──");
+{
+  const withDiagram = splitProse(
+    "Here is the pipeline.\n\n```mermaid\nflowchart LR\n\nA[Data] --> B[More]\n```\n\nAnd afterwards.",
+  );
+  check("a fence survives the blank lines inside it", withDiagram.length === 3, `${withDiagram.length} chunks`);
+  check("mermaid is recognised as a diagram", withDiagram[1]?.kind === "mermaid");
+  check(
+    "with its blank lines intact",
+    withDiagram[1]?.kind === "mermaid" && withDiagram[1].code.includes("flowchart LR\n\nA[Data]"),
+  );
+  check("and the prose around it survives", withDiagram[0]?.kind === "p" && withDiagram[2]?.kind === "p");
+
+  const code = splitProse("```python\nprint('hi')\n```");
+  check("another language is a code block, not a diagram", code[0]?.kind === "code");
+  check("and keeps its language", code[0]?.kind === "code" && code[0].language === "python");
+
+  const untagged = splitProse("```\nplain\n```");
+  check("an untagged fence still renders as code", untagged[0]?.kind === "code");
+
+  /*
+    Backticks inside a paragraph are inline code, not a fence. Treating them as
+    one would swallow the rest of the page from that point.
+  */
+  const inline = splitProse("Use `npm run build` to check.");
+  check("inline backticks are left to the inline renderer", inline[0]?.kind === "p");
+
+  const two = splitProse("```mermaid\ngraph TD\nA-->B\n```\n\ntext\n\n```mermaid\ngraph LR\nC-->D\n```");
+  check("two diagrams in one block both render", two.filter((c) => c.kind === "mermaid").length === 2);
+}
+
 console.log(failures === 0 ? "\nAll block checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

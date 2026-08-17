@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono, Source_Serif_4, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -31,6 +31,23 @@ const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
   weight: "700",
+  display: "swap",
+});
+
+/*
+  A reading face, offered on long pages.
+
+  Not the site's default and not a decoration: a write-up runs a couple of
+  thousand words, and a proportion of readers genuinely take in a serif more
+  easily at that length. Which of the two is better is an argument nobody wins,
+  so it is a control rather than a decision — see components/detail/reader.tsx.
+
+  Loaded here with the rest because next/font self-hosts at build time; a font
+  fetched on demand would arrive after the text it is meant to set.
+*/
+const readingSerif = Source_Serif_4({
+  variable: "--font-reading-serif",
+  subsets: ["latin"],
   display: "swap",
 });
 
@@ -110,7 +127,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${readingSerif.variable}`}
     >
       <body>
         <ThemeProvider>

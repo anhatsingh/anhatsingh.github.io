@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { InlineMarkdown } from "./inline-markdown";
+import { Mermaid } from "./mermaid";
 import { GitHubIcon } from "@/components/ui/icons";
 import { formatNumber } from "@/lib/format";
 import { normalizeVideoUrl, type Block } from "@/lib/content/blocks";
@@ -23,7 +24,12 @@ import { normalizeVideoUrl, type Block } from "@/lib/content/blocks";
   to actually read. Long-form at reduced contrast is what makes a page look
   like filler around the facts above it.
 */
-const PROSE = "leading-[1.75] text-[1.0625rem] text-text/90";
+/*
+  Colour only. Size, family, leading and measure are set by the .reading
+  wrapper from the reader's own preferences — repeating them here would win on
+  specificity and quietly ignore every control on the panel.
+*/
+const PROSE = "text-text/90";
 
 /*
   A text block is a document, not a sentence.
@@ -41,9 +47,50 @@ type Chunk =
   | { kind: "p"; text: string }
   | { kind: "list"; ordered: boolean; items: string[] }
   | { kind: "quote"; text: string }
-  | { kind: "sub"; text: string };
+  | { kind: "sub"; text: string }
+  | { kind: "code"; language: string; code: string }
+  | { kind: "mermaid"; code: string };
 
 export function splitProse(markdown: string): Chunk[] {
+  const chunks: Chunk[] = [];
+
+  /*
+    Fences come out first, before anything is split on blank lines.
+
+    A diagram or a code sample contains blank lines of its own, and splitting
+    on them first tears it into fragments that then parse as paragraphs — which
+    is how a mermaid flowchart ended up on the page as several lines of literal
+    "A[Prescription Data] --> B[Physician Data]".
+  */
+  const segments: Array<{ fence: false; text: string } | { fence: true; language: string; code: string }> = [];
+  const FENCE = /^```([\w-]*)\n([\s\S]*?)^```[ \t]*$/gm;
+
+  let cursor = 0;
+  for (const match of markdown.matchAll(FENCE)) {
+    const at = match.index ?? 0;
+    if (at > cursor) segments.push({ fence: false, text: markdown.slice(cursor, at) });
+    segments.push({ fence: true, language: (match[1] || "text").toLowerCase(), code: match[2].replace(/\n$/, "") });
+    cursor = at + match[0].length;
+  }
+  segments.push({ fence: false, text: markdown.slice(cursor) });
+
+  for (const segment of segments) {
+    if (segment.fence) {
+      chunks.push(
+        segment.language === "mermaid"
+          ? { kind: "mermaid", code: segment.code }
+          : { kind: "code", language: segment.language, code: segment.code },
+      );
+      continue;
+    }
+    chunks.push(...splitPlain(segment.text));
+  }
+
+  return chunks;
+}
+
+/** The prose between fences. */
+function splitPlain(markdown: string): Chunk[] {
   const chunks: Chunk[] = [];
 
   for (const paragraph of markdown.split(/\n\s*\n/)) {
@@ -201,6 +248,26 @@ function BlockView({ block }: { block: Block }) {
                 >
                   <InlineMarkdown text={chunk.text} />
                 </blockquote>
+              );
+            }
+
+            if (chunk.kind === "mermaid") {
+              return <Mermaid key={i} code={chunk.code} />;
+            }
+
+            if (chunk.kind === "code") {
+              return (
+                <figure
+                  key={i}
+                  className="overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface"
+                >
+                  <figcaption className="border-b border-hairline px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-muted">
+                    {chunk.language}
+                  </figcaption>
+                  <pre className="overflow-x-auto p-4 font-mono text-[0.8125rem] leading-relaxed">
+                    <code>{chunk.code}</code>
+                  </pre>
+                </figure>
               );
             }
 
