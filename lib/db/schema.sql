@@ -335,6 +335,16 @@ create table if not exists chat_questions (
     is the same shape and the same privacy rules, so it shares the table.
   */
   kind       text not null default 'question',
+  /*
+    What the visitor thought of the answer, when they said.
+
+    The classifier guesses from the assistant's own wording; this is the only
+    signal that comes from the person who asked. A reply that reads as
+    confident and answered can still be wrong, and that gap is invisible
+    without asking. null means nobody voted, which is most of them — a thumb is
+    offered, never required.
+  */
+  rating     smallint,
   created_at timestamptz not null default now()
 );
 
@@ -450,6 +460,7 @@ alter table testimonials   add column if not exists received_at text;
 
 alter table chat_questions add column if not exists answered boolean not null default true;
 alter table chat_questions add column if not exists kind text not null default 'question';
+alter table chat_questions add column if not exists rating smallint;
 
 -- ---------------------------------------------------------------------
 -- Retrieval (pgvector)

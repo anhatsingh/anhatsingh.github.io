@@ -10,6 +10,8 @@ interface Question {
   question: string;
   answered: boolean;
   kind: string;
+  /** 1, -1, or null when nobody voted — which is most of them. */
+  rating: number | null;
   created_at: string;
 }
 
@@ -67,7 +69,7 @@ export default async function AdminDashboard() {
 
     const { data: qs } = await db
       .from("chat_questions")
-      .select("question, answered, kind, created_at")
+      .select("question, answered, kind, rating, created_at")
       .order("created_at", { ascending: false })
       .limit(300);
     questions = (qs as Question[]) ?? [];
@@ -104,6 +106,18 @@ export default async function AdminDashboard() {
   const roleInterests = tally(questions.filter((q) => q.kind === "role_interest"));
   const offTopic = tally(questions.filter((q) => q.kind === "off_topic"));
 
+  /*
+    The one signal that doesn't come from the assistant's own wording.
+
+    Everything else here is inferred: the classifier reads a reply and decides
+    whether it was a refusal. It cannot tell a confident, complete, wrong
+    answer from a right one. A visitor pressing No can, and each of these is
+    either a content gap the classifier missed or an answer that is actively
+    misleading somebody — which is worse than the bot saying nothing.
+  */
+  const rejected = tally(questions.filter((q) => q.rating === -1));
+  const liked = questions.filter((q) => q.rating === 1).length;
+
   return (
     <div className="space-y-12">
       <section>
@@ -127,6 +141,30 @@ export default async function AdminDashboard() {
       <Channels rows={visits} />
 
       <LinkBuilder />
+
+      {rejected.length > 0 && (
+        <section>
+          <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-danger">
+            Answered badly ({rejected.length})
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            A visitor pressed No. Worth more than everything below it: the assistant answered
+            confidently and somebody who read it disagreed, so this is either a gap the wording
+            never revealed or an answer that is actively misleading people.
+            {liked > 0 && ` ${liked} answer${liked === 1 ? " was" : "s were"} marked useful.`}
+          </p>
+          <ul className="mt-4 divide-y divide-hairline overflow-hidden rounded-[var(--radius)] border border-danger/40">
+            {rejected.slice(0, 20).map((q) => (
+              <li key={q.question} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                <span className="min-w-0 text-sm">{q.question}</span>
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-danger">
+                  ×{q.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {unanswered.length > 0 && (
         <section>

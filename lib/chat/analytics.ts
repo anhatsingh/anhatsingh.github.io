@@ -94,3 +94,38 @@ export async function logQuestion(
     console.error("[analytics] failed to log question:", err);
   }
 }
+
+/**
+ * Records what the visitor thought of an answer.
+ *
+ * Matched to the question rather than to a message id, because the question is
+ * the only thing both sides already have — the client doesn't know the row it
+ * created, and giving it one would mean handing out an identifier for a table
+ * visitors cannot read.
+ *
+ * Most recent match wins. The same question asked twice in a session is rare
+ * enough that the alternative — an identifier round-trip on every turn — costs
+ * more than it fixes.
+ */
+export async function rateAnswer(raw: string, rating: 1 | -1): Promise<void> {
+  const question = raw.trim().slice(0, MAX_LENGTH);
+  if (!question) return;
+
+  try {
+    const db = getServiceClient();
+    if (!db) return;
+
+    const { data } = await db
+      .from("chat_questions")
+      .select("id")
+      .eq("question", question)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!data) return;
+    await db.from("chat_questions").update({ rating }).eq("id", data.id as string);
+  } catch (err) {
+    console.error("[analytics] failed to rate answer:", err);
+  }
+}

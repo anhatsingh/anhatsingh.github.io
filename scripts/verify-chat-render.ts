@@ -412,5 +412,37 @@ console.log("\n── the nudge knows when to stop ──");
   check("nothing still references the removed pulse", !css.includes("invite-pulse") && !css.includes("point-at"));
 }
 
+/*
+  The vote from the person who asked.
+
+  Everything else the site knows about answer quality is inferred from the
+  assistant's own wording, which catches refusals and nothing else — a
+  confident, complete, wrong answer is invisible to it. So the properties worth
+  pinning are the ones that keep this signal honest: it appears only on a
+  finished reply that actually said something, and it stores no more than the
+  other analytics do.
+*/
+console.log("\n── asking whether the answer was any good ──");
+{
+  const rating = readFileSync("components/chat/answer-rating.tsx", "utf8");
+  const dock = readFileSync("components/chat/chat-dock.tsx", "utf8");
+
+  check("nothing is asked while the reply is still streaming", /!busy && hasProse/.test(dock));
+  /*
+    A turn that only drove the page has nothing to be right or wrong about, and
+    a thumbs prompt under it asks about something never said.
+  */
+  check("a page-driving turn gets no rating", /function hasProse/.test(dock));
+  check("the vote attaches to the question, not the reply", /askedBefore\(messages, i\)/.test(dock));
+  check("it disappears once cast", /if \(rated\)/.test(rating));
+
+  const action = readFileSync("app/rate-answer.ts", "utf8");
+  check("only a thumb up or down is accepted", /rating !== 1 && rating !== -1/.test(action));
+
+  const schema = readFileSync("lib/db/schema.sql", "utf8");
+  check("the column exists and is nullable", /rating\s+smallint,/.test(schema));
+  check("and is added for databases that predate it", /add column if not exists rating/.test(schema));
+}
+
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

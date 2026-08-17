@@ -11,6 +11,7 @@ import { ChatMarkdown } from "./chat-markdown";
 import { FollowUps } from "./follow-ups";
 import { ShareButton } from "./share-button";
 import { TourCard } from "./tour-card";
+import { AnswerRating } from "./answer-rating";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
 import { ResumeList } from "./resume-list";
@@ -195,6 +196,30 @@ function MessageParts({ message }: { message: UIMessage }) {
   );
 }
 
+/** The text of the question this reply is answering. */
+function askedBefore(messages: UIMessage[], index: number): string {
+  for (let i = index - 1; i >= 0; i--) {
+    if (messages[i].role !== "user") continue;
+    return messages[i].parts
+      .filter((p) => p.type === "text")
+      .map((p) => ("text" in p ? p.text : ""))
+      .join(" ")
+      .trim();
+  }
+  return "";
+}
+
+/*
+  Whether there is an answer to rate.
+
+  A turn that only drove the page — scrolled somewhere, pinned a callout — has
+  nothing to be right or wrong about, and a thumbs prompt under it is asking
+  about something that was never said.
+*/
+function hasProse(message: UIMessage): boolean {
+  return message.parts.some((p) => p.type === "text" && "text" in p && p.text.trim().length > 40);
+}
+
 const STARTERS = [
   "Show me around",
   "Walk me through his best project",
@@ -307,7 +332,7 @@ export function ChatDock() {
           </div>
         )}
 
-        {messages.map((m) =>
+        {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={m.id} className="flex justify-end">
               <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent px-3 py-2 text-accent-ink">
@@ -319,6 +344,16 @@ export function ChatDock() {
               <AssistantAvatar src={assistantAvatar} name={assistantName} size={26} />
               <div className="min-w-0 flex-1 space-y-1 text-text">
                 <MessageParts message={m} />
+
+                {/*
+                  Only once the reply is finished, and only on replies that
+                  said something. Asking whether a half-streamed sentence was
+                  useful is asking about an answer that doesn't exist yet.
+
+                  The vote is filed against the question, not the answer, which
+                  is why the preceding user turn is what gets passed down.
+                */}
+                {!busy && hasProse(m) && <AnswerRating question={askedBefore(messages, i)} />}
               </div>
             </div>
           ),
