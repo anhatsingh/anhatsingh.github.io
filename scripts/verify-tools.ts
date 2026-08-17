@@ -34,6 +34,26 @@ type Executable = { execute: (args: unknown, opts: unknown) => Promise<ToolOutco
 const call = (t: unknown, args: unknown) =>
   (t as Executable).execute(args, {} as unknown) as Promise<ToolOutcome>;
 
+/*
+  A tool that streams its work returns an async generator rather than a
+  promise, so its result is the LAST thing it yields — the partials before it
+  are for the visitor to watch, not for the model to answer from. This drains
+  one and hands back the value the model would actually see.
+*/
+async function last(t: unknown, args: unknown): Promise<ToolOutcome> {
+  const returned = (t as Executable).execute(args, {} as unknown) as
+    | Promise<ToolOutcome>
+    | AsyncGenerator<ToolOutcome>;
+
+  if (!(returned as AsyncGenerator<ToolOutcome>)[Symbol.asyncIterator]) {
+    return returned as Promise<ToolOutcome>;
+  }
+
+  let value: ToolOutcome = { ok: false, error: "nothing yielded" };
+  for await (const step of returned as AsyncGenerator<ToolOutcome>) value = step;
+  return value;
+}
+
 async function main() {
   const tools = buildTools(seedPortfolio);
   const known = addressableIds(seedPortfolio);
@@ -173,8 +193,8 @@ async function main() {
       context: "",
     });
 
-    await run(() => call(budgeted.investigate, { question: "is he more data or backend?" }));
-    const second = await run(() => call(budgeted.investigate, { question: "and what about ML?" }));
+    await run(() => last(budgeted.investigate, { question: "is he more data or backend?" }));
+    const second = await run(() => last(budgeted.investigate, { question: "and what about ML?" }));
     check("a second investigation in one turn is refused", second.ok === false);
     check(
       "and says what to do instead",
@@ -183,7 +203,7 @@ async function main() {
     );
 
     // Without the budget wired at all, it must refuse rather than run free.
-    const unbudgeted = await run(() => call(tools.investigate, { question: "anything" }));
+    const unbudgeted = await run(() => last(tools.investigate, { question: "anything" }));
     check("no budget means no investigation", unbudgeted.ok === false);
 
     /*

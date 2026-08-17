@@ -1,6 +1,6 @@
 "use client";
 
-import { isToolUIPart, type UIMessage } from "ai";
+import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { useChatDock } from "./chat-provider";
 import { AssistantAvatar } from "./assistant-avatar";
@@ -13,6 +13,7 @@ import { ShareButton } from "./share-button";
 import { TourCard } from "./tour-card";
 import { TenureCard } from "./tenure-card";
 import { InvestigationCard } from "./investigation-card";
+import { PlanCard } from "./plan-card";
 import { AnswerRating } from "./answer-rating";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
@@ -131,6 +132,28 @@ function MessageParts({ message }: { message: UIMessage }) {
           return <ChatMarkdown key={i} text={part.text} />;
         }
 
+        /*
+          The plan, rendered from the tool's INPUT rather than its output.
+
+          Every other card here waits for output-available, which is right when
+          the tool computes something. This one doesn't compute anything — the
+          model writing the plan is the work — so waiting for output would show
+          it only after the thinking it describes had already finished. Input
+          streams as the model generates it, so this arrives a few words at a
+          time, which is the whole point.
+        */
+        if (isToolUIPart(part) && getToolName(part) === "think") {
+          const plan = part.input as { reading?: string; steps?: string[] } | undefined;
+          return (
+            <PlanCard
+              key={part.toolCallId}
+              reading={plan?.reading}
+              steps={plan?.steps}
+              working={part.state === "input-streaming"}
+            />
+          );
+        }
+
         if (isToolUIPart(part) && part.state === "output-available") {
           const outcome = part.output as ToolOutcome;
 
@@ -148,6 +171,11 @@ function MessageParts({ message }: { message: UIMessage }) {
 
           if (outcome?.ok === true && outcome.action === "tour") {
             return <TourCard key={part.toolCallId} steps={outcome.steps} />;
+          }
+
+          if (outcome?.ok === true && outcome.action === "plan") {
+            // Already rendered above, from the streaming input.
+            return null;
           }
 
           if (outcome?.ok === true && outcome.action === "tenure") {
@@ -170,7 +198,13 @@ function MessageParts({ message }: { message: UIMessage }) {
               entirely asks them to take a verdict on trust. Folded away is
               both.
             */
-            return <InvestigationCard key={part.toolCallId} findings={outcome.findings} />;
+            return (
+              <InvestigationCard
+                key={part.toolCallId}
+                findings={outcome.findings}
+                pending={outcome.pending}
+              />
+            );
           }
 
           if (outcome?.ok === true && outcome.action === "resume") {

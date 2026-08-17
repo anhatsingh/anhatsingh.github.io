@@ -6,7 +6,7 @@ import { listPublishedResumes } from "@/lib/resume/store";
 import { formatResults, MAX_QUERIES, research } from "./research";
 import { logQuestion } from "./analytics";
 import { skillTenure } from "@/lib/content/skill-tenure";
-import { formatFindings, investigate } from "./investigate";
+import { LENSES, durationsBlock, formatFindings, investigateStream, type Finding } from "./investigate";
 import {
   entityPath,
   entityTypeForId,
@@ -126,9 +126,21 @@ export type ToolOutcome =
       action: "investigation";
       question: string;
       findings: Array<{ label: string; finding: string; itemIds: string[] }>;
-      /** Fenced findings for the model. Never rendered. */
+      /*
+        Readers still working. Present on the partial results the tool streams
+        while it runs, empty on the last one — which is how the card knows to
+        stop showing itself as in progress.
+      */
+      pending: string[];
+      /** Fenced findings for the model. Never rendered, and only on the last. */
       content: string;
     }
+  /*
+    What it understood and what it means to do about it, before it does any of
+    it. Echoed straight back: the value is the plan being written where the
+    visitor can watch, not anything the tool computes.
+  */
+  | { ok: true; action: "plan"; reading: string; steps: string[] }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
   | {
       ok: true;
@@ -574,6 +586,40 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
       },
     }),
 
+    think: tool({
+      description:
+        "Say what the question is actually asking and what you intend to do about it, BEFORE doing any of it. " +
+        "Call this first on any question that needs more than a one-line answer. It costs one step and it is what " +
+        "lets the visitor see the shape of the answer coming rather than watching a spinner.",
+      inputSchema: z.object({
+        reading: z
+          .string()
+          .max(200)
+          .describe(
+            "What they're actually asking, in one sentence and in your own words. If the question is ambiguous, say which reading you're taking.",
+          ),
+        steps: z
+          .array(z.string().max(90))
+          .min(1)
+          .max(4)
+          .describe(
+            "What you're about to do, one short line each — 'work out how long he used it', 'find the entries that back it'. What you will DO, not what you will conclude.",
+          ),
+      }),
+      /*
+        Deliberately a pass-through. The model authoring the plan IS the work;
+        the SDK streams tool input as it is generated, so the plan appears a
+        line at a time while it is being thought rather than after. A tool that
+        computed something here would only delay that.
+      */
+      execute: async ({ reading, steps }): Promise<ToolOutcome> => ({
+        ok: true,
+        action: "plan",
+        reading,
+        steps,
+      }),
+    }),
+
     skillTenure: tool({
       description:
         "Work out how long he has actually used a skill or technology, from the dated jobs and projects that name it. " +
@@ -615,34 +661,68 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           .max(200)
           .describe("What is actually being asked, in your words. Keep the specifics — a vague brief gets vague findings."),
       }),
-      execute: async ({ question: brief }): Promise<ToolOutcome> => {
+      /*
+        A generator, so each reading reaches the visitor as it lands.
+
+        The AI SDK streams every yielded value to the client as a preliminary
+        result and hands the model only the last one. Which is exactly the
+        split wanted here: the reader watches three readings arrive several
+        seconds apart, and the model gets one finished block to answer from
+        rather than three partial ones it might start replying to early.
+      */
+      execute: async function* ({ question: brief }): AsyncGenerator<ToolOutcome> {
         /*
           Once per turn. Three model calls is the right cost for a hard
-          question and the wrong cost for a habit, and the whole request has
-          thirty seconds to finish in.
+          question and the wrong cost for a habit, and the whole request has a
+          minute to finish in.
         */
         if (!ctx.canInvestigate || !ctx.canInvestigate()) {
-          return {
+          yield {
             ok: false,
             error: "Already investigated this turn. Answer from what came back rather than looking again.",
           };
+          return;
         }
 
-        const result = await investigate(brief, ctx.context ?? "", portfolio);
-        if (!result.ok) return { ok: false, error: result.error };
+        if (!process.env.OPENAI_API_KEY) {
+          yield { ok: false, error: "Not configured for this." };
+          return;
+        }
 
-        return {
-          ok: true,
-          action: "investigation",
-          question: brief,
-          findings: result.findings.map((f) => ({
+        const seen: Finding[] = [];
+        const shown = () =>
+          seen.map((f) => ({
             label: f.label,
             finding: f.finding,
             // Only ids that exist. A lens naming something it half-remembered
-            // would otherwise render as a link to nothing.
+            // would otherwise render as a button to nothing.
             itemIds: f.itemIds.filter((id) => known.has(id)),
-          })),
-          content: formatFindings(result),
+          }));
+        const waiting = () => LENSES.filter((l) => !seen.some((f) => f.lens === l.key)).map((l) => l.label);
+
+        // Before any reader has finished, so the card appears with its three
+        // angles named rather than after the first one lands.
+        yield { ok: true, action: "investigation", question: brief, findings: [], pending: waiting(), content: "" };
+
+        for await (const finding of investigateStream(brief, ctx.context ?? "", portfolio)) {
+          seen.push(finding);
+          yield { ok: true, action: "investigation", question: brief, findings: shown(), pending: waiting(), content: "" };
+        }
+
+        if (!seen.length) {
+          yield { ok: false, error: "Couldn't get through the record just now." };
+          return;
+        }
+
+        // The last one carries the block the model answers from, and an empty
+        // pending list, which is what tells the card it has finished.
+        yield {
+          ok: true,
+          action: "investigation",
+          question: brief,
+          findings: shown(),
+          pending: [],
+          content: formatFindings({ ok: true, question: brief, findings: seen, durations: durationsBlock(portfolio, brief) }),
         };
       },
     }),

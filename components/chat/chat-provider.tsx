@@ -182,6 +182,10 @@ export function ChatProvider({
               which is the behaviour the card exists to replace.
             */
             break;
+          case "plan":
+            // Nothing to do — it renders from the streaming input and drives
+            // nothing.
+            break;
           case "tenure":
             // Nothing to do. The card renders under the message and drives the
             // page itself when a span is tapped.

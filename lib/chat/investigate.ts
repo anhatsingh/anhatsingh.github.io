@@ -125,6 +125,73 @@ export function durationsFor(portfolio: Portfolio, question: string): string {
   return lines.length ? `## DURATIONS (already computed — quote these, do not recalculate)\n${lines.join("\n")}` : "";
 }
 
+/** One reader. Extracted so both the streaming and batch forms share it. */
+async function readWith(lens: Lens, question: string, durations: string, context: string): Promise<Finding> {
+  const { object } = await generateObject({
+    model: openai(MODEL),
+    schema: findingSchema,
+    system:
+      `You are one of three readers examining an engineer's record to answer a question. ` +
+      `Your brief is narrow and you must stay inside it — another reader is covering the rest.\n\n` +
+      `YOUR BRIEF: ${lens.brief}\n\n` +
+      `Answer only from the RECORD below. If it does not support something, say so rather than reaching. ` +
+      `You are not writing the final answer, you are handing findings to whoever does — so be terse and concrete.`,
+    /*
+      The question is fenced as data for the same reason a visitor turn is in
+      the main prompt: it is a stranger's text arriving in the same window as
+      the instructions.
+    */
+    prompt: `<question>${question}</question>\n\n${durations ? `${durations}\n\n` : ""}## RECORD\n${context}`,
+    maxOutputTokens: MAX_LENS_TOKENS,
+    maxRetries: 1,
+  });
+
+  return { lens: lens.key, label: lens.label, finding: object.finding, itemIds: object.itemIds };
+}
+
+/*
+  The readings, yielded as each one lands rather than all at the end.
+
+  They finish several seconds apart, and holding the first until the slowest
+  returns means a visitor watches a spinner through work that is already done.
+  Streaming turns the wait into the interesting part — you see it read the
+  dates, then the evidence, then argue the other side.
+
+  Racing the same promise objects rather than re-wrapping them each pass: a
+  fresh .then() per iteration would build a new promise every loop and leak one
+  per lens per turn.
+*/
+export async function* investigateStream(
+  question: string,
+  context: string,
+  portfolio: Portfolio,
+): AsyncGenerator<Finding> {
+  const durations = durationsFor(portfolio, question);
+
+  const tasks = LENSES.map((lens, i) =>
+    readWith(lens, question, durations, context).then(
+      (finding) => ({ i, finding }),
+      (err) => {
+        // One lens failing costs that angle, not the investigation.
+        console.error(`[investigate] ${lens.key} failed:`, err);
+        return { i, finding: null as Finding | null };
+      },
+    ),
+  );
+
+  const remaining = new Map(tasks.map((task, i) => [i, task]));
+  while (remaining.size) {
+    const done = await Promise.race(remaining.values());
+    remaining.delete(done.i);
+    if (done.finding) yield done.finding;
+  }
+}
+
+/** The durations block for a question, so a caller can show it alongside. */
+export function durationsBlock(portfolio: Portfolio, question: string): string {
+  return durationsFor(portfolio, question);
+}
+
 /**
  * Three readings of the same record, at once.
  *
@@ -144,28 +211,7 @@ export async function investigate(
   const durations = durationsFor(portfolio, question);
 
   const results = await Promise.allSettled(
-    LENSES.map(async (lens) => {
-      const { object } = await generateObject({
-        model: openai(MODEL),
-        schema: findingSchema,
-        system:
-          `You are one of three readers examining an engineer's record to answer a question. ` +
-          `Your brief is narrow and you must stay inside it — another reader is covering the rest.\n\n` +
-          `YOUR BRIEF: ${lens.brief}\n\n` +
-          `Answer only from the RECORD below. If it does not support something, say so rather than reaching. ` +
-          `You are not writing the final answer, you are handing findings to whoever does — so be terse and concrete.`,
-        /*
-          The question is fenced as data for the same reason a visitor turn is
-          in the main prompt: it is a stranger's text arriving in the same
-          window as the instructions.
-        */
-        prompt: `<question>${question}</question>\n\n${durations ? `${durations}\n\n` : ""}## RECORD\n${context}`,
-        maxOutputTokens: MAX_LENS_TOKENS,
-        maxRetries: 1,
-      });
-
-      return { lens: lens.key, label: lens.label, finding: object.finding, itemIds: object.itemIds } as Finding;
-    }),
+    LENSES.map((lens) => readWith(lens, question, durations, context)),
   );
 
   const findings = results

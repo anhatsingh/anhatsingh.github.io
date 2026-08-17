@@ -511,12 +511,56 @@ console.log("\n── the reasoning is visible but not in the way ──");
     filtered against the real index first — a lens naming something it
     half-remembered would otherwise render as a button to nothing.
   */
-  check("the model still gets its fenced block", /content: formatFindings\(result\)/.test(tools));
+  check("the model still gets its fenced block", /content: formatFindings\(/.test(tools));
   check("and invented ids never reach the card", /itemIds: f\.itemIds\.filter\(\(id\) => known\.has\(id\)\)/.test(tools));
 
   const css = readFileSync("app/globals.css", "utf8");
   check("the marker turns when it opens", /details\[open\] > summary span\[aria-hidden\]/.test(css));
   check("and Safari's own marker is hidden", /summary::-webkit-details-marker/.test(css));
+}
+
+/*
+  Thinking where it can be seen.
+
+  The assistant went from question to answer with a spinner between, which on
+  anything taking ten seconds is the worst moment to show nothing — the visitor
+  cannot tell whether it understood them, so cannot tell whether waiting is
+  worth it. Two things now fill that gap, and both stream.
+*/
+console.log("\n── the thinking is visible as it happens ──");
+{
+  const dock = readFileSync("components/chat/chat-dock.tsx", "utf8");
+  const tools = readFileSync("lib/chat/tools.ts", "utf8");
+  const investigate = readFileSync("lib/chat/investigate.ts", "utf8");
+  const card = readFileSync("components/chat/investigation-card.tsx", "utf8");
+
+  /*
+    The plan renders from tool INPUT, not output. Every other card waits for
+    output-available, which is right when a tool computes something; this one
+    computes nothing — the model writing the plan is the work — so waiting for
+    output would show it only after the thinking it describes had finished.
+  */
+  check("the plan renders from streaming input", /getToolName\(part\) === "think"/.test(dock));
+  check("and shows it is still being written", /part\.state === "input-streaming"/.test(dock));
+  check("the tool itself computes nothing", /action: "plan",\n\s+reading,\n\s+steps,/.test(tools));
+
+  /*
+    The readings are yielded as each lands. Holding the first until the slowest
+    returns means watching a spinner through work that is already done.
+  */
+  check("investigate is a generator", /execute: async function\* /.test(tools));
+  check("and yields each reading as it settles", /export async function\* investigateStream/.test(investigate));
+  check(
+    "racing stable promises, not fresh ones each pass",
+    /const remaining = new Map\(tasks\.map/.test(investigate),
+  );
+  check("only the last carry the block the model reads", /content: formatFindings\(\{ ok: true/.test(tools));
+  check("partials say who is still out", /pending: waiting\(\)/.test(tools));
+
+  // Open while working, closed after — a closed box streaming into itself
+  // shows nothing, and once the answer lands the answer is what matters.
+  check("the card opens itself while reading", /ref\.current\.open = working/.test(card));
+  check("but a visitor's own toggle wins", /if \(touched \|\| !ref\.current\) return/.test(card));
 }
 
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

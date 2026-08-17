@@ -235,6 +235,19 @@ export const EVAL_CASES: EvalCase[] = [
     expect: [{ kind: "avoids", tools: ["investigate"] }],
   },
 
+  {
+    id: "says-what-it-understood-first",
+    ask: "Could he lead a small team building an ML platform?",
+    why: "A question that takes ten seconds to answer properly. Showing nothing in the meantime means the visitor cannot tell whether it understood them, so cannot tell whether waiting is worth it.",
+    expect: [{ kind: "calls", tools: ["think"] }],
+  },
+  {
+    id: "no-plan-for-a-greeting",
+    ask: "thanks, that's helpful",
+    why: "A plan before a two-word reply is theatre, and theatre on every turn teaches people to skip past it — including the times it matters.",
+    expect: [{ kind: "avoids", tools: ["think", "investigate"] }],
+  },
+
   /* ── follow-ups ────────────────────────────────────────────────────── */
   {
     id: "offers-follow-ups-after-substance",
@@ -259,5 +272,10 @@ export const GROUPS: Record<string, (c: EvalCase) => boolean> = {
   resume: (c) => c.id.includes("cv") || c.id.includes("resume") || c.id.includes("variant"),
   fit: (c) => c.id.includes("fit") || c.id.includes("gap"),
   research: (c) =>
-    c.id.includes("skill") || c.id.includes("investigat") || c.id.includes("experience") || c.id.includes("undated"),
+    c.id.includes("skill") ||
+    c.id.includes("investigat") ||
+    c.id.includes("experience") ||
+    c.id.includes("undated") ||
+    c.id.includes("understood") ||
+    c.id.includes("plan"),
 };

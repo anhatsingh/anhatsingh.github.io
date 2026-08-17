@@ -99,7 +99,7 @@ export default async function HowItWorksPage() {
             The assistant on this site doesn&apos;t just answer — it scrolls the page, pins
             callouts onto the entries that answer you, walks you through the whole thing on
             request, searches the web when the question needs it, and typesets a résumé for a job
-            description you paste in. Fourteen tools, and about twenty thousand lines around them.
+            description you paste in. Fifteen tools, and about twenty thousand lines around them.
             The interesting part isn&apos;t any of the features; it&apos;s what each one could do
             wrong, and what stops it.
           </p>
@@ -119,7 +119,7 @@ export default async function HowItWorksPage() {
               rather than wrong.
             </p>
             <p>
-              So the fourteen tools are constructed{" "}
+              So the fifteen tools are constructed{" "}
               <strong className="text-text">per request</strong>, closed over the content that
               actually exists. Validation happens before anything reaches the browser:
             </p>

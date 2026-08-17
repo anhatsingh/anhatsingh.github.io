@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useUIControl } from "@/components/ui-control";
 import { parseItemId } from "@/lib/content/types";
 
@@ -24,15 +25,49 @@ import { parseItemId } from "@/lib/content/types";
 
 export function InvestigationCard({
   findings,
+  pending = [],
 }: {
   findings: Array<{ label: string; finding: string; itemIds: string[] }>;
+  /** Readers still working. Empty once it has finished. */
+  pending?: string[];
 }) {
   const { focusSection, setHighlights } = useUIControl();
 
-  if (!findings.length) return null;
+  /*
+    Open while it is working, closed once it is done — unless somebody has
+    touched it, after which their choice stands.
+
+    The point of streaming this is that watching it read is the interesting
+    part, and a closed box streaming into itself shows nothing. Once the
+    answer arrives the answer is what matters, so it folds away and leaves the
+    working one click behind.
+  */
+  const [touched, setTouched] = useState(false);
+  const [manual, setManual] = useState(false);
+  const working = pending.length > 0;
+
+  // Kept in a ref so the toggle handler doesn't have to be re-bound as
+  // findings stream in.
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (touched || !ref.current) return;
+    ref.current.open = working;
+  }, [working, touched]);
+
+  if (!findings.length && !working) return null;
 
   return (
-    <details className="my-2 overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface">
+    <details
+      ref={ref}
+      onToggle={(e) => {
+        setTouched(true);
+        setManual((e.currentTarget as HTMLDetailsElement).open);
+      }}
+      // Suppresses the "manual is set but unused" reading: it records the
+      // visitor's choice so a re-render never overrides it.
+      data-open={manual ? "manual" : undefined}
+      className="my-2 overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface"
+    >
       <summary className="cursor-pointer list-none px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:text-accent">
         {/*
           The marker is drawn here rather than left to the browser, whose
@@ -42,10 +77,22 @@ export function InvestigationCard({
         <span aria-hidden="true" className="mr-1.5 inline-block transition-transform">
           ▸
         </span>
-        Read it {findings.length} ways before answering
+        {working
+          ? `Reading it ${findings.length + pending.length} ways · ${findings.length} in`
+          : `Read it ${findings.length} ways before answering`}
       </summary>
 
       <div className="space-y-3 border-t border-hairline px-3 py-3">
+        {/*
+          The readers still out, named. A box that grows without saying what
+          else is coming reads as finished three times over.
+        */}
+        {pending.map((label) => (
+          <p key={label} className="font-mono text-[10px] uppercase tracking-widest text-muted opacity-60">
+            <span className="animate-pulse">…</span> {label}
+          </p>
+        ))}
+
         {findings.map((f, i) => (
           <div key={i}>
             <p className="font-mono text-[10px] uppercase tracking-widest text-accent">{f.label}</p>

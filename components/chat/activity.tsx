@@ -35,6 +35,7 @@ const TOOL_PHASES: Record<string, string[]> = {
   listResumes: ["Gathering his CVs"],
   suggestRoles: ["Thinking"],
   draftContactMessage: ["Drafting a message"],
+  think: ["Working out what's being asked"],
   skillTenure: ["Finding where he used it", "Adding up the dates", "Checking for overlap"],
   /*
     Three readers run at once, so these describe the work rather than a
