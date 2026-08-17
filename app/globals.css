@@ -515,6 +515,35 @@ body {
   max-width: var(--reading-measure);
 }
 
+/*
+  Skills, set as sentences rather than boxes.
+
+  The separators are drawn here rather than typed between the items, which is
+  what lets the markup stay a real <ul>: a screen reader announces eleven list
+  items, not eleven middots. Inline list items so the line wraps like prose —
+  the whole point, since the names run from one character to thirty-three and
+  boxing them was what made every wrapped row ragged.
+*/
+.skill-line li {
+  display: inline;
+}
+
+.skill-line li:not(:last-child)::after {
+  /*
+    A non-breaking space before the dot, so the separator stays glued to the
+    skill it follows. Without it a wrapped line can open with a stray "·
+    PyTorch", which reads as though something went missing above.
+  */
+  content: "\00a0·";
+  /*
+    Derived from --muted rather than given a colour of its own: a separator is
+    rhythm, not information, and it must not compete with the skills either
+    side. --hairline was the first choice and is nearly invisible on black.
+  */
+  color: color-mix(in srgb, var(--muted) 50%, transparent);
+  padding-right: 0.45em;
+}
+
 /* --- Focus ------------------------------------------------------------ */
 
 :focus-visible {

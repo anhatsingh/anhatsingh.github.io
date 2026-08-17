@@ -379,5 +379,38 @@ console.log("\n── the superseded script cannot cull ──");
   check("and it says where the replacement is", /\/admin\/taxonomy/.test(tidy));
 }
 
+/*
+  The section itself.
+
+  Two properties that a redesign can drop without anything failing. The
+  chatbot addresses skills as "skills:<slug>", validated per request against
+  the known set — so a section that stopped registering them would leave
+  highlightItems succeeding server-side and doing nothing on screen, which is
+  the exact failure mode /how-it-works section 01 is about.
+
+  And the separators have to stay in CSS. Typed between the items they would be
+  read aloud, so a list of eleven skills becomes eleven skills and eleven
+  middots.
+*/
+console.log("\n── the section keeps what a redesign can quietly drop ──");
+{
+  const section = readFileSync("components/sections/skills.tsx", "utf8");
+
+  check("every skill still registers for highlighting", /useHighlight\(itemId\("skills", skill\.slug\)\)/.test(section));
+  /*
+    Highlightable renders border-l-2 pl-4 unconditionally — an eighteen-pixel
+    indent on every item whether or not anything is highlighted. Around one
+    card that is the design; around sixty-two in a wrapping row it is why
+    nothing lined up.
+  */
+  check("but not through the wrapper that indents each one", !/<Highlightable/.test(section));
+  check("emphasis follows evidence", /strong={hasEvidence\(s, evidence\)}/.test(section));
+
+  const css = readFileSync("app/globals.css", "utf8");
+  check("separators are drawn by CSS", /\.skill-line li:not\(:last-child\)::after/.test(css));
+  check("and are not typed into the markup", !section.includes("·"));
+  check("the list stays a list", /<ul className="skill-line/.test(section) && /<li ref={ref}/.test(section));
+}
+
 console.log(failures === 0 ? "\nAll skills checks passed.\n" : `\n${failures} skills check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

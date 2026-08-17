@@ -16,6 +16,7 @@ import { defaultAvatar } from "@/components/ui/default-avatar";
 import { getPortfolio } from "@/lib/content";
 import { getGitHubStats } from "@/lib/github/service";
 import { getLeetCodeStats } from "@/lib/leetcode/service";
+import { collectVocabulary } from "@/lib/content/vocabulary";
 import {
   SITE_URL,
   absoluteUrl,
@@ -117,6 +118,18 @@ export default async function HomePage() {
   const nowDate = new Date();
   const nowMonth = nowDate.getFullYear() * 12 + nowDate.getMonth();
 
+  /*
+    How many jobs and projects name each skill, for the Skills section's
+    emphasis. Computed here rather than in the client component so the browser
+    receives a small map of counts instead of every entry's tech array twice —
+    and reusing collectVocabulary means it case-folds exactly the way the
+    taxonomy does, rather than a second matching rule drifting away from it.
+  */
+  const skillEvidence: Record<string, number> = {};
+  for (const term of collectVocabulary(portfolio)) {
+    if (term.slug) skillEvidence[term.slug] = term.usedIn.length;
+  }
+
   // Neither third party can take the page down with it — both resolve to null
   // on any failure and their sections simply don't render.
   const [githubStats, leetcodeStats] = await Promise.all([
@@ -149,7 +162,7 @@ export default async function HomePage() {
         <Experience experience={portfolio.experience} />
         <GitHub stats={githubStats} />
         <LeetCode stats={leetcodeStats} />
-        <Skills skills={portfolio.skills} />
+        <Skills skills={portfolio.skills} evidence={skillEvidence} />
         <Education education={portfolio.education} certifications={portfolio.certifications} />
         <Testimonials testimonials={portfolio.testimonials} />
         <Writing writing={portfolio.writing} />
