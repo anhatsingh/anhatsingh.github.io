@@ -65,6 +65,52 @@ console.log("\n── paragraphs ──");
   check("a heading renders as text, not a marker", !html("## Summary").includes("##"));
 }
 
+/*
+  A work answer has a shape, and the shape depends on one keystroke.
+
+  Signed in, the assistant wrote long structured answers; to a visitor it wrote
+  one summary paragraph. That was a single line of prompt capping visitors at
+  ninety words — about one paragraph — not the model treating people
+  differently. The cap is gone and the answer now walks the situation, the
+  brief, what he did and what came of it.
+
+  Which only works if the beats are separated by BLANK lines. The renderer
+  merges consecutive lines into one paragraph on purpose, because the model
+  wraps mid-sentence — so the same four beats written with single newlines
+  arrive as exactly the block of text this replaced. The instruction is
+  load-bearing, and this is what proves it.
+*/
+console.log("\n── a work answer keeps its shape ──");
+{
+  const beats = [
+    "AstraZeneca's Q2 2024 call planning ran on a manual weekly process — 100+ GB across three systems.",
+    "He had to automate it end to end without losing the business rules.",
+    "He reconciled physician identifiers across the three sources, then built a configurable pipeline over SQL Server and Spark.",
+    "**Two days of work became 3.5 hours.**",
+  ];
+
+  const shaped = html(beats.join("\n\n"));
+  check("each beat is its own paragraph", (shaped.match(/<p/g) ?? []).length === 4, `${(shaped.match(/<p/g) ?? []).length}`);
+  check("and the outcome lands in bold", shaped.includes("<strong>Two days of work became 3.5 hours.</strong>"));
+
+  // The trap, demonstrated rather than asserted about.
+  const collapsed = html(beats.join("\n"));
+  check(
+    "the same beats on single lines collapse to one",
+    (collapsed.match(/<p/g) ?? []).length === 1,
+    `${(collapsed.match(/<p/g) ?? []).length} paragraph(s) — which is why the prompt insists on blank lines`,
+  );
+
+  /*
+    Things the renderer cannot do, which the prompt now tells the model not to
+    reach for. Each renders as literal junk rather than failing, so nothing
+    would ever report it.
+  */
+  check("a table would render as literal pipes", html("| a | b |\n| - | - |").includes("|"));
+  check("a blockquote would keep its marker", html("> quoted").includes("&gt;"));
+  check("a divider would print as text", html("---").includes("---"));
+}
+
 console.log("\n── mid-stream fragments ──");
 {
   // Every one of these is what the text looks like partway through a stream.

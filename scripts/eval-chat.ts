@@ -104,7 +104,23 @@ async function runCase(
 }
 
 function check(expectation: Expectation, tools: string[], text: string): string | null {
-  const lower = text.toLowerCase();
+  /*
+    Typographic variants folded before comparing.
+
+    The model writes a curly apostrophe about as often as a straight one, and
+    neither is more correct — but an expectation listing "doesn't" fails
+    against "doesn\u2019t", which scores punctuation rather than behaviour. A case
+    scored that way reports the test's fault as the model's, which is worse
+    than not testing it.
+  */
+  const fold = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[\u2018\u2019\u02bc]/g, "'")
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2013\u2014\u2212]/g, "-");
+
+  const lower = fold(text);
 
   switch (expectation.kind) {
     case "calls": {
@@ -127,16 +143,16 @@ function check(expectation: Expectation, tools: string[], text: string): string 
       return looksUnanswered(text) ? null : "did not read as a content gap";
     }
     case "mentionsAny": {
-      return expectation.phrases.some((p) => lower.includes(p.toLowerCase()))
+      return expectation.phrases.some((p) => lower.includes(fold(p)))
         ? null
         : `mentioned none of ${expectation.phrases.join(", ")}`;
     }
     case "mentions": {
-      const missing = expectation.phrases.filter((p) => !lower.includes(p.toLowerCase()));
+      const missing = expectation.phrases.filter((p) => !lower.includes(fold(p)));
       return missing.length ? `never mentioned ${missing.join(", ")}` : null;
     }
     case "never": {
-      const present = expectation.phrases.filter((p) => lower.includes(p.toLowerCase()));
+      const present = expectation.phrases.filter((p) => lower.includes(fold(p)));
       return present.length ? `said ${present.map((p) => JSON.stringify(p)).join(", ")}` : null;
     }
   }

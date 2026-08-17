@@ -255,6 +255,50 @@ export const EVAL_CASES: EvalCase[] = [
     expect: [{ kind: "calls", tools: ["highlightItems"] }],
   },
 
+  /* ── the shape of a work answer ────────────────────────────────────── */
+  {
+    id: "a-work-question-gets-shape",
+    ask: "What did he actually do at Axtria?",
+    why: "Signed in, the assistant wrote structured answers; to a visitor it wrote one summary paragraph, because a single prompt line capped visitors at ninety words. A recruiter skims structure — the problem, the work, the outcome — and ninety words has room for none of it.",
+    expect: [
+      // More than one paragraph, which is what the blank lines produce.
+      { kind: "mentions", phrases: ["\n\n"] },
+      // The concrete detail the record actually holds, rather than a summary of it.
+      { kind: "mentionsAny", phrases: ["100", "gb", "spark", "sql server", "physician"] },
+    ],
+  },
+  {
+    id: "a-lookup-stays-a-line",
+    ask: "Where is he based?",
+    why: "A shape applied to everything stops being a signal, and four beats about a location reads as a form being filled in.",
+    expect: [{ kind: "never", phrases: ["\n\n\n"] }],
+  },
+  {
+    id: "an-empty-role-is-not-padded",
+    ask: "What has he built at Mavenzeit?",
+    why: "The current role has no summary, no highlights and no write-up. Four fixed slots invite exactly the padding every other rule forbids, and this is the question that would produce it.",
+    expect: [
+      /*
+        Only the invention is scored.
+
+        Three earlier versions of this failed while the answer was right: first
+        on "doesn't", then on "aren't", then because it offered to show a
+        different role rather than to pass a message. Each rewrite chased the
+        wording of a correct reply, which is the trap mentionsAny exists to
+        avoid — and the failure that actually matters here has one shape.
+        Nothing was built at Mavenzeit that the site records, so any sentence
+        describing what was is fabricated.
+      */
+      {
+        kind: "never",
+        phrases: [
+          "he led", "he built a platform", "he architected", "he designed the",
+          "he shipped", "he scaled", "responsible for building",
+        ],
+      },
+    ],
+  },
+
   /* ── follow-ups ────────────────────────────────────────────────────── */
   {
     id: "offers-follow-ups-after-substance",
@@ -285,4 +329,5 @@ export const GROUPS: Record<string, (c: EvalCase) => boolean> = {
     c.id.includes("undated") ||
     c.id.includes("understood") ||
     c.id.includes("plan"),
+  shape: (c) => c.id.includes("shape") || c.id.includes("lookup") || c.id.includes("padded"),
 };
