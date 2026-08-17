@@ -51,6 +51,26 @@ function Header({ name, resumeUrl }: { name: string; resumeUrl?: string }) {
             <a
               key={link.id}
               href={`#${link.id}`}
+              /*
+                Smooth here rather than globally. The CSS property applied to
+                every scroll on the site including the router's reset to the
+                top, which turned opening a page into an animation that layout
+                shifts cut short halfway down.
+
+                The href stays real, so this still works without JavaScript and
+                still opens in a new tab on middle-click.
+              */
+              onClick={(e) => {
+                const target = document.getElementById(link.id);
+                if (!target || e.metaKey || e.ctrlKey || e.shiftKey) return;
+                e.preventDefault();
+                target.scrollIntoView({
+                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                    ? "auto"
+                    : "smooth",
+                });
+                history.replaceState(null, "", `#${link.id}`);
+              }}
               className={`font-mono text-xs uppercase tracking-widest transition-colors hover:text-accent ${
                 focusedSection === link.id ? "text-accent" : "text-muted"
               }`}

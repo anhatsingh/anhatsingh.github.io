@@ -198,7 +198,22 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  /*
+    Deliberately NOT scroll-behavior: smooth.
+
+    It was, and it broke every navigation to a detail page. The router resets
+    the scroll with window.scrollTo(0, 0), a smooth html turns that into an
+    animation starting from wherever the last page was, and anything that
+    changes the document height mid-animation — a font swapping in, a mermaid
+    diagram drawing, an image arriving — cuts it short. You land halfway down a
+    page you just opened.
+
+    Nothing is lost. Every smooth scroll on this site is a deliberate one made
+    in JavaScript, where the behaviour is passed explicitly and checked against
+    prefers-reduced-motion first: see scrollTo in components/ui-control.tsx and
+    the anchor handler in components/site-shell.tsx. The CSS property only ever
+    applied to scrolls nobody asked to be animated.
+  */
   /* Sections scrolled to by the chatbot must clear the sticky header. */
   scroll-padding-top: 6rem;
   color-scheme: light;
@@ -443,16 +458,14 @@ body {
 
 
 /*
-  Honour reduced-motion globally. The chatbot's scroll behaviour is handled
-  separately in JS (it checks the same media query before choosing smooth vs
-  instant), because scroll-behavior alone doesn't cover programmatic scrollIntoView
-  on every engine.
+  Honour reduced-motion globally.
+
+  Scrolling is not listed here any more: nothing sets scroll-behavior in CSS,
+  and every animated scroll on this site is made in JavaScript, where this same
+  media query is checked before smooth is chosen. See scrollTo in
+  components/ui-control.tsx and the anchor handler in site-shell.
 */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
   *,
   *::before,
   *::after {

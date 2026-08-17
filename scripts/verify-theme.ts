@@ -172,6 +172,25 @@ console.log("\n── reading preferences ──");
     /\.reading h2,[\s\S]{0,120}font-family: var\(--font-display\)/.test(reading),
   );
   check("a reading face is registered", /--font-reading:/.test(CSS));
+
+  /*
+    The one that broke opening a page. A smooth html turns the router's
+    scrollTo(0, 0) into an animation from wherever the last page was, and
+    anything changing the document height mid-animation — a font swap, a
+    mermaid diagram drawing — cuts it short partway down.
+
+    Every deliberate smooth scroll is made in JS, where the behaviour is passed
+    explicitly and checked against prefers-reduced-motion first.
+  */
+  check(
+    "nothing declares scroll-behavior in CSS",
+    !/^\s*scroll-behavior:/m.test(CSS),
+    (/^\s*scroll-behavior:.*$/m.exec(CSS) ?? [""])[0].trim(),
+  );
+  check(
+    "the sticky header is still cleared by scroll-padding",
+    /scroll-padding-top:/.test(CSS),
+  );
 }
 
 console.log(

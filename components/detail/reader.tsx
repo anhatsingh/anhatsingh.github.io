@@ -104,7 +104,22 @@ export function ReaderControls({
   prefs: ReaderPrefs;
   update: (next: Partial<ReaderPrefs>) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  /*
+    Open to begin with. A control nobody knows about is a control nobody uses,
+    and the point of these is that the defaults will be wrong for somebody —
+    showing them is what says the page can be changed at all.
+  */
+  const [open, setOpen] = useState(true);
+
+  /*
+    Except where there is no room. Below the width of a tablet the panel would
+    sit on top of the column it exists to make readable, so it starts collapsed
+    and the tab still opens it. Checked after mount, since the server has no
+    viewport.
+  */
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1023px)").matches) setOpen(false);
+  }, []);
 
   return (
     <div data-screen-only="" className="fixed right-0 top-1/2 z-30 -translate-y-1/2">
