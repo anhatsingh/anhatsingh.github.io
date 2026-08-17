@@ -13,7 +13,29 @@ import { socialLinks, type Portfolio } from "@/lib/content/types";
   matters once that association exists.
 */
 
-export const SITE_URL = "https://anhatsingh.com";
+/*
+  The host that actually serves the site, not the one it was registered under.
+
+  This was the apex while Vercel served www and 308'd the apex to it, and the
+  mismatch broke indexing in two ways at once. Every URL the site declared —
+  canonical tags, og:url, the sitemap, robots' Host, every JSON-LD @id —
+  pointed at a redirect, so Search Console reported the sitemap as "Page with
+  redirect". And a page crawled at www carried a canonical pointing at the apex,
+  which redirected back to www: a self-contradicting signal, which Google
+  resolves by discarding the declared canonical and choosing its own — reported
+  as "Duplicate without user-selected canonical".
+
+  So this constant has to name the host that answers 200. Changing which host
+  that is means changing this line in the same commit as the Vercel domain
+  setting; they are one decision, not two.
+
+  Overridable by env so a preview deployment can declare itself rather than
+  claiming to be production.
+*/
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anhatsingh.com").replace(
+  /\/$/,
+  "",
+);
 
 /** Absolute URL for a path — schema.org and OG tags both reject relative ones. */
 export function absoluteUrl(path = "/"): string {

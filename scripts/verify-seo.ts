@@ -10,7 +10,7 @@
 
 import { readFileSync } from "node:fs";
 import { seedPortfolio } from "../lib/content/seed";
-import { buildDescription, buildPersonJsonLd, buildProjectsJsonLd, SITE_URL } from "../lib/seo";
+import { absoluteUrl, buildDescription, buildPersonJsonLd, buildProjectsJsonLd, SITE_URL } from "../lib/seo";
 import { detailJsonLd, detailMetadata } from "../lib/content/detail-meta";
 import { entityPath, type EntityType } from "../lib/content/types";
 import type { DetailView } from "../lib/content/entities";
@@ -173,5 +173,49 @@ console.log("\n── shared conversations stay out of search ──");
   check("it reads through getSharedConversation, so RLS decides", page.includes("getSharedConversation"));
 }
 
-console.log(failures === 0 ? "\nAll SEO checks passed.\n" : `\n${failures} SEO check(s) FAILED.\n`);
-process.exit(failures === 0 ? 0 : 1);
+/*
+  The declared host has to be the host that answers.
+
+  This is the check that would have caught the indexing failure. SITE_URL named
+  the apex while Vercel served www and redirected the apex to it, so every
+  canonical, every sitemap entry and robots' own Host pointed at a 308. Search
+  Console reported the sitemap as "Page with redirect", and pages crawled at www
+  as "Duplicate without user-selected canonical" — their canonical pointed at a
+  URL that redirected straight back to them, which is a signal Google discards
+  rather than follows.
+
+  Static assertions first, since they run everywhere.
+*/
+console.log("\n── the declared host ──");
+check("SITE_URL is https", SITE_URL.startsWith("https://"));
+check("SITE_URL has no trailing slash", !SITE_URL.endsWith("/"), SITE_URL);
+check(
+  "every absolute URL is built from it",
+  absoluteUrl("/blog") === `${SITE_URL}/blog` && absoluteUrl("/") === `${SITE_URL}/`,
+  absoluteUrl("/blog"),
+);
+
+/*
+  Then the live one, which is the only way to know the constant still matches
+  the deployment. Skipped without a network rather than failed — a build on a
+  plane is not a broken site.
+*/
+// Wrapped rather than top-level: this script is transpiled to CJS, where a
+// top-level await is a syntax error.
+async function confirmHostAnswers(): Promise<void> {
+  const live = await fetch(SITE_URL, { redirect: "manual" }).catch(() => null);
+  if (!live) {
+    console.log("  [SKIP] no network — couldn't confirm the host answers directly.");
+    return;
+  }
+  check(
+    `${SITE_URL} answers directly instead of redirecting`,
+    live.status === 200,
+    live.status === 200 ? "200" : `${live.status} → ${live.headers.get("location") ?? "?"}`,
+  );
+}
+
+confirmHostAnswers().then(() => {
+  console.log(failures === 0 ? "\nAll SEO checks passed.\n" : `\n${failures} SEO check(s) FAILED.\n`);
+  process.exit(failures === 0 ? 0 : 1);
+});
