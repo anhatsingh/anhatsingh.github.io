@@ -18,8 +18,21 @@
   Nothing is deleted. Skills that don't make the cut are set is_published =
   false, so they vanish from the site but stay in /admin to re-enable.
 
+  SUPERSEDED — and dangerous to run now.
+
+  /admin/taxonomy does this properly: it proposes the headings from everything
+  the site knows, including the tech listed on entries, and a human approves
+  them. This script's PLAN is a fixed list of 48 names from the LinkedIn
+  import, and everything absent from it is unpublished. Running it after a
+  regroup would silently retire every skill absorbed since — a cull wearing the
+  word "tidy".
+
+  Kept for the record rather than deleted: the sort_order convention it
+  established (block × 100 + position) is still what the site uses, and the
+  reasoning in this header is why the section is curated rather than complete.
+  It refuses to write unless --i-know-this-is-superseded is passed.
+
   Run: npx tsx scripts/tidy-skills.ts          (dry run — prints the plan)
-       npx tsx scripts/tidy-skills.ts --apply  (writes)
 */
 
 import { createClient } from "@supabase/supabase-js";
@@ -33,6 +46,8 @@ loadEnvConfig(process.cwd(), true, { info: () => {}, error: () => {} });
   role being targeted. A recruiter screening for AI/ML should hit the relevant
   block first rather than scrolling past web frameworks to reach it.
 */
+const SUPERSEDED_GUARD = "--i-know-this-is-superseded";
+
 const PLAN: Array<{ category: string; skills: Array<[linkedinName: string, display?: string]> }> = [
   {
     category: "AI & Machine Learning",
@@ -122,7 +137,25 @@ const PLAN: Array<{ category: string; skills: Array<[linkedinName: string, displ
 const BLOCK = 100;
 
 async function main() {
-  const apply = process.argv.includes("--apply");
+  /*
+    Superseded by /admin/taxonomy. Everything not in PLAN gets unpublished, so
+    a run today would retire every skill absorbed from a tech list since. The
+    dry run still works and is still worth reading; writing needs the visitor
+    to say out loud that they know.
+  */
+  const apply =
+    process.argv.includes("--apply") && process.argv.includes(SUPERSEDED_GUARD);
+
+  if (process.argv.includes("--apply") && !apply) {
+    console.log(
+      "\n  Refusing to write. /admin/taxonomy supersedes this, and this script " +
+        "unpublishes everything absent from its hardcoded list — which now " +
+        "includes every skill absorbed from a tech list.\n\n  Pass " +
+        SUPERSEDED_GUARD +
+        " as well if you really mean it.\n",
+    );
+    return;
+  }
 
   const { url, problem } = checkSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   if (!url) throw new Error(problem ?? "NEXT_PUBLIC_SUPABASE_URL not set");

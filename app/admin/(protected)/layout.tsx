@@ -74,6 +74,12 @@ export default async function ProtectedAdminLayout({
           Repos
         </Link>
         <Link
+          href="/admin/taxonomy"
+          className="rounded-[var(--radius)] border border-hairline px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-accent"
+        >
+          Skill headings
+        </Link>
+        <Link
           href="/admin/resume"
           className="rounded-[var(--radius)] border border-accent/40 px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-accent"
         >

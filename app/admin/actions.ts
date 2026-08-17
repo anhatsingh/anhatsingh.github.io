@@ -19,6 +19,9 @@ import { getPortfolio } from "@/lib/content";
 import { parseBlocks, type Block } from "@/lib/content/blocks";
 import { orderByDate } from "@/lib/content/timeline";
 import { reindexEntity } from "@/lib/chat/embeddings";
+import { collectVocabulary, type Term } from "@/lib/content/vocabulary";
+import { planRegroup, type EntryRow, type SkillRow, type Taxonomy } from "@/lib/admin/regroup";
+import { proposeTaxonomy } from "@/lib/ai/taxonomy";
 import { confirmFidelity, draftResume, draftResumeMeta, reviseResume } from "@/lib/ai/resume";
 import { auditExtraction, hasErrors, type AuditFinding } from "@/lib/resume/audit";
 import { renderResume } from "@/lib/resume/render";
@@ -321,6 +324,178 @@ export async function requestShortSummary(
   }
 
   return generateShortSummary(source);
+}
+
+/*
+  The skills taxonomy: propose, then apply what was approved.
+
+  Two actions rather than one, for the reason requestShortSummary states above
+  — nothing a model produces reaches the database without passing a person
+  first. requestTaxonomy reads and returns; applyTaxonomy takes back only what
+  the human left ticked.
+*/
+
+export type TaxonomyProposal = {
+  taxonomy: Taxonomy;
+  vocabulary: Term[];
+  /** Every skill row, published or not — see the note on SkillRow. */
+  current: SkillRow[];
+  entries: EntryRow[];
+};
+
+export type TaxonomyRequest = { ok: true; proposal: TaxonomyProposal } | { ok: false; error: string };
+
+/*
+  Reads skills through the SERVICE client, deliberately.
+
+  getPortfolio() goes through the public client, where RLS hides unpublished
+  rows — and this database has fifty-two of them, every one still holding its
+  slug under the unique index. Planning against the public view would mint a
+  slug that already exists and fail on insert, and only on a second run, in
+  production.
+
+  Experience and projects do come from the portfolio: only published entries
+  should contribute vocabulary in the first place.
+*/
+export async function loadTaxonomyInputs(): Promise<
+  { ok: true; vocabulary: Term[]; current: SkillRow[]; entries: EntryRow[] } | { ok: false; error: string }
+> {
+  const db = getServiceClient();
+  if (!db) return { ok: false, error: "No service key, so skills can't be read in full." };
+
+  const { data, error } = await db
+    .from("skills")
+    .select("slug, name, category, sort_order, is_published, body, show_in_blog_list, hero_image_url");
+  if (error) return { ok: false, error: error.message };
+
+  const current: SkillRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
+    slug: String(r.slug),
+    name: String(r.name),
+    category: String(r.category ?? "Other"),
+    sortOrder: Number(r.sort_order ?? 0),
+    isPublished: r.is_published !== false,
+    hasBody: Array.isArray(r.body) && r.body.length > 0,
+    inBlogList: r.show_in_blog_list === true,
+    hasHeroImage: Boolean(r.hero_image_url),
+  }));
+
+  const portfolio = await getPortfolio();
+  const entries: EntryRow[] = [
+    ...portfolio.experience.map((e) => ({ section: "experience" as const, slug: e.slug, tech: e.tech })),
+    ...portfolio.projects.map((p) => ({ section: "projects" as const, slug: p.slug, tech: p.tech })),
+  ];
+
+  return { ok: true, vocabulary: collectVocabulary(portfolio), current, entries };
+}
+
+export async function requestTaxonomy(): Promise<TaxonomyRequest> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const inputs = await loadTaxonomyInputs();
+  if (!inputs.ok) return inputs;
+
+  const proposed = await proposeTaxonomy(inputs.vocabulary);
+  if (!proposed.ok) return proposed;
+
+  return {
+    ok: true,
+    proposal: {
+      taxonomy: proposed.taxonomy,
+      vocabulary: inputs.vocabulary,
+      current: inputs.current,
+      entries: inputs.entries,
+    },
+  };
+}
+
+export type TaxonomyApplied =
+  | { ok: true; upserted: number; unpublished: number; rewritten: number; noop: boolean }
+  | { ok: false; error: string };
+
+/**
+ * Applies an approved taxonomy.
+ *
+ * `rewriteTech` is separate and off unless ticked: rewriting a tech list edits
+ * what an entry card says about itself, which is a content change the human is
+ * making rather than a side effect of approving some headings. Skipping it
+ * leaves merged skills with thinner evidence pages, which is the lesser harm
+ * and a reversible one.
+ */
+export async function applyTaxonomy(
+  taxonomy: Taxonomy,
+  options: { rewriteTech: boolean },
+): Promise<TaxonomyApplied> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const db = getServiceClient();
+  if (!db) return { ok: false, error: "No service key." };
+
+  const inputs = await loadTaxonomyInputs();
+  if (!inputs.ok) return inputs;
+
+  const plan = planRegroup(taxonomy, inputs.vocabulary, inputs.current, inputs.entries);
+  if (plan.noop && (!options.rewriteTech || plan.rewrites.length === 0)) {
+    return { ok: true, upserted: 0, unpublished: 0, rewritten: 0, noop: true };
+  }
+
+  /*
+    One row at a time, as reorderByDate does. A batched upsert would need every
+    NOT NULL column present on every row, and a partial row blanks what it
+    omits — which here would wipe the bodies of the skills that have one.
+  */
+  for (const row of plan.upserts) {
+    const existing = inputs.current.find((s) => s.slug === row.slug);
+    const { error } = existing
+      ? await db
+          .from("skills")
+          .update({ name: row.name, category: row.category, sort_order: row.sortOrder, is_published: true })
+          .eq("slug", row.slug)
+      : await db
+          .from("skills")
+          .insert({ slug: row.slug, name: row.name, category: row.category, sort_order: row.sortOrder });
+
+    if (error) return { ok: false, error: `${row.name}: ${error.message}` };
+
+    // A renamed skill with a page needs its embedding chunks rewritten, or
+    // retrieval keeps answering under the old title.
+    if (existing?.hasBody && existing.name !== row.name) {
+      reindexAfterSave("skills", { slug: row.slug, name: row.name });
+    }
+  }
+
+  for (const slug of plan.unpublish) {
+    const { error } = await db.from("skills").update({ is_published: false }).eq("slug", slug);
+    if (error) return { ok: false, error: `${slug}: ${error.message}` };
+  }
+
+  let rewritten = 0;
+  if (options.rewriteTech) {
+    for (const rewrite of plan.rewrites) {
+      const table = rewrite.section === "experience" ? "experience" : "projects";
+      const { error } = await db.from(table).update({ tech: rewrite.tech }).eq("slug", rewrite.slug);
+      if (error) return { ok: false, error: `${rewrite.slug}: ${error.message}` };
+      rewritten++;
+    }
+  }
+
+  revalidateFor("skills", null);
+  for (const row of plan.upserts) revalidatePath(entityPath("skills", row.slug));
+
+  return {
+    ok: true,
+    upserted: plan.upserts.length,
+    unpublished: plan.unpublish.length,
+    rewritten,
+    noop: false,
+  };
 }
 
 /**
