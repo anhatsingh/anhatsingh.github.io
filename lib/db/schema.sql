@@ -20,6 +20,9 @@
 -- Hoisted above the tables because `resumes` declares a vector column, and on
 -- a fresh database the type has to exist before the table that uses it.
 create extension if not exists vector;
+-- Hashes the MCP tokens. bcrypt via crypt()/gen_salt(), so neither the hashing
+-- nor the constant-time comparison is anything this repo wrote.
+create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------------
 -- Tables
@@ -285,6 +288,27 @@ create table if not exists visits (
   created_at    timestamptz not null default now()
 );
 
+/*
+  Tokens for the MCP server, so other agents can read this portfolio.
+
+  Hashed with bcrypt inside Postgres — the plaintext is shown once when it is
+  minted and stored nowhere. Verification is the function below rather than a
+  query from the application, because nothing outside the database should be
+  able to read this table at all: it answers "is this valid" and nothing more.
+
+  Revoked rather than deleted. A token that shows up in a log six months later
+  is only identifiable if its row still exists.
+*/
+create table if not exists mcp_tokens (
+  id           uuid primary key default gen_random_uuid(),
+  -- What it was issued for. The only way to tell two tokens apart afterwards.
+  label        text not null,
+  token_hash   text not null,
+  created_at   timestamptz not null default now(),
+  last_used_at timestamptz,
+  revoked_at   timestamptz
+);
+
 -- Inbound messages, whether from the contact form or confirmed in the chatbot.
 create table if not exists contact_messages (
   id         uuid primary key default gen_random_uuid(),
@@ -522,6 +546,68 @@ create index if not exists content_chunks_source_idx
 create index if not exists content_chunks_embedding_idx
   on content_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
 
+/*
+  Checks a presented MCP token.
+
+  security definer so the caller never needs read access to mcp_tokens — with
+  RLS on and no policy, nothing outside this function can see the table, and
+  this returns an id rather than a row.
+
+  crypt() re-hashes the candidate with the stored salt and compares in constant
+  time; that comparison is pgcrypto's, not ours.
+*/
+create or replace function verify_mcp_token(candidate text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare match_id uuid;
+begin
+  if candidate is null then
+    return null;
+  end if;
+
+  -- No length or shape rule here on purpose. bcrypt already answers "is this
+  -- the token" for any input, and a hand-written pre-filter is a second,
+  -- weaker rule that can only ever disagree with it.
+  select id into match_id
+  from mcp_tokens
+  where revoked_at is null
+    and token_hash = crypt(candidate, token_hash)
+  limit 1;
+
+  if match_id is null then
+    return null;
+  end if;
+
+  -- Last used, so a token nobody has touched in months is obvious on the
+  -- screen where they are revoked.
+  update mcp_tokens set last_used_at = now() where id = match_id;
+  return match_id;
+end $$;
+
+revoke all on function verify_mcp_token(text) from public;
+grant execute on function verify_mcp_token(text) to service_role;
+
+/*
+  Stores a new token, hashed. Kept in the database so the plaintext never has
+  to be hashed in application code.
+*/
+create or replace function issue_mcp_token(new_label text, plaintext text)
+returns uuid
+language sql
+security definer
+set search_path = public, extensions
+as $$
+  insert into mcp_tokens (label, token_hash)
+  values (new_label, crypt(plaintext, gen_salt('bf')))
+  returning id;
+$$;
+
+revoke all on function issue_mcp_token(text, text) from public;
+grant execute on function issue_mcp_token(text, text) to service_role;
+
 -- Cosine distance: `<=>` is smallest-is-nearest, so similarity is 1 - distance.
 create or replace function match_content_chunks(
   query_embedding vector(1536),
@@ -577,6 +663,9 @@ create policy "public read shared_chats" on shared_chats
   for select to anon, authenticated using (true);
 alter table contact_messages enable row level security;
 alter table chat_cache       enable row level security;
+-- No anon policy, like contact_messages: absence of a policy is denial, and
+-- these are credentials.
+alter table mcp_tokens       enable row level security;
 
 -- Public read of published content. No insert/update/delete policy is defined
 -- for anon anywhere, and with RLS on, absence of a policy means denial.

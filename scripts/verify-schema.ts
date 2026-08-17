@@ -137,7 +137,7 @@ async function main() {
     for (const t of [
       "profile", "experience", "projects", "skills", "education", "certifications",
       "testimonials", "writing", "resumes", "resume_sources", "content_chunks", "shared_chats",
-      "contact_messages", "chat_cache", "chat_questions", "visits",
+      "contact_messages", "chat_cache", "chat_questions", "visits", "mcp_tokens",
     ]) {
       check(`${t} exists`, tables.includes(t));
     }
@@ -244,6 +244,101 @@ async function main() {
     check(
       "match_content_chunks exists",
       psql("fresh", "select count(*) from pg_proc where proname='match_content_chunks';") === "1",
+    );
+
+    /*
+      The MCP token lifecycle, exercised rather than inspected.
+
+      A token check is the one piece of this schema where being wrong is
+      silent: a verify function that matched on the wrong column, or compared
+      a plaintext to a plaintext, would pass every structural check and hand
+      the record to anyone. So these mint real tokens and assert the
+      behaviour — that a token matches itself and nothing else, that revoking
+      it actually stops it, and that the plaintext is nowhere in the table.
+    */
+    console.log("\n── MCP tokens ──");
+    const idA = psql("fresh", "select issue_mcp_token('laptop', 'secret-tokenAAA_0123456789abcdefghijklmnopq');");
+    const idB = psql("fresh", "select issue_mcp_token('recruiter', 'secret-tokenBBB_0123456789abcdefghijklmnopq');");
+
+    check("issue_mcp_token returns an id", idA.length === 36 && idB.length === 36);
+    check(
+      "a token verifies against its own row",
+      psql("fresh", "select verify_mcp_token('secret-tokenAAA_0123456789abcdefghijklmnopq');") === idA,
+    );
+    check(
+      "and not against another's",
+      psql("fresh", "select verify_mcp_token('secret-tokenBBB_0123456789abcdefghijklmnopq');") === idB,
+    );
+    check(
+      "an unknown token verifies to nothing",
+      psql("fresh", "select coalesce(verify_mcp_token('not-a-real-token')::text, 'NULL');") === "NULL",
+    );
+    check(
+      "the empty string doesn't match a row",
+      psql("fresh", "select coalesce(verify_mcp_token('')::text, 'NULL');") === "NULL",
+    );
+
+    /*
+      The property that makes a leaked database not a leaked set of tokens.
+      Checked by searching every hash for the plaintext, not by trusting that
+      crypt() was called.
+    */
+    check(
+      "the plaintext is stored nowhere",
+      psql(
+        "fresh",
+        "select count(*) from mcp_tokens where token_hash like '%secret-token%' or label like '%secret-token%';",
+      ) === "0",
+    );
+    check(
+      "hashes are bcrypt",
+      psql("fresh", "select count(*) from mcp_tokens where token_hash like '$2%';") === "2",
+    );
+    check(
+      "two tokens never share a hash",
+      psql("fresh", "select count(distinct token_hash) from mcp_tokens;") === "2",
+    );
+
+    check(
+      "verifying stamps last_used_at",
+      psql("fresh", "select count(*) from mcp_tokens where id = '" + idA + "' and last_used_at is not null;") === "1",
+    );
+
+    psql("fresh", "update mcp_tokens set revoked_at = now() where id = '" + idA + "';");
+    check(
+      "a revoked token stops verifying",
+      psql("fresh", "select coalesce(verify_mcp_token('secret-tokenAAA_0123456789abcdefghijklmnopq')::text, 'NULL');") === "NULL",
+    );
+    check(
+      "revoking one leaves the other working",
+      psql("fresh", "select verify_mcp_token('secret-tokenBBB_0123456789abcdefghijklmnopq');") === idB,
+    );
+
+    /*
+      The negative property, asserted the same way resume_sources' is. RLS on
+      with no policy means denial — if someone later adds a blanket read
+      policy, every hash becomes world-readable through PostgREST and this is
+      what catches it.
+    */
+    check(
+      "mcp_tokens has RLS enabled",
+      psql("fresh", "select relrowsecurity from pg_class where relname='mcp_tokens';") === "t",
+    );
+    check(
+      "mcp_tokens has NO policy — nothing anon can read",
+      psql("fresh", "select count(*) from pg_policies where tablename='mcp_tokens';") === "0",
+    );
+    check(
+      "verify_mcp_token is security definer",
+      psql("fresh", "select prosecdef from pg_proc where proname='verify_mcp_token';") === "t",
+    );
+    check(
+      "anon cannot execute verify_mcp_token",
+      psql("fresh", "select has_function_privilege('anon', 'verify_mcp_token(text)', 'execute');") === "f",
+    );
+    check(
+      "anon cannot execute issue_mcp_token",
+      psql("fresh", "select has_function_privilege('anon', 'issue_mcp_token(text,text)', 'execute');") === "f",
     );
 
     console.log("\n── constraints that matter ──");

@@ -27,6 +27,7 @@ import { auditExtraction, hasErrors, type AuditFinding } from "@/lib/resume/audi
 import { renderResume } from "@/lib/resume/render";
 import { compileTex } from "@/lib/resume/compile";
 import { saveResume } from "@/lib/resume/store";
+import { issueToken, listTokens, revokeToken, type IssuedToken, type McpToken } from "@/lib/mcp/tokens";
 import { uploadResumePdf } from "@/lib/storage";
 import type { Resume, ResumeMeta } from "@/lib/resume/schema";
 
@@ -845,4 +846,49 @@ export async function compileAndSaveResume(input: {
   revalidatePath("/admin/resumes");
   revalidatePath("/");
   return { ok: true, slug: saved.slug, pdfUrl: upload.url };
+}
+
+
+/*
+  MCP tokens.
+
+  Issuing and revoking only — nothing here can read a hash back, because
+  lib/mcp/tokens.ts never selects the column. The plaintext is returned once,
+  to the browser that asked for it, and is not stored anywhere it could be
+  fetched again.
+*/
+
+export async function loadMcpTokens(): Promise<McpToken[]> {
+  try {
+    await requireAdmin();
+  } catch {
+    return [];
+  }
+  return listTokens();
+}
+
+export async function createMcpToken(label: string): Promise<IssuedToken> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const result = await issueToken(label);
+  if (result.ok) revalidatePath("/admin/mcp");
+  return result;
+}
+
+export async function revokeMcpToken(id: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  const result = await revokeToken(id);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/admin/mcp");
+  return { ok: true };
 }
