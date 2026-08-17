@@ -12,6 +12,7 @@ import { FollowUps } from "./follow-ups";
 import { ShareButton } from "./share-button";
 import { TourCard } from "./tour-card";
 import { TenureCard } from "./tenure-card";
+import { InvestigationCard } from "./investigation-card";
 import { AnswerRating } from "./answer-rating";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
@@ -164,12 +165,12 @@ function MessageParts({ message }: { message: UIMessage }) {
 
           if (outcome?.ok === true && outcome.action === "investigation") {
             /*
-              Nothing to render. The findings are for the model — the visitor
-              already watched it happen in the activity line, and reprinting
-              three internal readings above the answer would make them read the
-              same thing twice.
+              Rendered, but closed. Printing three readings above the answer
+              would make somebody read the same thing twice; hiding them
+              entirely asks them to take a verdict on trust. Folded away is
+              both.
             */
-            return null;
+            return <InvestigationCard key={part.toolCallId} findings={outcome.findings} />;
           }
 
           if (outcome?.ok === true && outcome.action === "resume") {

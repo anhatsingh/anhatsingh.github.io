@@ -544,6 +544,22 @@ body {
   padding-right: 0.45em;
 }
 
+/*
+  The disclosure marker on the investigation card.
+
+  The browser's own triangle is a different size and colour in every engine and
+  would be the one element on that card ignoring the theme, so it is drawn as
+  text and turned here. ::-webkit-details-marker hides Safari's, which
+  list-style:none alone does not.
+*/
+summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] > summary span[aria-hidden] {
+  transform: rotate(90deg);
+}
+
 /* --- Focus ------------------------------------------------------------ */
 
 :focus-visible {

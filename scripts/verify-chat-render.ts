@@ -481,5 +481,43 @@ console.log("\n── checking the fit against a real role ──");
   check("the dialog escapes the dock's containing block", /createPortal/.test(fit));
 }
 
+/*
+  The working, folded away.
+
+  Three readings printed above the answer make somebody read the same thing
+  twice; hiding them entirely asks a recruiter to take "his backend depth is
+  unproven" on trust. Closed-by-default is both — so the property that matters
+  is that it is genuinely closed, and genuinely there.
+*/
+console.log("\n── the reasoning is visible but not in the way ──");
+{
+  const card = readFileSync("components/chat/investigation-card.tsx", "utf8");
+  const dock = readFileSync("components/chat/chat-dock.tsx", "utf8");
+
+  check("the findings are rendered, not dropped", /<InvestigationCard/.test(dock));
+  /*
+    A native <details> without `open`. It discloses without JavaScript, it is
+    keyboard-operable for free, and a div-and-useState version would have to
+    reimplement semantics the browser already has.
+  */
+  check("as a real disclosure element", /<details/.test(card));
+  check("closed to begin with", !/<details[^>]*\sopen/.test(card));
+  check("and each reading names what it looked at", /setHighlights\(\[\{ itemId: id/.test(card));
+
+  const tools = readFileSync("lib/chat/tools.ts", "utf8");
+  /*
+    Both audiences, from one call: `content` is the fenced block the model
+    answers from, `findings` is the same work shown to the visitor. The ids are
+    filtered against the real index first — a lens naming something it
+    half-remembered would otherwise render as a button to nothing.
+  */
+  check("the model still gets its fenced block", /content: formatFindings\(result\)/.test(tools));
+  check("and invented ids never reach the card", /itemIds: f\.itemIds\.filter\(\(id\) => known\.has\(id\)\)/.test(tools));
+
+  const css = readFileSync("app/globals.css", "utf8");
+  check("the marker turns when it opens", /details\[open\] > summary span\[aria-hidden\]/.test(css));
+  check("and Safari's own marker is hidden", /summary::-webkit-details-marker/.test(css));
+}
+
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

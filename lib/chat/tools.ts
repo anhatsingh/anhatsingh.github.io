@@ -115,16 +115,18 @@ export type ToolOutcome =
       summary: string;
     }
   /*
-    Three readings of the record, in parallel. Like `sources`, the payload is
-    dual-audience: the findings are for the model, the labels are what the
-    visitor sees happened.
+    Three readings of the record, in parallel. Dual-audience like `sources`:
+    `content` is the fenced block the model answers from, `findings` is the
+    same work shown to the visitor behind a disclosure. Both, because the
+    reasoning is the interesting part of this site and hiding it entirely
+    asks for the answer to be taken on trust.
   */
   | {
       ok: true;
       action: "investigation";
       question: string;
-      angles: string[];
-      /** Fenced findings for the model. Not rendered. */
+      findings: Array<{ label: string; finding: string; itemIds: string[] }>;
+      /** Fenced findings for the model. Never rendered. */
       content: string;
     }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
@@ -633,7 +635,13 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
           ok: true,
           action: "investigation",
           question: brief,
-          angles: result.findings.map((f) => f.label),
+          findings: result.findings.map((f) => ({
+            label: f.label,
+            finding: f.finding,
+            // Only ids that exist. A lens naming something it half-remembered
+            // would otherwise render as a link to nothing.
+            itemIds: f.itemIds.filter((id) => known.has(id)),
+          })),
           content: formatFindings(result),
         };
       },
