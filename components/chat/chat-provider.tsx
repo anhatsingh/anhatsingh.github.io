@@ -5,6 +5,7 @@ import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useUIControl } from "@/components/ui-control";
+import { useVisitLog } from "@/components/visit-tracker";
 import type { PageContext } from "@/lib/chat/page-context";
 import type { ToolOutcome } from "@/lib/chat/tools";
 import type { SectionId } from "@/lib/content/types";
@@ -80,6 +81,13 @@ export function ChatProvider({
   const pathname = usePathname();
 
   const { messages, sendMessage, setMessages, status, error, stop, regenerate } = useChat();
+
+  /*
+    What a visit was worth, not just that it happened. Opening the chat and
+    asking something are the two events that separate a channel worth funding
+    from one that only produces pageviews.
+  */
+  const logVisit = useVisitLog();
 
   /*
     The conversation outlives the page.
@@ -162,6 +170,8 @@ export function ChatProvider({
             clearFocus();
             break;
           case "resume":
+            // The strongest signal this site produces: somebody wanted the CV.
+            logVisit("resume");
             window.open(outcome.url, "_blank", "noopener,noreferrer");
             break;
           case "tour":
@@ -203,7 +213,7 @@ export function ChatProvider({
         void getToolName(part);
       }
     }
-  }, [messages, focusSection, setHighlights, clearFocus, router]);
+  }, [messages, focusSection, setHighlights, clearFocus, router, logVisit]);
 
   const send = useCallback(
     (text: string, selection?: string) => {
@@ -223,9 +233,10 @@ export function ChatProvider({
         selection,
       };
 
+      logVisit("chat_message");
       sendMessage({ text: trimmed }, { body: { pageContext } });
     },
-    [sendMessage, pathname, visibleSection],
+    [sendMessage, pathname, visibleSection, logVisit],
   );
 
   const resume = useCallback(
@@ -260,7 +271,10 @@ export function ChatProvider({
         assistantName,
         resumeOptions,
         send,
-        open: () => setIsOpen(true),
+        open: () => {
+          logVisit("chat_open");
+          setIsOpen(true);
+        },
         resume,
         close,
         stop,

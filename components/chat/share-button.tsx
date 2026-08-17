@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { UIMessage } from "ai";
 import { shareConversation } from "@/app/chat-share";
+import { useVisitLog } from "@/components/visit-tracker";
 
 /*
   Hands the conversation to somebody else.
@@ -27,6 +28,7 @@ export function ShareButton({ messages }: { messages: UIMessage[] }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const logVisit = useVisitLog();
 
   async function share() {
     setState("working");
@@ -36,6 +38,9 @@ export function ShareButton({ messages }: { messages: UIMessage[] }) {
       setState("failed");
       return;
     }
+    // Someone forwarding the conversation is the closest thing this site has
+    // to a referral, and worth knowing which channel produced it.
+    logVisit("share");
     setUrl(`${window.location.origin}/c/${result.id}`);
     setCopied(false);
     setState("ready");

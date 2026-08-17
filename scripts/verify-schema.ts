@@ -137,7 +137,7 @@ async function main() {
     for (const t of [
       "profile", "experience", "projects", "skills", "education", "certifications",
       "testimonials", "writing", "resumes", "resume_sources", "content_chunks", "shared_chats",
-      "contact_messages", "chat_cache", "chat_questions",
+      "contact_messages", "chat_cache", "chat_questions", "visits",
     ]) {
       check(`${t} exists`, tables.includes(t));
     }
@@ -194,7 +194,7 @@ async function main() {
       psql("fresh", "select count(*) from information_schema.columns where table_name='chat_cache' and column_name='payload';") === "1",
     );
 
-    for (const t of ["resume_sources", "contact_messages", "chat_cache", "chat_questions"]) {
+    for (const t of ["resume_sources", "contact_messages", "chat_cache", "chat_questions", "visits"]) {
       const count = psql("fresh", `select count(*) from pg_policies where tablename='${t}';`);
       check(`${t} has NO anon policy, so RLS denies reads`, count === "0", `${count} policies`);
     }

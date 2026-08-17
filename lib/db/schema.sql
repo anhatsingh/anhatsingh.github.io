@@ -234,6 +234,42 @@ create table if not exists shared_chats (
   created_at timestamptz not null default now()
 );
 
+/*
+  Where visitors come from, and whether they did anything once here.
+
+  Built for one question a job search actually needs answered: which channel
+  produces conversations, not which produces clicks. A thousand visits from a
+  link aggregator that nobody engages with is worth less than twelve from a
+  cold email where four opened a resume.
+
+  The privacy line is the same as chat_questions, with one deliberate
+  exception. visit_id is a random number generated per tab session and thrown
+  away when the tab closes: not derived from the person, not stored on their
+  machine beyond the visit, not usable to recognise them tomorrow or anywhere
+  else. It exists so five pages read by one person can be told apart from one
+  page read by five people, which is the difference between "this channel
+  works" and a number that means nothing. No IP, no fingerprint, no persistent
+  id.
+
+  referrer_host, not the referrer. A full referring URL can carry a search
+  query or the path of a private page somebody was reading, and the host is the
+  entire signal.
+*/
+create table if not exists visits (
+  id            uuid primary key default gen_random_uuid(),
+  -- Random per tab session. See above.
+  visit_id      text not null,
+  -- utm_source when tagged, otherwise derived from the referring host.
+  source        text not null default 'direct',
+  medium        text,
+  campaign      text,
+  referrer_host text,
+  path          text not null,
+  -- 'view' | 'chat_open' | 'chat_message' | 'tour' | 'resume' | 'share' | 'contact'
+  event         text not null default 'view',
+  created_at    timestamptz not null default now()
+);
+
 -- Inbound messages, whether from the contact form or confirmed in the chatbot.
 create table if not exists contact_messages (
   id         uuid primary key default gen_random_uuid(),
@@ -330,6 +366,8 @@ create index if not exists content_links_post_idx on content_links (post_slug);
 create index if not exists content_links_target_idx on content_links (target_type, target_slug);
 
 create index if not exists chat_cache_hash_idx on chat_cache (question_hash);
+create index if not exists visits_source_idx on visits (source, created_at desc);
+create index if not exists visits_visit_idx on visits (visit_id);
 create index if not exists contact_messages_created_idx on contact_messages (created_at desc);
 
 -- ---------------------------------------------------------------------
@@ -490,6 +528,9 @@ alter table writing          enable row level security;
 alter table resumes          enable row level security;
 alter table resume_sources   enable row level security;
 alter table shared_chats     enable row level security;
+-- No anon policy below: visits are written by the service role and read only
+-- in the admin, exactly like chat_questions.
+alter table visits           enable row level security;
 
 /*
   Readable by anyone holding the id, which is the whole point of a share link.

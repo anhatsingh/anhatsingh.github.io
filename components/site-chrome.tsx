@@ -7,6 +7,7 @@ import { ChatProvider, useChatDock } from "@/components/chat/chat-provider";
 import { UIControlProvider } from "@/components/ui-control";
 import { AdminBar } from "@/components/admin-bar";
 import { CommandPalette } from "@/components/command-palette";
+import { VisitTracker } from "@/components/visit-tracker";
 import type { PaletteEntry } from "@/lib/content/palette";
 
 /*
@@ -77,8 +78,14 @@ export function SiteChrome({
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   return (
-    <UIControlProvider>
-      <ChatProvider assistantName={name} assistantAvatar={avatarUrl} resumeOptions={resumeOptions}>
+    /*
+      Outside the chat provider, because it records what happens to the chat.
+      A tracker mounted inside it could not be read by the provider's own
+      children without a circular dependency.
+    */
+    <VisitTracker>
+      <UIControlProvider>
+        <ChatProvider assistantName={name} assistantAvatar={avatarUrl} resumeOptions={resumeOptions}>
         {/* Fixed decorative layers, behind everything, non-interactive. */}
         <div aria-hidden="true" className="aurora">
           <div className="aurora-orb aurora-orb-a" />
@@ -94,7 +101,8 @@ export function SiteChrome({
         <ChatDock />
         <SelectionPrompt />
         <CommandPalette entries={paletteEntries} />
-      </ChatProvider>
-    </UIControlProvider>
+        </ChatProvider>
+      </UIControlProvider>
+    </VisitTracker>
   );
 }

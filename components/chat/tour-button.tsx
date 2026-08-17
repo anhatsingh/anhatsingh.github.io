@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useChatDock } from "./chat-provider";
+import { useVisitLog } from "@/components/visit-tracker";
 
 /*
   Asks for the tour, so nobody has to know they can.
@@ -45,6 +46,7 @@ const NUDGE_DURATION_MS = 30_000;
 
 export function TourButton() {
   const { send, open, status, messages } = useChatDock();
+  const logVisit = useVisitLog();
   const [nudge, setNudge] = useState(false);
 
   const busy = status === "submitted" || status === "streaming";
@@ -67,6 +69,9 @@ export function TourButton() {
 
   const start = () => {
     setNudge(false);
+    // Logged separately from chat_open: taking the tour says the nudge worked,
+    // which is a different fact from someone finding the chat on their own.
+    logVisit("tour");
     open();
     send("Show me around");
   };

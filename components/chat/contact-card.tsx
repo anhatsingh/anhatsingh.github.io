@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useVisitLog } from "@/components/visit-tracker";
 
 /*
   The confirm step for in-chat contact.
@@ -30,6 +31,7 @@ export function ContactCard({ initialName, initialEmail, initialMessage }: Props
   const [problem, setProblem] = useState("");
   // Bots fill hidden fields; humans don't. Cheaper than a captcha.
   const [honeypot, setHoneypot] = useState("");
+  const logVisit = useVisitLog();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +51,8 @@ export function ContactCard({ initialName, initialEmail, initialMessage }: Props
         setState("error");
         return;
       }
+      // The only event on this site that is unambiguously an outcome.
+      logVisit("contact");
       setState("sent");
     } catch {
       setProblem("Couldn't reach the server. Check your connection?");

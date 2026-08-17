@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ADMIN_TABLES } from "@/lib/admin/schema";
 import { getServiceClient } from "@/lib/supabase/server";
+import { Channels, type VisitRow } from "@/components/admin/channels";
+import { LinkBuilder } from "@/components/admin/link-builder";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,7 @@ export default async function AdminDashboard() {
   const counts = new Map<string, number>();
   let messages: Message[] = [];
   let questions: Question[] = [];
+  let visits: VisitRow[] = [];
 
   if (db) {
     await Promise.all(
@@ -68,6 +71,21 @@ export default async function AdminDashboard() {
       .order("created_at", { ascending: false })
       .limit(300);
     questions = (qs as Question[]) ?? [];
+
+    /*
+      Capped and recent. This is a decision aid, not an archive — thirty days
+      is the window in which a channel is still worth funding or dropping, and
+      an unbounded select would eventually make the dashboard slow for a
+      number that stopped changing.
+    */
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const { data: vs } = await db
+      .from("visits")
+      .select("visit_id, source, medium, campaign, path, event, created_at")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+    visits = (vs as VisitRow[]) ?? [];
   }
 
   /*
@@ -105,6 +123,10 @@ export default async function AdminDashboard() {
           ))}
         </div>
       </section>
+
+      <Channels rows={visits} />
+
+      <LinkBuilder />
 
       {unanswered.length > 0 && (
         <section>
