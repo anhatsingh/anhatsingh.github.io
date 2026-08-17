@@ -182,6 +182,13 @@ export function ChatProvider({
               which is the behaviour the card exists to replace.
             */
             break;
+          case "tenure":
+            // Nothing to do. The card renders under the message and drives the
+            // page itself when a span is tapped.
+            break;
+          case "investigation":
+            // Nothing to do — the findings go to the model, not the page.
+            break;
           case "followUps":
             // Nothing to do — the questions render under the answer and only
             // do anything when clicked.

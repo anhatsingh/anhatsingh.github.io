@@ -37,7 +37,7 @@ export interface Tenure {
   since: string | null;
 }
 
-interface Span {
+export interface Span {
   start: number;
   end: number;
 }
@@ -54,14 +54,14 @@ interface Span {
   Education is the common case since it is stored as bare years, but an
   experience row typed as a year has the same problem.
 */
-function endIndex(value: string | null | undefined): number | null {
+export function endIndex(value: string | null | undefined): number | null {
   const index = monthIndex(value ?? null);
   if (index === null) return null;
   return /^\d{4}$/.test((value ?? "").trim()) ? index + 11 : index;
 }
 
 /** Merges overlapping spans so concurrent things count once. */
-function merge(spans: Span[]): Span[] {
+export function merge(spans: Span[]): Span[] {
   const sorted = [...spans].sort((a, b) => a.start - b.start);
   const out: Span[] = [];
 
@@ -75,10 +75,10 @@ function merge(spans: Span[]): Span[] {
   return out;
 }
 
-const total = (spans: Span[]) => spans.reduce((n, s) => n + (s.end - s.start + 1), 0);
+export const total = (spans: Span[]) => spans.reduce((n, s) => n + (s.end - s.start + 1), 0);
 
 /** Month index back to "Mar 2024", for naming a gap in prose. */
-function label(index: number): string {
+export function label(index: number): string {
   const year = Math.floor(index / 12);
   const month = index % 12;
   return `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month]} ${year}`;

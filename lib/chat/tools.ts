@@ -5,6 +5,8 @@ import { matchResume } from "@/lib/resume/match";
 import { listPublishedResumes } from "@/lib/resume/store";
 import { formatResults, MAX_QUERIES, research } from "./research";
 import { logQuestion } from "./analytics";
+import { skillTenure } from "@/lib/content/skill-tenure";
+import { formatFindings, investigate } from "./investigate";
 import {
   entityPath,
   entityTypeForId,
@@ -95,6 +97,36 @@ export type ToolOutcome =
        */
       content: string;
     }
+  /*
+    How long a skill has actually been in use, computed rather than estimated.
+    Carries the spans that produced the figure: a recruiter checks a number
+    like this against the dates rendered in the Experience section, so the
+    working travels with it.
+  */
+  | {
+      ok: true;
+      action: "tenure";
+      skill: string;
+      formatted: string;
+      months: number;
+      spans: Array<{ id: string; label: string; from: string; to: string; months: number }>;
+      undated: string[];
+      /** The sentence the model answers from. Read by it, ignored by the client. */
+      summary: string;
+    }
+  /*
+    Three readings of the record, in parallel. Like `sources`, the payload is
+    dual-audience: the findings are for the model, the labels are what the
+    visitor sees happened.
+  */
+  | {
+      ok: true;
+      action: "investigation";
+      question: string;
+      angles: string[];
+      /** Fenced findings for the model. Not rendered. */
+      content: string;
+    }
   | { ok: true; action: "draft"; name?: string; email?: string; message: string }
   | {
       ok: true;
@@ -131,6 +163,21 @@ export interface ToolContext {
    * and a link card that goes nowhere reads as a broken answer.
    */
   currentItemId?: string | null;
+  /**
+   * Whether the assistant may still run an investigation this turn.
+   *
+   * Passed in for the same reason canSearch is: the budget belongs to the
+   * request, and tools are built without one.
+   */
+  canInvestigate?: () => boolean;
+  /**
+   * The same CONTEXT the model was given, so the lenses read the same record.
+   *
+   * Threaded through rather than rebuilt — retrieval already ran for this
+   * question, and doing it twice would cost an embedding call to arrive at the
+   * same text.
+   */
+  context?: string;
 }
 
 export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
@@ -522,6 +569,73 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
         }));
 
         return { ok: true, action: "tour", steps: planned };
+      },
+    }),
+
+    skillTenure: tool({
+      description:
+        "Work out how long he has actually used a skill or technology, from the dated jobs and projects that name it. " +
+        "Call this for ANY question about how much experience, how long, how many years, or how deep he is in something specific — " +
+        "Python, Spark, Flutter, anything. It merges overlapping spans, so it is the only correct way to answer; adding up dates " +
+        "yourself double-counts two things done at once. It also answers honestly when nothing dated uses the skill.",
+      inputSchema: z.object({
+        skill: z
+          .string()
+          .min(1)
+          .max(60)
+          .describe("The skill or technology asked about, as the visitor named it. Just the name — 'Python', not 'Python experience'."),
+      }),
+      execute: async ({ skill }): Promise<ToolOutcome> => {
+        const tenure = skillTenure(portfolio, skill);
+        return {
+          ok: true,
+          action: "tenure",
+          skill: tenure.skill,
+          formatted: tenure.formatted,
+          months: tenure.months,
+          spans: tenure.spans,
+          undated: tenure.undated,
+          summary: tenure.summary,
+        };
+      },
+    }),
+
+    investigate: tool({
+      description:
+        "Read the record properly before answering. Three readers examine it at once — what the dates say, what the entries back, " +
+        "and where the case is thin — and hand back findings. Use this for questions that need judgement across the whole record: " +
+        "whether he is more one kind of engineer than another, what his strongest area is, whether he could handle something, " +
+        "how he has grown. Do NOT use it for a simple lookup, a greeting, or a question one entry answers.",
+      inputSchema: z.object({
+        question: z
+          .string()
+          .min(4)
+          .max(200)
+          .describe("What is actually being asked, in your words. Keep the specifics — a vague brief gets vague findings."),
+      }),
+      execute: async ({ question: brief }): Promise<ToolOutcome> => {
+        /*
+          Once per turn. Three model calls is the right cost for a hard
+          question and the wrong cost for a habit, and the whole request has
+          thirty seconds to finish in.
+        */
+        if (!ctx.canInvestigate || !ctx.canInvestigate()) {
+          return {
+            ok: false,
+            error: "Already investigated this turn. Answer from what came back rather than looking again.",
+          };
+        }
+
+        const result = await investigate(brief, ctx.context ?? "", portfolio);
+        if (!result.ok) return { ok: false, error: result.error };
+
+        return {
+          ok: true,
+          action: "investigation",
+          question: brief,
+          angles: result.findings.map((f) => f.label),
+          content: formatFindings(result),
+        };
       },
     }),
 

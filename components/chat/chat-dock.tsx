@@ -11,6 +11,7 @@ import { ChatMarkdown } from "./chat-markdown";
 import { FollowUps } from "./follow-ups";
 import { ShareButton } from "./share-button";
 import { TourCard } from "./tour-card";
+import { TenureCard } from "./tenure-card";
 import { AnswerRating } from "./answer-rating";
 import { ResumeCard } from "./resume-card";
 import { SourceList } from "./source-list";
@@ -146,6 +147,29 @@ function MessageParts({ message }: { message: UIMessage }) {
 
           if (outcome?.ok === true && outcome.action === "tour") {
             return <TourCard key={part.toolCallId} steps={outcome.steps} />;
+          }
+
+          if (outcome?.ok === true && outcome.action === "tenure") {
+            return (
+              <TenureCard
+                key={part.toolCallId}
+                skill={outcome.skill}
+                formatted={outcome.formatted}
+                months={outcome.months}
+                spans={outcome.spans}
+                undated={outcome.undated}
+              />
+            );
+          }
+
+          if (outcome?.ok === true && outcome.action === "investigation") {
+            /*
+              Nothing to render. The findings are for the model — the visitor
+              already watched it happen in the activity line, and reprinting
+              three internal readings above the answer would make them read the
+              same thing twice.
+            */
+            return null;
           }
 
           if (outcome?.ok === true && outcome.action === "resume") {

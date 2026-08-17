@@ -20,6 +20,7 @@ import { collectVocabulary, termKey, unabsorbed } from "../lib/content/vocabular
 import { isPinned, planRegroup, slugify, type EntryRow, type SkillRow, type Taxonomy } from "../lib/admin/regroup";
 import type { Portfolio } from "../lib/content/types";
 import { readFileSync } from "node:fs";
+import { skillTenure } from "../lib/content/skill-tenure";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -410,6 +411,75 @@ console.log("\n── the section keeps what a redesign can quietly drop ──"
   check("separators are drawn by CSS", /\.skill-line li:not\(:last-child\)::after/.test(css));
   check("and are not typed into the markup", !section.includes("·"));
   check("the list stays a list", /<ul className="skill-line/.test(section) && /<li ref={ref}/.test(section));
+}
+
+/*
+  How long a skill has actually been in use.
+
+  The assistant declined to answer "how much Python experience?" because it had
+  no figure and its instructions forbid adding up dates unaided — rightly, since
+  two roles held at once are not twice the experience. This is that arithmetic,
+  and the cases below are the three ways the date helpers make it easy to get
+  quietly wrong.
+*/
+console.log("\n── how long a skill has been in use ──");
+{
+  const p = (
+    experience: Array<Record<string, unknown>>,
+    projects: Array<Record<string, unknown>> = [],
+    skills: Array<{ slug: string; name: string }> = [],
+  ) => ({ experience, projects, skills }) as unknown as Portfolio;
+
+  const role = (slug: string, tech: string[], startDate: string, endDate: string | null) =>
+    ({ slug, role: "Engineer", company: "C", tech, startDate, endDate });
+
+  // Two roles held at once are one stretch of using the thing, not two.
+  const overlap = skillTenure(
+    p([role("a", ["Python"], "2023-01", "2024-12"), role("b", ["Python"], "2023-06", "2024-06")]),
+    "Python",
+  );
+  check("concurrent entries count once", overlap.months === 24, `${overlap.months} months`);
+  check("but both are still shown as working", overlap.spans.length === 2);
+
+  check("case and stray spaces still match", skillTenure(p([role("a", ["python "], "2024-01", "2024-03")]), "  PYTHON ").months === 3);
+
+  /*
+    monthIndex(null) returns TODAY. A project with no start date would become a
+    span from now to now — a zero-length row that also drags the earliest date
+    forward. Project dates are both optional, so this is the common case.
+  */
+  const undated = skillTenure(
+    p([], [{ slug: "x", name: "Undated thing", tech: ["Rust"] }, { slug: "y", name: "Dated", tech: ["Rust"], started: "2024-01", ended: "2024-02" }]),
+    "Rust",
+  );
+  check("an undated entry is excluded from the sum", undated.months === 2, `${undated.months}`);
+  check("and reported rather than dropped", undated.undated.includes("Undated thing"));
+  check("and said out loud", /carr(y|ies) no dates/.test(undated.summary), undated.summary);
+
+  // A bare year as an END means the year finished, not the 1st of January.
+  const bareYear = skillTenure(p([], [{ slug: "x", name: "P", tech: ["Go"], started: "2022", ended: "2022" }]), "Go");
+  check("a bare end year counts to December", bareYear.months === 12, `${bareYear.months}`);
+
+  /*
+    formatDuration(0) returns an empty string, so a skill nothing dated uses
+    must produce a sentence rather than a blank. Several will — "Machine
+    Learning" is listed on the real site and tagged on nothing.
+  */
+  const listedOnly = skillTenure(p([], [], [{ slug: "ml", name: "Machine Learning" }]), "Machine Learning");
+  check("a listed-but-untagged skill still says something", listedOnly.summary.length > 20);
+  check("and does not claim a duration", listedOnly.formatted === "" && listedOnly.months === 0);
+  check("and is not confused with an unknown one", /listed as a skill/.test(listedOnly.summary));
+  check(
+    "something nowhere on the site says so instead",
+    /Nothing on the site mentions/.test(skillTenure(p([]), "Fortran").summary),
+  );
+
+  // Still running means the span reaches today and says "Present".
+  const current = skillTenure(p([role("a", ["Kotlin"], "2024-01", null)]), "Kotlin");
+  check("an open-ended role runs to today", current.ongoing && current.spans[0].to === "Present");
+  check("and the summary says it is still in use", /still in use/.test(current.summary));
+
+  check("the biggest span leads the working", overlap.spans[0].months >= overlap.spans[1].months);
 }
 
 console.log(failures === 0 ? "\nAll skills checks passed.\n" : `\n${failures} skills check(s) FAILED.\n`);

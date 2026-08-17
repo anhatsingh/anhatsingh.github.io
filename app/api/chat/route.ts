@@ -12,7 +12,15 @@ import { checkRateLimit, checkSearchBudget, clientIp, trimHistory } from "@/lib/
 import { classifyReply, logQuestion } from "@/lib/chat/analytics";
 import { isTourRequest, readCached, writeCached } from "@/lib/chat/cache";
 
-export const maxDuration = 30;
+/*
+  Sixty seconds, not thirty.
+
+  An investigation runs three readers in parallel and comes back in five to
+  eleven, and that lands before the reply has streamed a word. Thirty left a
+  hard question a few seconds from being cut off mid-sentence — and a timeout
+  there costs the whole turn, not just the research.
+*/
+export const maxDuration = 60;
 
 /*
   Model is env-driven on purpose. OpenAI's cheap tool-calling tier gets renamed
@@ -181,6 +189,8 @@ export async function POST(req: Request) {
       : m,
   );
 
+  let investigated = false;
+
   const result = streamText({
     model: openai(MODEL),
     /*
@@ -201,6 +211,20 @@ export async function POST(req: Request) {
       canSearch: () => (isOwner ? true : checkSearchBudget(ip)),
       allowSubjectSearch: isOwner,
       currentItemId: pageContext ? idForPath(pageContext.path) : null,
+      /*
+        One investigation per turn. Three parallel model calls is the right
+        cost for a question that needs judgement across the whole record, and
+        the wrong cost for a habit — and maxDuration is thirty seconds for
+        everything including the reply.
+      */
+      canInvestigate: () => {
+        if (investigated) return false;
+        investigated = true;
+        return true;
+      },
+      // The lenses read the same record the model was given. Retrieval has
+      // already run for this question; doing it again buys nothing.
+      context,
     }),
     // Tools resolve, then the model gets another step to write its prose reply.
     // Three is enough for focus + highlight + answer without letting it loop.

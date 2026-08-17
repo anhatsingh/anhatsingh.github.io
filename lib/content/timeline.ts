@@ -58,7 +58,7 @@ export function monthIndex(value: string | null | undefined, fallbackNow = true)
   time rather than module load so a long-lived server process doesn't freeze
   "present" at whenever it booted.
 */
-function nowIndex(): number {
+export function nowIndex(): number {
   const d = new Date();
   return d.getFullYear() * 12 + d.getMonth();
 }

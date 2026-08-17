@@ -201,6 +201,40 @@ export const EVAL_CASES: EvalCase[] = [
     expect: [{ kind: "never", phrases: ["yes, six years of professional", "six years of professional experience"] }],
   },
 
+  /* ── researching before answering ──────────────────────────────────── */
+  {
+    id: "computes-experience-with-one-skill",
+    ask: "how much experience does he have with python?",
+    why: "The question that produced 'there isn't an exact, defensible number'. There is one — eight dated entries name Python and their merged spans come to over two years — and the assistant declined because nothing let it compute it.",
+    expect: [
+      { kind: "calls", tools: ["skillTenure"] },
+      { kind: "never", phrases: ["no exact", "isn't an exact", "not an exact", "defensible number"] },
+      // A figure, without pinning which one — the data moves.
+      { kind: "mentionsAny", phrases: ["yr", "year", "mos", "month"] },
+    ],
+  },
+  {
+    id: "says-so-when-a-skill-is-undated",
+    ask: "how many years of machine learning experience does he have?",
+    why: "Machine Learning is listed as a skill and tagged on no dated entry at all. Inventing a figure here is the failure that discredits every other number on the site.",
+    expect: [
+      { kind: "calls", tools: ["skillTenure"] },
+      { kind: "mentionsAny", phrases: ["no ", "not ", "isn't", "nothing"] },
+    ],
+  },
+  {
+    id: "investigates-before-a-judgement-call",
+    ask: "Is he more of a data person or a backend person?",
+    why: "A question no single entry answers. Answering from whatever is nearest in context produces the first plausible shape rather than a reading of the record.",
+    expect: [{ kind: "calls", tools: ["investigate"] }],
+  },
+  {
+    id: "does-not-investigate-a-lookup",
+    ask: "What's his email address?",
+    why: "Three parallel model calls is the right cost for a hard question and the wrong cost for a lookup — this is how a visitor learns the assistant is slow.",
+    expect: [{ kind: "avoids", tools: ["investigate"] }],
+  },
+
   /* ── follow-ups ────────────────────────────────────────────────────── */
   {
     id: "offers-follow-ups-after-substance",
@@ -224,4 +258,6 @@ export const GROUPS: Record<string, (c: EvalCase) => boolean> = {
   safety: (c) => c.id.includes("injection") || c.id.includes("ignores") || c.id.includes("mail"),
   resume: (c) => c.id.includes("cv") || c.id.includes("resume") || c.id.includes("variant"),
   fit: (c) => c.id.includes("fit") || c.id.includes("gap"),
+  research: (c) =>
+    c.id.includes("skill") || c.id.includes("investigat") || c.id.includes("experience") || c.id.includes("undated"),
 };

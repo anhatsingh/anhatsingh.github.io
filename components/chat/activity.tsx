@@ -35,6 +35,13 @@ const TOOL_PHASES: Record<string, string[]> = {
   listResumes: ["Gathering his CVs"],
   suggestRoles: ["Thinking"],
   draftContactMessage: ["Drafting a message"],
+  skillTenure: ["Finding where he used it", "Adding up the dates", "Checking for overlap"],
+  /*
+    Three readers run at once, so these describe the work rather than a
+    sequence — the last one holds, which is right for something whose finish is
+    all three coming back together.
+  */
+  investigate: ["Reading the record", "Weighing the evidence", "Arguing the other side"],
   clearFocus: ["Tidying up"],
 };
 

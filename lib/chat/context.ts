@@ -166,8 +166,16 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
         p.projects
           .map(
             (pr) =>
-              `[${itemId("projects", pr.slug)}] ${pr.name}${pr.featured ? " (featured)" : ""}\n` +
-              `  ${pr.summary}\n  ${pr.description}` +
+              /*
+                Dates included, which they were not before. Every experience
+                row carried its span while projects carried none, so a question
+                about when something was built — or how long a technology had
+                been in use — was unanswerable from context no matter how
+                carefully the model read it.
+              */
+              `[${itemId("projects", pr.slug)}] ${pr.name}${pr.featured ? " (featured)" : ""}` +
+              (pr.started ? ` (${pr.started}–${pr.ended ?? "present"})` : "") +
+              `\n  ${pr.summary}\n  ${pr.description}` +
               (pr.tech.length ? `\n  Tech: ${pr.tech.join(", ")}` : "") +
               (pr.repoUrl ? `\n  Repo: ${pr.repoUrl}` : ""),
           )

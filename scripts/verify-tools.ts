@@ -126,6 +126,85 @@ async function main() {
     tour.ok === true && tour.action === "tour" ? tour.steps[2].label : "",
   );
 
+  console.log("\n── skillTenure: the arithmetic the model was forbidden from doing ──");
+  {
+    const known = await run(() => call(tools.skillTenure, { skill: "Python" }));
+    check(
+      "a used skill comes back with a figure",
+      known.ok === true && known.action === "tenure" && known.months > 0,
+      known.ok === true && known.action === "tenure" ? known.formatted : "",
+    );
+    check(
+      "and the spans that produced it",
+      known.ok === true && known.action === "tenure" && known.spans.length > 0,
+    );
+    /*
+      The summary is what the model answers from, so it must never be empty —
+      formatDuration(0) returns "", and a blank where a number belongs is how
+      the original "no defensible number" reply happened.
+    */
+    const absent = await run(() => call(tools.skillTenure, { skill: "Fortran" }));
+    check(
+      "a skill nothing uses still says something",
+      absent.ok === true && absent.action === "tenure" && absent.summary.length > 20,
+      absent.ok === true && absent.action === "tenure" ? absent.summary : "",
+    );
+    check(
+      "and claims no duration",
+      absent.ok === true && absent.action === "tenure" && absent.months === 0 && absent.formatted === "",
+    );
+  }
+
+  console.log("\n── investigate: budgeted, like search ──");
+  {
+    /*
+      Three parallel model calls is the right cost for a hard question and the
+      wrong cost for a habit, inside a thirty-second request. Refused rather
+      than silently run twice — and the refusal tells the model what to do
+      instead, the same way a rejected id does.
+    */
+    let allowed = true;
+    const budgeted = buildTools(seedPortfolio, {
+      canInvestigate: () => {
+        if (!allowed) return false;
+        allowed = false;
+        return true;
+      },
+      context: "",
+    });
+
+    await run(() => call(budgeted.investigate, { question: "is he more data or backend?" }));
+    const second = await run(() => call(budgeted.investigate, { question: "and what about ML?" }));
+    check("a second investigation in one turn is refused", second.ok === false);
+    check(
+      "and says what to do instead",
+      second.ok === false && /Answer from what came back/.test(second.error),
+      second.ok === false ? second.error : "",
+    );
+
+    // Without the budget wired at all, it must refuse rather than run free.
+    const unbudgeted = await run(() => call(tools.investigate, { question: "anything" }));
+    check("no budget means no investigation", unbudgeted.ok === false);
+
+    /*
+      The lens budget is a ceiling, not a style guide — the same distinction the
+      reply cap in the route had to learn. At 400 every lens failed: the model
+      reasons in output tokens, so the budget was gone before a character of
+      JSON existed and generateObject had nothing to parse. It fails silently,
+      because the tool degrades to "couldn't get through the record" and the
+      main model answers from context anyway.
+    */
+    const source = readFileSync("lib/chat/investigate.ts", "utf8");
+    const cap = Number(/MAX_LENS_TOKENS = (\d+)/.exec(source)?.[1] ?? 0);
+    check("a lens has room to reason before it writes", cap >= 1500, `${cap}`);
+    check(
+      "and the request has room for three of them",
+      Number(/maxDuration = (\d+)/.exec(readFileSync("app/api/chat/route.ts", "utf8"))?.[1] ?? 0) >= 60,
+    );
+    // Brevity belongs to the schema, which is what actually holds it short.
+    check("brevity is enforced by the schema instead", /\.max\(600\)/.test(source));
+  }
+
   console.log("\n── selectResume: degrades to the static link ──");
   /*
     With no database configured these exercise the fallback path, which is the
