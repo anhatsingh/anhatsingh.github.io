@@ -556,7 +556,12 @@ summary::-webkit-details-marker {
   display: none;
 }
 
-details[open] > summary span[aria-hidden] {
+/*
+  The caret specifically, not every hidden span in the summary — the live dot
+  beside the label is aria-hidden too, and a rotating circle is invisible but
+  is still the rule doing something nobody asked for.
+*/
+details[open] > summary [data-caret] {
   transform: rotate(90deg);
 }
 

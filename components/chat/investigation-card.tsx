@@ -66,23 +66,51 @@ export function InvestigationCard({
       // Suppresses the "manual is set but unused" reading: it records the
       // visitor's choice so a re-render never overrides it.
       data-open={manual ? "manual" : undefined}
-      className="my-2 overflow-hidden rounded-[var(--radius)] border border-hairline bg-surface"
+      /*
+        The same dashed, tinted panel the plan wears. Both are the assistant
+        working rather than talking, and giving them two visual languages was
+        most of why neither read as what it was.
+      */
+      data-screen-only=""
+      className="my-2 overflow-hidden rounded-[var(--radius)] border border-dashed border-hairline bg-elevated/40"
     >
-      <summary className="cursor-pointer list-none px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:text-accent">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 transition-colors hover:text-accent">
+        {working ? (
+          <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+          </span>
+        ) : (
+          <span aria-hidden="true" className="shrink-0 font-mono text-[10px] text-muted">
+            ⌁
+          </span>
+        )}
+
+        <span
+          className={`min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-widest ${
+            working ? "text-accent" : "text-muted"
+          }`}
+        >
+          {working
+            ? `Reading it ${findings.length + pending.length} ways · ${findings.length} in`
+            : `Read it ${findings.length} ways before answering`}
+        </span>
+
         {/*
           The marker is drawn here rather than left to the browser, whose
           default triangle sits at a different size and colour in every engine
           and would be the one element on this card that ignores the theme.
         */}
-        <span aria-hidden="true" className="mr-1.5 inline-block transition-transform">
+        <span
+          aria-hidden="true"
+          data-caret=""
+          className="shrink-0 font-mono text-[10px] text-muted transition-transform"
+        >
           ▸
         </span>
-        {working
-          ? `Reading it ${findings.length + pending.length} ways · ${findings.length} in`
-          : `Read it ${findings.length} ways before answering`}
       </summary>
 
-      <div className="space-y-3 border-t border-hairline px-3 py-3">
+      <div className="space-y-3 border-t border-dashed border-hairline px-3 py-3">
         {/*
           The readers still out, named. A box that grows without saying what
           else is coming reads as finished three times over.

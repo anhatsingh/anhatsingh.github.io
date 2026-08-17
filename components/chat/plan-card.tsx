@@ -1,5 +1,7 @@
 "use client";
 
+import { ThinkingBlock } from "./thinking-block";
+
 /*
   What it understood, and what it is about to do — written before it does any
   of it.
@@ -15,6 +17,12 @@
   time and the steps arrive one by one, live, at no extra model call — nothing
   here computes anything, and that is the point. Anything this tool did with
   the plan would delay the only thing worth having.
+
+  It wears the shared thinking shell rather than styling itself. The first
+  version was a left-ruled paragraph in muted text, which read as something the
+  assistant had said rather than something it was doing — and it sat above the
+  real answer, so the first thing anyone read was scaffolding they had no
+  reason to recognise as scaffolding.
 */
 
 export function PlanCard({
@@ -24,13 +32,13 @@ export function PlanCard({
 }: {
   reading?: string;
   steps?: string[];
-  /** Still being written. Drives the caret, not the content. */
+  /** Still being written. Drives the caret and the live dot. */
   working: boolean;
 }) {
   if (!reading && !steps.length) return null;
 
   return (
-    <div className="my-2 border-l-2 border-accent/30 pl-3">
+    <ThinkingBlock label={working ? "Working out what's being asked" : "Thought it through"} working={working}>
       {reading && (
         <p className="text-xs leading-relaxed text-muted">
           {reading}
@@ -48,17 +56,17 @@ export function PlanCard({
       )}
 
       {steps.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5">
+        <ul className={`space-y-1 ${reading ? "mt-2 border-t border-dashed border-hairline pt-2" : ""}`}>
           {steps.map((step, i) => (
-            <li key={i} className="font-mono text-[10px] uppercase tracking-widest text-muted">
-              <span aria-hidden="true" className="mr-1.5 text-accent">
+            <li key={i} className="flex gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted">
+              <span aria-hidden="true" className="text-accent">
                 ↳
               </span>
-              {step}
+              <span className="min-w-0">{step}</span>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </ThinkingBlock>
   );
 }

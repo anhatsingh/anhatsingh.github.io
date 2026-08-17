@@ -561,7 +561,7 @@ console.log("\n── the reasoning is visible but not in the way ──");
   check("and invented ids never reach the card", /itemIds: f\.itemIds\.filter\(\(id\) => known\.has\(id\)\)/.test(tools));
 
   const css = readFileSync("app/globals.css", "utf8");
-  check("the marker turns when it opens", /details\[open\] > summary span\[aria-hidden\]/.test(css));
+  check("the marker turns when it opens", /details\[open\] > summary \[data-caret\]/.test(css));
   check("and Safari's own marker is hidden", /summary::-webkit-details-marker/.test(css));
 }
 
@@ -573,6 +573,44 @@ console.log("\n── the reasoning is visible but not in the way ──");
   cannot tell whether it understood them, so cannot tell whether waiting is
   worth it. Two things now fill that gap, and both stream.
 */
+/*
+  Working-out has to look like working-out.
+
+  The plan first rendered as a left-ruled paragraph in muted text — which is to
+  say it looked exactly like something the assistant had said, sitting above
+  the actual answer. The investigation was a bordered box. Two things doing the
+  same job in two visual languages is most of why neither read as what it was.
+
+  One shell now, and it deliberately is not prose: a dashed tinted panel, a
+  mono label, a live dot while it works.
+*/
+console.log("\n── working-out looks like working-out ──");
+{
+  const plan = readFileSync("components/chat/plan-card.tsx", "utf8");
+  const investigation = readFileSync("components/chat/investigation-card.tsx", "utf8");
+  const shell = readFileSync("components/chat/thinking-block.tsx", "utf8");
+
+  check("the plan wears the shared shell", /<ThinkingBlock/.test(plan));
+  check("and does not style itself as prose", !/border-l-2/.test(plan));
+  check(
+    "both use the same dashed panel",
+    /border-dashed border-hairline bg-elevated\/40/.test(shell) &&
+      /border-dashed border-hairline bg-elevated\/40/.test(investigation),
+  );
+  /*
+    The dot is what separates "still going" from "this is what it did", which a
+    label alone cannot say.
+  */
+  check("a live dot while it works", /animate-ping/.test(shell) && /animate-ping/.test(investigation));
+  check("and the label changes when it stops", /working \? "Working out/.test(plan));
+
+  // Scaffolding is the first thing that should go when an answer is printed.
+  check(
+    "neither is printed on paper",
+    /data-screen-only/.test(shell) && /data-screen-only/.test(investigation),
+  );
+}
+
 console.log("\n── the thinking is visible as it happens ──");
 {
   const dock = readFileSync("components/chat/chat-dock.tsx", "utf8");
