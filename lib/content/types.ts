@@ -180,6 +180,25 @@ export interface Education {
   note?: string;
   /** Institution logo. Optional — falls back to a monogram plate. */
   logoUrl?: string;
+  /** One line, as an experience row has. */
+  summary: string;
+  /** Achievements, standing, what it covered. */
+  highlights: string[];
+  /*
+    What it taught, tagged. Feeds the evidence on a skill page — "studied in" —
+    and deliberately NOT skillTenure or the vocabulary: a degree that taught
+    Python is not months of using it, and the timeline answer is careful about
+    exactly that distinction.
+  */
+  tech: string[];
+  /*
+    Detail-page body. Empty means no page at all for this row, unlike every
+    other type — two of these are schools, and an empty page for one would be a
+    thin URL in the sitemap rather than something anyone wants to read.
+  */
+  body: Block[];
+  showInBlogList: boolean;
+  heroImageUrl?: string;
 }
 
 export interface Certification {
@@ -275,12 +294,13 @@ export function socialLinks(profile: Profile): SocialLink[] {
   its own?" Certifications are addressable and have detail pages but are not a
   homepage section; the hero is a homepage section but has no page.
 */
-export type EntityType = "experience" | "projects" | "skills" | "certifications" | "posts";
+export type EntityType = "experience" | "projects" | "skills" | "education" | "certifications" | "posts";
 
 export const ENTITY_LABELS: Record<EntityType, string> = {
   experience: "Experience",
   projects: "Project",
   skills: "Skill",
+  education: "Education",
   certifications: "Certification",
   posts: "Writing",
 };
@@ -315,6 +335,7 @@ export function entityTypeForId(id: string): EntityType | null {
     experience: "experience",
     projects: "projects",
     skills: "skills",
+    education: "education",
     certifications: "certifications",
     writing: "posts",
   };

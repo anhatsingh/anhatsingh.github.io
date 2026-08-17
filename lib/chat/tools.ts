@@ -8,6 +8,7 @@ import { logQuestion } from "./analytics";
 import { skillTenure } from "@/lib/content/skill-tenure";
 import { blocksToPlainText } from "@/lib/content/blocks";
 import { findPassage } from "@/lib/content/find-passage";
+import { educationHasPage } from "@/lib/content/entities";
 import { LENSES, durationsBlock, formatFindings, investigateStream, type Finding } from "./investigate";
 import {
   entityPath,
@@ -346,6 +347,24 @@ export function buildTools(portfolio: Portfolio, ctx: ToolContext = {}) {
         }
 
         const type = entityTypeForId(id);
+
+        /*
+          Education is the one type where having an id does not mean having a
+          page — a school with nothing written about it stays a card on the
+          homepage. Without this the model would offer a link straight to a
+          404, which is worse than not offering one.
+        */
+        if (type === "education") {
+          const parsed = parseItemId(id);
+          const row = parsed && portfolio.education.find((e) => e.slug === parsed.slug);
+          if (!row || !educationHasPage(row)) {
+            return {
+              ok: false,
+              error: `${id} has no write-up of its own. Use highlightItems to point at it instead.`,
+            };
+          }
+        }
+
         if (!type) {
           return {
             ok: false,

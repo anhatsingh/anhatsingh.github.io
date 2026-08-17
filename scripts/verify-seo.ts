@@ -134,6 +134,7 @@ console.log("\n── detail pages ──");
     ["experience", "/experience/x"],
     ["projects", "/projects/x"],
     ["skills", "/skills/x"],
+    ["education", "/education/x"],
     ["certifications", "/certifications/x"],
     // Posts live at /blog because that's what people type and link to.
     ["posts", "/blog/x"],

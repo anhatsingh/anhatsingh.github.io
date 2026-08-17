@@ -40,13 +40,15 @@ export async function generateMetadata({
 async function getSkillEvidenceFor(slug: string): Promise<SkillEvidence> {
   const p = await getPortfolio();
   const skill = p.skills.find((s) => s.slug === slug);
-  if (!skill) return { experience: [], projects: [], posts: [] };
+  if (!skill) return { experience: [], projects: [], education: [], posts: [] };
   return getSkillEvidence(skill);
 }
 
 function EvidenceSection({ evidence }: { evidence: SkillEvidence }) {
   const nothing =
-    evidence.experience.length === 0 && evidence.projects.length === 0;
+    evidence.experience.length === 0 &&
+    evidence.projects.length === 0 &&
+    evidence.education.length === 0;
 
   // Honest rather than an empty heading. A skill with no linked work is a
   // signal in itself, and pretending otherwise is what the fit report exists
@@ -99,6 +101,38 @@ function EvidenceSection({ evidence }: { evidence: SkillEvidence }) {
                     <span className="mt-0.5 block text-sm text-muted">{p.summary}</span>
                   )}
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {/*
+        Studied, kept apart from used. A degree that taught something is real
+        evidence and a different claim from having done it professionally —
+        folding the two together is the overstatement every other answer on
+        this site is careful to avoid.
+      */}
+      {evidence.education.length > 0 && (
+        <>
+          <h3 className="mt-8 font-mono text-xs uppercase tracking-[0.2em] text-muted">Studied in</h3>
+          <ul className="mt-4 space-y-2">
+            {evidence.education.map((e) => (
+              <li key={e.slug}>
+                {e.body?.length ? (
+                  <Link
+                    href={entityPath("education", e.slug)}
+                    className="group block rounded-[var(--radius)] border border-hairline bg-surface p-4 transition-colors hover:border-accent"
+                  >
+                    <span className="block text-text group-hover:text-accent">{e.degree}</span>
+                    <span className="mt-0.5 block text-sm text-muted">{e.institution}</span>
+                  </Link>
+                ) : (
+                  // No page to send anyone to — see educationHasPage.
+                  <div className="rounded-[var(--radius)] border border-hairline bg-surface p-4">
+                    <span className="block text-text">{e.degree}</span>
+                    <span className="mt-0.5 block text-sm text-muted">{e.institution}</span>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

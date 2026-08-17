@@ -220,6 +220,20 @@ export const seedPortfolio: Portfolio = {
   experience: withDetail(rawSeed.experience),
   projects: withDetail(rawSeed.projects),
   skills: withDetail(rawSeed.skills),
+  /*
+    Education carries three fields the shared helper does not know about, since
+    they exist only on this type and experience. Defaulted here rather than
+    widening DetailFields, which four other entities share and none of them
+    need.
+  */
+  education: rawSeed.education.map((e) => ({
+    summary: "",
+    highlights: [] as string[],
+    tech: [] as string[],
+    body: [] as Block[],
+    showInBlogList: false,
+    ...e,
+  })),
   certifications: withDetail(rawSeed.certifications),
   writing: withDetail(rawSeed.writing),
 };

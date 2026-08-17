@@ -163,6 +163,9 @@ export function collectItems(portfolio: Portfolio, now: number): Collected[] {
       label: e.degree || e.institution, detail: e.institution,
       startMonth: start, endMonth: Math.max(start, end), isPoint: false,
       hasEnd: Boolean(e.endYear),
+      // Clickable now that a degree can have a page, the way a certification
+      // already was. Only where one exists.
+      ...(e.body?.length ? { href: entityPath("education", e.slug) } : {}),
     });
   }
 

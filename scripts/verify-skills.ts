@@ -21,6 +21,7 @@ import { isPinned, planRegroup, slugify, type EntryRow, type SkillRow, type Taxo
 import type { Portfolio } from "../lib/content/types";
 import { readFileSync } from "node:fs";
 import { skillTenure } from "../lib/content/skill-tenure";
+import { educationHasPage } from "../lib/content/entities";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -480,6 +481,54 @@ console.log("\n── how long a skill has been in use ──");
   check("and the summary says it is still in use", /still in use/.test(current.summary));
 
   check("the biggest span leads the working", overlap.spans[0].months >= overlap.spans[1].months);
+}
+
+/*
+  A degree can be tagged with what it taught, and that must not become
+  experience.
+
+  The whole timeline answer turns on keeping study and work apart — it leads
+  with the professional figure and names the qualification separately, and
+  refuses to fold one into the other. Education tech reaching skillTenure
+  through a side door would undo that silently, in the direction that flatters.
+*/
+/*
+  Which degrees have a page.
+
+  Education is the one type where a published row may have no URL, and the rule
+  has three consumers that fail in different silent directions when they
+  disagree: the route, the sitemap, and whether the homepage card is a link.
+*/
+console.log("\n── a degree only has a page when there is something on it ──");
+{
+  const written = { slug: "a", institution: "U", degree: "B.Tech", body: [{ type: "text", markdown: "x" }] };
+  const bare = { slug: "b", institution: "S", degree: "Matric", body: [] };
+  check("a written-up degree has one", educationHasPage(written as never));
+  check("an empty one does not", !educationHasPage(bare as never));
+  // A row from a database that predates the migration has no body at all.
+  check("nor does a row with no body field", !educationHasPage({ slug: "c" } as never));
+}
+
+console.log("\n── studying something is not using it ──");
+{
+  const taught = {
+    skills: [],
+    experience: [
+      { slug: "one-role", role: "Engineer", company: "C", tech: ["Python"], startDate: "2024-01", endDate: "2024-06" },
+    ],
+    projects: [],
+    education: [
+      { slug: "a-degree", institution: "U", degree: "B.Tech", tech: ["Python"], startYear: "2020", endYear: "2024" },
+    ],
+  } as unknown as Portfolio;
+
+  const tenure = skillTenure(taught, "Python");
+  check("a degree does not add months", tenure.months === 6, `${tenure.months}`);
+  check("nor a span to the working", tenure.spans.length === 1, `${tenure.spans.length} spans`);
+  check(
+    "and does not enter the vocabulary either",
+    !collectVocabulary(taught).some((t) => t.usedIn.some((u) => u.startsWith("education:"))),
+  );
 }
 
 console.log(failures === 0 ? "\nAll skills checks passed.\n" : `\n${failures} skills check(s) FAILED.\n`);

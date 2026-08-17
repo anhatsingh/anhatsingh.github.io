@@ -6,6 +6,7 @@ import { formatMonth } from "./timeline";
 import {
   entityPath,
   type Certification,
+  type Education,
   type EntityType,
   type Experience,
   type Portfolio,
@@ -69,6 +70,8 @@ export interface DetailView {
   subtitle?: string;
   /** One-paragraph lead. */
   summary: string;
+  /** Short achievements, where the entity has them. */
+  highlights?: string[];
   body: Block[];
   heroImageUrl?: string;
   logoUrl?: string;
@@ -88,6 +91,7 @@ function experienceView(e: Experience): DetailView {
     title: e.role,
     subtitle: e.company,
     summary: e.summary,
+    highlights: e.highlights,
     body: e.body,
     heroImageUrl: e.heroImageUrl,
     logoUrl: e.logoUrl,
@@ -143,6 +147,56 @@ function skillView(s: Skill): DetailView {
     tech: [],
     readingMinutes: readingMinutes(s.body),
     path: entityPath("skills", s.slug),
+  };
+}
+
+/*
+  Whether a degree has a page at all.
+
+  Education is the one type where a published row does not automatically get a
+  URL. Two of the four rows are schools, and a page with nothing on it is a thin
+  entry in the sitemap rather than something a reader wants — which matters
+  rather more two weeks after an indexing problem was straightened out.
+
+  One predicate, three callers: generateStaticParams through getSlugs, the
+  sitemap through getAllDetailPaths, and whether the homepage card is a link.
+  They fail in different directions when they disagree, and all three failures
+  are silent.
+*/
+export function educationHasPage(e: Education): boolean {
+  // Optional-chained: a database that has not run the migration yet returns
+  // rows with no body at all, and the site should degrade to "no page" rather
+  // than throwing on every render.
+  return Boolean(e.body?.length);
+}
+
+function educationView(e: Education): DetailView {
+  const years = [e.startYear, e.endYear ?? "Present"].filter(Boolean).join(" — ");
+
+  return {
+    type: "education",
+    slug: e.slug,
+    title: e.degree,
+    subtitle: e.institution,
+    summary: e.summary,
+    highlights: e.highlights,
+    body: e.body,
+    heroImageUrl: e.heroImageUrl,
+    logoUrl: e.logoUrl,
+    showInBlogList: e.showInBlogList,
+    meta: [
+      ...(e.field ? [{ label: "field", value: e.field }] : []),
+      /*
+        Labelled "years" deliberately. The share card picks a date to print by
+        looking for a meta label matching /date|year|when/ — call this "dates"
+        and the card loses its date line.
+      */
+      ...(years ? [{ label: "years", value: years }] : []),
+      ...(e.note ? [{ label: "note", value: e.note }] : []),
+    ],
+    tech: e.tech,
+    readingMinutes: readingMinutes(e.body),
+    path: entityPath("education", e.slug),
   };
 }
 
@@ -205,6 +259,14 @@ export async function getDetail(type: EntityType, slug: string): Promise<DetailV
       const row = p.skills.find((x) => x.slug === slug);
       return row ? skillView(row) : null;
     }
+    case "education": {
+      const row = p.education.find((x) => x.slug === slug);
+      /*
+        No body, no page. The same predicate getSlugs and the sitemap use, so a
+        hand-typed URL for a school 404s rather than rendering an empty shell.
+      */
+      return row && educationHasPage(row) ? educationView(row) : null;
+    }
     case "certifications": {
       const row = p.certifications.find((x) => x.slug === slug);
       return row ? certificationView(row) : null;
@@ -223,6 +285,16 @@ export async function getSlugs(type: EntityType): Promise<string[]> {
     type === "experience" ? p.experience
     : type === "projects" ? p.projects
     : type === "skills" ? p.skills
+    /*
+      Every published degree, not only the ones with a page.
+
+      generateStaticParams answers "which of these should be prebuilt", not
+      "which exist" — and returning an empty array flipped the whole route to
+      static, so a request for any slug hit a page that could no longer fetch
+      anything and returned 500 instead of 404. The gate lives in getDetail and
+      in the sitemap, which are the two places it actually means something.
+    */
+    : type === "education" ? p.education
     : type === "certifications" ? p.certifications
     : p.writing;
   return source.map((row) => row.slug);
@@ -240,6 +312,16 @@ export async function getRelatedPosts(type: EntityType, slug: string): Promise<W
 export interface SkillEvidence {
   experience: Experience[];
   projects: Project[];
+  /*
+    Where it was taught, kept apart from where it was used.
+
+    Deliberately a separate list rather than folded in with the rest: study is
+    not the same claim as work, and the timeline answer is careful about
+    exactly that. It also never reaches collectVocabulary or skillTenure, so
+    tagging a degree with Python cannot quietly add months to "how much Python
+    experience does he have".
+  */
+  education: Education[];
   posts: Writing[];
 }
 
@@ -258,6 +340,7 @@ export async function getSkillEvidence(skill: Skill): Promise<SkillEvidence> {
   return {
     experience: p.experience.filter((e) => matches(e.tech)),
     projects: p.projects.filter((x) => matches(x.tech)),
+    education: p.education.filter((x) => matches(x.tech)),
     posts,
   };
 }
@@ -309,10 +392,11 @@ export async function getBlogEntries(): Promise<BlogEntry[]> {
     });
   }
 
-  const flagged: Array<[EntityType, Array<Experience | Project | Skill | Certification>]> = [
+  const flagged: Array<[EntityType, Array<Experience | Project | Skill | Education | Certification>]> = [
     ["experience", p.experience],
     ["projects", p.projects],
     ["skills", p.skills],
+    ["education", p.education],
     ["certifications", p.certifications],
   ];
 
@@ -323,6 +407,12 @@ export async function getBlogEntries(): Promise<BlogEntry[]> {
         type === "experience" ? experienceView(row as Experience)
         : type === "projects" ? projectView(row as Project)
         : type === "skills" ? skillView(row as Skill)
+        /*
+          Explicit, not a fallthrough. The casts here mean a missing branch is
+          not a compile error — education would silently render through the
+          certification view and come out titled with its institution.
+        */
+        : type === "education" ? educationView(row as Education)
         : certificationView(row as Certification);
 
       entries.push({
@@ -353,6 +443,8 @@ export async function getAllDetailPaths(): Promise<string[]> {
     ...p.experience.map((e) => entityPath("experience", e.slug)),
     ...p.projects.map((x) => entityPath("projects", x.slug)),
     ...p.skills.map((x) => entityPath("skills", x.slug)),
+    // Only the ones with something on them — see educationHasPage.
+    ...p.education.filter(educationHasPage).map((x) => entityPath("education", x.slug)),
     ...p.certifications.map((x) => entityPath("certifications", x.slug)),
     // External-only posts have no page here, so they don't belong in the sitemap.
     ...p.writing.filter((w) => w.body.length > 0).map((w) => entityPath("posts", w.slug)),

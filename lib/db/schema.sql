@@ -124,6 +124,21 @@ create table if not exists education (
   end_year    text,
   note        text,
   logo_url    text,
+  /*
+    The same detail fields experience carries. A degree is a real part of the
+    case for someone two years in, and there was nowhere to record what one
+    actually involved — only an institution, a title and two years.
+
+    A page appears only where `body` is filled. Two of these rows are schools,
+    and an empty page for one would be a thin URL in the sitemap rather than
+    anything a reader wants.
+  */
+  summary     text,
+  highlights  text[] not null default '{}',
+  tech        text[] not null default '{}',
+  body        jsonb not null default '[]'::jsonb,
+  hero_image_url text,
+  show_in_blog_list boolean not null default false,
   sort_order  int not null default 0,
   is_published boolean not null default true,
   updated_at  timestamptz not null default now()
@@ -423,6 +438,15 @@ alter table projects       add column if not exists hero_image_url text;
 alter table skills         add column if not exists body jsonb not null default '[]'::jsonb;
 alter table skills         add column if not exists show_in_blog_list boolean not null default false;
 alter table skills         add column if not exists hero_image_url text;
+-- Education gained the detail fields experience already had, so a degree can
+-- carry what it involved rather than only when it happened.
+alter table education      add column if not exists summary text;
+alter table education      add column if not exists highlights text[] not null default '{}';
+alter table education      add column if not exists tech text[] not null default '{}';
+alter table education      add column if not exists body jsonb not null default '[]'::jsonb;
+alter table education      add column if not exists hero_image_url text;
+alter table education      add column if not exists show_in_blog_list boolean not null default false;
+
 alter table certifications add column if not exists body jsonb not null default '[]'::jsonb;
 alter table certifications add column if not exists show_in_blog_list boolean not null default false;
 alter table certifications add column if not exists hero_image_url text;

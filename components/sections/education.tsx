@@ -25,7 +25,27 @@ export function Education({
                 <article className="flex items-start gap-3">
                   <LogoPlate src={e.logoUrl} name={e.institution} />
                   <div className="min-w-0">
-                    <h4 className="font-display text-xl leading-tight">{e.degree}</h4>
+                    {/*
+                      A link only where there is a page. Education is the one
+                      type where a published row may have none — see
+                      educationHasPage — and a link to a 404 is worse than a
+                      heading that stays a heading.
+                    */}
+                    <h4 className="font-display text-xl leading-tight">
+                      {e.body?.length ? (
+                        <Link
+                          href={entityPath("education", e.slug)}
+                          className="transition-colors hover:text-accent"
+                        >
+                          {e.degree}
+                          <span className="ml-1.5 font-mono text-xs text-muted" aria-hidden="true">
+                            →
+                          </span>
+                        </Link>
+                      ) : (
+                        e.degree
+                      )}
+                    </h4>
                     {e.field && <p className="text-muted">{e.field}</p>}
                     <p className="mt-1 text-accent">{e.institution}</p>
                     {(e.startYear || e.endYear) && (

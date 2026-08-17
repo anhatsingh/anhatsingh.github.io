@@ -204,6 +204,22 @@ export function DetailLayout({
             </div>
           )}
 
+          {/*
+            Highlights, which no detail page rendered until education needed
+            them — experience has carried them all along and quietly dropped
+            them on the way to the page.
+          */}
+          {view.highlights && view.highlights.length > 0 && (
+            <ul className="mt-6 space-y-2">
+              {view.highlights.map((h, i) => (
+                <li key={i} className="flex gap-3 text-[0.9375rem] leading-relaxed text-muted">
+                  <span aria-hidden="true" className="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent" />
+                  <span className="min-w-0">{h}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {view.tech.length > 0 && (
             <ul className="mt-8 flex flex-wrap gap-1.5">
               {view.tech.map((t) => (

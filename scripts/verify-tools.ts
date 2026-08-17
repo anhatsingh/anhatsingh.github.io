@@ -738,12 +738,49 @@ console.log("\n── openPage: only where a page exists ──");
     paged.ok === true && paged.action === "navigate" ? paged.url : "",
   );
 
-  // Education has no detail route, so an education id must be refused rather
-  // than producing a link to a page that doesn't exist.
+  /*
+    Education is the one type where an id does not imply a page.
+
+    This assertion used to say education could never be opened, because it had
+    no route at all. It has one now — but only for a degree with something
+    written about it. A school with an empty body stays a card on the homepage,
+    and offering a link to it would send somebody to a 404, which is worse than
+    offering nothing.
+  */
   const eduId = [...known.keys()].find((k) => k.startsWith("education:"));
   if (eduId) {
-    const edu = await run(() => call(tools.openPage, { itemId: eduId }));
-    check("an id with no page of its own is refused", edu.ok === false, eduId);
+    const bare = await run(() => call(tools.openPage, { itemId: eduId }));
+    check("a degree with no write-up is not offered as a link", bare.ok === false, eduId);
+
+    const written = buildTools({
+      ...seedPortfolio,
+      education: seedPortfolio.education.map((e) => ({
+        ...e,
+        body: parseBlocks([{ type: "text", markdown: "What the degree actually involved." }]),
+      })),
+    });
+    const opened = await run(() => call(written.openPage, { itemId: eduId }));
+    check(
+      "one with a write-up is",
+      opened.ok === true && opened.action === "navigate" && opened.url.startsWith("/education/"),
+      opened.ok === true && opened.action === "navigate" ? opened.url : "",
+    );
+  }
+
+  /*
+    Certifications are addressed under their own namespace. They shared
+    education's for a long time, which left the model being shown ids the
+    content index does not contain — harmless while nothing answered to them,
+    and a collision the moment education:<slug> became a real page.
+  */
+  {
+    const context = serializePortfolio(seedPortfolio);
+    for (const c of seedPortfolio.certifications) {
+      check(
+        `${c.slug} is offered to the model as a certification, not as education`,
+        context.includes(`[certifications:${c.slug}]`) && !context.includes(`[education:${c.slug}]`),
+      );
+    }
   }
 
 console.log("\n── prompt injection wrapper ──");

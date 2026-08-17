@@ -296,6 +296,33 @@ export const ADMIN_TABLES: TableSpec[] = [
       { name: "start_year", label: "Start year", type: "text" },
       { name: "end_year", label: "End year", type: "text" },
       { name: "note", label: "Note", type: "textarea" },
+      { name: "summary", label: "Summary", type: "textarea", help: "One line, as an experience row has." },
+      { name: "highlights", label: "Highlights", type: "list", help: "One per line. Achievements, standing, what it covered." },
+      {
+        name: "tech",
+        label: "Skills",
+        type: "list",
+        help: "One per line. Shows on a skill's page as where he learned it — it does not count toward how long he has used it.",
+      },
+      {
+        name: "body",
+        label: "Page body",
+        type: "blocks",
+        help: "Unlike other sections, a page exists ONLY when this has something in it. Schooling with nothing to say stays a card on the homepage.",
+      },
+      {
+        name: "hero_image_url",
+        label: "Hero image",
+        type: "url",
+        upload: true,
+        help: "Wide image at the top of the detail page. Optional.",
+      },
+      {
+        name: "show_in_blog_list",
+        label: "Show in /blog",
+        type: "boolean",
+        help: "Off by default. Turn on only if the body reads as an article rather than a CV entry.",
+      },
       {
         name: "logo_url",
         upload: true,

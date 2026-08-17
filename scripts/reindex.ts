@@ -31,6 +31,7 @@ async function main() {
     ...p.experience.map((e) => ["experience", e.slug, e.role, e.body] as const),
     ...p.projects.map((x) => ["projects", x.slug, x.name, x.body] as const),
     ...p.skills.map((x) => ["skills", x.slug, x.name, x.body] as const),
+    ...p.education.map((x) => ["education", x.slug, x.degree, x.body] as const),
     ...p.certifications.map((x) => ["certifications", x.slug, x.name, x.body] as const),
     ...p.writing.map((w) => ["posts", w.slug, w.title, w.body] as const),
   ].filter(([, , , body]) => body.length > 0);

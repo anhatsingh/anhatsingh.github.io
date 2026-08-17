@@ -48,6 +48,7 @@ const DETAIL_ENTITY: Record<string, EntityType> = {
   experience: "experience",
   projects: "projects",
   skills: "skills",
+  education: "education",
   certifications: "certifications",
   writing: "posts",
 };
@@ -291,7 +292,7 @@ export async function uploadMedia(formData: FormData): Promise<UploadResult> {
  * spellings rather than inventing a third variant of "PyTorch".
  */
 export async function requestDraft(input: {
-  entityType: "experience" | "projects" | "skills" | "certifications" | "posts";
+  entityType: "experience" | "projects" | "skills" | "education" | "certifications" | "posts";
   title: string;
   paragraph: string;
   prompt?: string;

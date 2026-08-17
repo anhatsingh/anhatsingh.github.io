@@ -153,7 +153,7 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
               `[${itemId("experience", e.slug)}] ${e.role} at ${e.company} (${e.startDate}–${end})\n` +
               `  ${e.summary}\n` +
               e.highlights.map((h) => `  - ${h}`).join("\n") +
-              (e.tech.length ? `\n  Tech: ${e.tech.join(", ")}` : "")
+              (e.tech?.length ? `\n  Tech: ${e.tech.join(", ")}` : "")
             );
           })
           .join("\n"),
@@ -203,7 +203,10 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
           .map(
             (e) =>
               `[${itemId("education", e.slug)}] ${e.degree}${e.field ? ` in ${e.field}` : ""}, ` +
-              `${e.institution}${e.endYear ? ` (${e.startYear ?? ""}–${e.endYear})` : ""}`,
+              `${e.institution}${e.endYear ? ` (${e.startYear ?? ""}–${e.endYear})` : ""}` +
+              (e.summary ? `\n  ${e.summary}` : "") +
+              (e.highlights?.length ? `\n${e.highlights.map((h) => `  - ${h}`).join("\n")}` : "") +
+              (e.tech?.length ? `\n  Studied: ${e.tech.join(", ")}` : ""),
           )
           .join("\n") +
         (p.certifications.length
@@ -211,7 +214,15 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
             p.certifications
               .map(
                 (c) =>
-                  `[${itemId("education", c.slug)}] ${c.name} — ${c.issuer}${c.issueDate ? ` (${c.issueDate})` : ""}`,
+                  /*
+                    Addressed as certifications, not education.
+
+                    This said education for as long as both shared a namespace,
+                    which left the model quoting ids the content index does not
+                    contain — harmless while nothing answered to them, and a
+                    collision the moment education:<slug> became a real page.
+                  */
+                  `[${itemId("certifications", c.slug)}] ${c.name} — ${c.issuer}${c.issueDate ? ` (${c.issueDate})` : ""}`,
               )
               .join("\n")
           : ""),
@@ -261,6 +272,7 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
     ...p.experience.filter((e) => e.body.length).map((e) => itemId("experience", e.slug)),
     ...p.projects.filter((x) => x.body.length).map((x) => itemId("projects", x.slug)),
     ...p.skills.filter((x) => x.body.length).map((x) => itemId("skills", x.slug)),
+    ...p.education.filter((x) => x.body?.length).map((x) => itemId("education", x.slug)),
     ...p.certifications.filter((x) => x.body.length).map((x) => itemId("certifications", x.slug)),
     ...p.writing.filter((w) => w.body.length).map((w) => itemId("writing", w.slug)),
   ];

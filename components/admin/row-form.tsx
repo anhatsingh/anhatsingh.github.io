@@ -14,6 +14,7 @@ const DRAFTABLE: Record<string, EntityType> = {
   experience: "experience",
   projects: "projects",
   skills: "skills",
+  education: "education",
   certifications: "certifications",
   writing: "posts",
 };

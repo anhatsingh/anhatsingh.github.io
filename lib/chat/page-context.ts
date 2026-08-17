@@ -32,6 +32,7 @@ const PATH_SECTIONS: Record<string, SectionId> = {
   experience: "experience",
   projects: "projects",
   skills: "skills",
+  education: "education",
   certifications: "education",
   // Posts live at /blog because that's what people type; the id namespace
   // they're addressed by is "writing".

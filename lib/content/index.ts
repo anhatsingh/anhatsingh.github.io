@@ -155,6 +155,15 @@ async function fetchFromSupabase(): Promise<Portfolio | null> {
       endYear: r.end_year ?? undefined,
       note: r.note ?? undefined,
       logoUrl: r.logo_url ?? undefined,
+      /*
+        Defaulted rather than asserted. The cast below means a column the
+        database has not caught up on would arrive undefined and reach the page
+        as such — the same reason `category ?? "Other"` is written out above.
+      */
+      summary: (r.summary as string) ?? "",
+      highlights: (r.highlights as string[]) ?? [],
+      tech: (r.tech as string[]) ?? [],
+      ...detailFields(r),
     })) as Education[],
     certifications: (certifications.data ?? []).map((r) => ({
       slug: r.slug,

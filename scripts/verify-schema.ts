@@ -153,6 +153,29 @@ async function main() {
       psql("fresh", "select format_type(atttypid, atttypmod) from pg_attribute where attrelid='content_chunks'::regclass and attname='embedding';") === "vector(1536)",
     );
 
+    /*
+      The detail columns, which nothing asserted on any table until education
+      needed them. A column added to the create block but forgotten in the
+      migrations section works on a fresh database and silently does not exist
+      on the live one — which is the only database that matters.
+    */
+    console.log("\n── detail columns survive a migration ──");
+    for (const [table, column] of [
+      ["education", "summary"],
+      ["education", "highlights"],
+      ["education", "tech"],
+      ["education", "body"],
+      ["education", "hero_image_url"],
+      ["education", "show_in_blog_list"],
+      ["certifications", "body"],
+      ["experience", "body"],
+    ] as const) {
+      check(
+        `${table}.${column} exists`,
+        psql("fresh", `select count(*) from information_schema.columns where table_name='${table}' and column_name='${column}';`) === "1",
+      );
+    }
+
     console.log("\n── row level security ──");
     const rlsOff = psql(
       "fresh",
