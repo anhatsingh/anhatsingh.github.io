@@ -4,6 +4,7 @@ import { entityPath } from "@/lib/content/types";
 import { addressableIds, itemId, type Portfolio } from "@/lib/content/types";
 import type { GitHubStats } from "@/lib/github/service";
 import type { LeetCodeStats } from "@/lib/leetcode/service";
+import { serializeTenure, summariseTenure } from "@/lib/content/tenure";
 
 /*
   RETRIEVAL SEAM
@@ -121,6 +122,16 @@ export function serializePortfolio(p: Portfolio, stats: LiveStats = {}): string 
       timeZone: "UTC",
     })}. Work out anything about "now", "currently" or how long something has run from this date, never from what you remember.`,
   );
+
+  /*
+    The arithmetic, done rather than delegated.
+
+    "How many years of experience" from a list of dated entries invites the
+    model to add them up, and it adds them up wrongly: two concurrent roles
+    become double the time, and a stretch spent on a degree becomes a gap it
+    then has to explain. Both are checkable against the page.
+  */
+  parts.push(serializeTenure(summariseTenure(p)));
 
   parts.push(
     `## PROFILE\n` +

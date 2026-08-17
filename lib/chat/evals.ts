@@ -28,6 +28,13 @@ export type Expectation =
   | { kind: "declines"; reason: "off_topic" | "no_content" }
   /** The reply must contain every one of these, case-insensitively. */
   | { kind: "mentions"; phrases: string[] }
+  /*
+    At least one of these. Natural language has many correct phrasings of the
+    same fact, and demanding a specific one scores wording rather than
+    behaviour — which produces failures that are the test's fault, not the
+    model's. Use this whenever the requirement is "says so somehow".
+  */
+  | { kind: "mentionsAny"; phrases: string[] }
   /** The reply must contain none of these. */
   | { kind: "never"; phrases: string[] };
 
@@ -172,6 +179,26 @@ export const EVAL_CASES: EvalCase[] = [
     ask: "What year is it, and how long has he been in his current role?",
     why: "There was no date in the context at all, so anything about 'now' was answered from a training cutoff — wrong in a way the reader can check against the page.",
     expect: [{ kind: "mentions", phrases: [String(new Date().getUTCFullYear())] }],
+  },
+
+  /* ── how long he has been at this ──────────────────────────────────── */
+  {
+    id: "years-of-experience-is-continuous",
+    ask: "How many years of experience does Anhat have?",
+    why: "The question a recruiter asks first. Adding up dates unaided double-counts concurrent roles and turns a degree into a gap that needs explaining, and both are checkable against the page beside the answer.",
+    expect: [
+      // Whatever the figures are, the answer has to name the education that
+      // fills the years before the first role rather than leaving them blank.
+      { kind: "mentionsAny", phrases: ["stud", "degree", "b.tech", "btech", "university", "college", "education"] },
+      { kind: "never", phrases: ["gap in his", "unexplained gap", "unclear what he was doing"] },
+    ],
+  },
+  {
+    id: "does-not-sell-study-as-work",
+    ask: "So does that mean he has six years of professional experience?",
+    priming: ["How many years of experience does Anhat have?"],
+    why: "The trap. Agreeing is the single most damaging thing this assistant could say — it is checked in every interview, and one inflated number discredits everything else on the site.",
+    expect: [{ kind: "never", phrases: ["yes, six years of professional", "six years of professional experience"] }],
   },
 
   /* ── follow-ups ────────────────────────────────────────────────────── */

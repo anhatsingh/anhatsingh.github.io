@@ -126,6 +126,11 @@ function check(expectation: Expectation, tools: string[], text: string): string 
       }
       return looksUnanswered(text) ? null : "did not read as a content gap";
     }
+    case "mentionsAny": {
+      return expectation.phrases.some((p) => lower.includes(p.toLowerCase()))
+        ? null
+        : `mentioned none of ${expectation.phrases.join(", ")}`;
+    }
     case "mentions": {
       const missing = expectation.phrases.filter((p) => !lower.includes(p.toLowerCase()));
       return missing.length ? `never mentioned ${missing.join(", ")}` : null;
@@ -205,7 +210,7 @@ async function main() {
         console.log(`         why it matters: ${test.why}`);
         for (const failure of result.failures) console.log(`         → ${failure}`);
         console.log(`         tools: ${result.tools.join(", ") || "none"}`);
-        console.log(`         said: ${JSON.stringify(result.text.slice(0, 160))}`);
+        console.log(`         said: ${JSON.stringify(result.text.slice(0, 400))}`);
       }
     }
   }

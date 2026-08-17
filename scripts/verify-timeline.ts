@@ -17,6 +17,9 @@ import {
   monthIndex,
 } from "../lib/content/timeline";
 import type { Experience } from "../lib/content/types";
+import { serializeTenure, summariseTenure } from "../lib/content/tenure";
+import { seedPortfolio } from "../lib/content/seed";
+import type { Portfolio } from "../lib/content/types";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -135,6 +138,69 @@ console.log("\n── grouping by employer ──");
 {
   const groups = buildTimeline([]);
   check("an empty list produces no groups", groups.length === 0);
+}
+
+/*
+  How long he has been at this.
+
+  "How many years of experience" is the first thing a recruiter asks, and a
+  model adding up dated entries unaided gets it wrong three ways: two roles
+  that ran at once become double the time, a degree becomes either work
+  experience or a gap, and either error is checkable against the dates rendered
+  beside the answer. So the arithmetic happens in code and the model is handed
+  the result.
+*/
+console.log("\n── tenure ──");
+{
+  const p = (experience: unknown[], education: unknown[]) =>
+    ({ ...seedPortfolio, experience, education }) as unknown as Portfolio;
+
+  const role = (startDate: string, endDate: string | null) =>
+    ({ slug: `r${startDate}`, role: "Engineer", company: "C", startDate, endDate, summary: "" });
+  const course = (startYear: string, endYear: string) =>
+    ({ slug: `e${startYear}`, institution: "U", degree: "B.Tech", startYear, endYear });
+
+  /*
+    The double-count. Two roles held at the same time are one stretch of
+    working life, not two — this is the error that turns three years into six.
+  */
+  const overlapping = summariseTenure(p([role("2023-01", "2024-12"), role("2023-06", "2024-06")], []));
+  check(
+    "concurrent roles count once",
+    overlapping.professionalMonths === 24,
+    `${overlapping.professionalMonths} months`,
+  );
+
+  // A job ending in March and the next starting in April is continuous.
+  const backToBack = summariseTenure(p([role("2023-01", "2023-03"), role("2023-04", "2023-06")], []));
+  check("consecutive roles leave no gap", backToBack.gaps.length === 0);
+  check("and their months add up", backToBack.professionalMonths === 6, `${backToBack.professionalMonths}`);
+
+  /*
+    The point of the whole file: a degree is not a gap, and it is not work
+    experience either. Both numbers have to be available separately.
+  */
+  const withStudy = summariseTenure(p([role("2024-01", "2024-12")], [course("2020", "2023")]));
+  check("study does not inflate the professional figure", withStudy.professionalMonths === 12);
+  check(
+    "but it does fill the timeline",
+    withStudy.accountedMonths > withStudy.professionalMonths,
+    `${withStudy.accountedMonths} accounted vs ${withStudy.professionalMonths} employed`,
+  );
+  check("so the years before the first role are not a gap", withStudy.gaps.length === 0);
+
+  // A real gap must still be reported. Papering over one is how an assistant
+  // starts making excuses for its subject.
+  const realGap = summariseTenure(p([role("2019-01", "2019-06"), role("2024-01", "2024-06")], []));
+  check("a genuine gap is still reported", realGap.gaps.length === 1, JSON.stringify(realGap.gaps));
+
+  // Two months between jobs is between things, not a gap anyone asks about.
+  const short = summariseTenure(p([role("2023-01", "2023-06"), role("2023-09", "2023-12")], []));
+  check("a couple of months between roles is not a gap", short.gaps.length === 0);
+
+  const text = serializeTenure(withStudy);
+  check("the block tells the model not to conflate the two", /Never present study as work experience/.test(text));
+  check("and names both figures", /Professional experience:/.test(text) && /Continuously accounted for:/.test(text));
 }
 
 console.log(failures === 0 ? "\nAll timeline checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
