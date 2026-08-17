@@ -444,5 +444,42 @@ console.log("\n── asking whether the answer was any good ──");
   check("and is added for databases that predate it", /add column if not exists rating/.test(schema));
 }
 
+/*
+  The fit check, made findable.
+
+  It is the strongest thing the assistant does — a verdict with gaps against a
+  real role — and it was reachable only by thinking to paste a job description
+  into a chat box unprompted, which almost nobody does.
+*/
+console.log("\n── checking the fit against a real role ──");
+{
+  const fit = readFileSync("components/chat/fit-button.tsx", "utf8");
+  const hero = readFileSync("components/sections/hero.tsx", "utf8");
+
+  check("it has an entry point where a recruiter lands", /<FitButton/.test(hero));
+  /*
+    The CV download stays the one filled control. A recruiter came for the
+    file, and two solid buttons side by side make neither the primary.
+  */
+  check(
+    "and doesn't outrank the CV",
+    /FitButton className="inline-flex items-center gap-2 rounded-\[var\(--radius\)\] border/.test(hero),
+  );
+  /*
+    A JD is several hundred words. A one-line composer that grows as you paste
+    into it reads as the wrong place to put one.
+  */
+  check("it takes the description in a sized field", /<textarea/.test(fit));
+  check("a couple of words isn't a job description", /MIN_LENGTH/.test(fit));
+  check("Enter still inserts a newline", /e\.metaKey \|\| e\.ctrlKey/.test(fit));
+  /*
+    Sent as a visitor turn like every other entry point, so the transcript
+    stays honest about who said what and the verdict can be asked about
+    afterwards rather than vanishing with a modal.
+  */
+  check("the assessment lands in the conversation", /send\(`Here's a job description/.test(fit));
+  check("the dialog escapes the dock's containing block", /createPortal/.test(fit));
+}
+
 console.log(failures === 0 ? "\nAll chat render checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

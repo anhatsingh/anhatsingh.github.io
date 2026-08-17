@@ -5,6 +5,7 @@ import { BrandIcon, DownloadIcon } from "@/components/ui/icons";
 import { resumeLinks } from "@/lib/resume";
 import { socialLinks, type Profile } from "@/lib/content/types";
 import { ResumeButton } from "@/components/chat/resume-button";
+import { FitButton } from "@/components/chat/fit-button";
 
 export function Hero({ profile }: { profile: Profile }) {
   const resume = resumeLinks(profile.resumeUrl);
@@ -67,6 +68,16 @@ export function Hero({ profile }: { profile: Profile }) {
             Download CV
           </ResumeButton>
         )}
+        {/*
+          Next to the CV, outlined rather than filled. The download is what a
+          recruiter came for and stays the one solid control; this is the
+          better question, and it was previously reachable only by thinking to
+          paste a job description into a chat box unprompted.
+        */}
+        <FitButton className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-accent px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-accent transition-colors hover:bg-accent hover:text-accent-ink">
+          Is he a fit?
+        </FitButton>
+
         {socials.map((link) => (
           <a
             key={link.key}

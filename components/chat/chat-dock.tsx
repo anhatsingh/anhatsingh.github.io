@@ -223,7 +223,7 @@ function hasProse(message: UIMessage): boolean {
 const STARTERS = [
   "Show me around",
   "Walk me through his best project",
-  "Paste a job description →",
+  "Is he a fit for my role?",
   "I'd like to reach out",
 ];
 
