@@ -25,6 +25,26 @@ export interface AuditFinding {
 }
 
 /*
+  A check that ran, whether or not it found anything.
+
+  Findings alone only ever describe failure, so a clean audit produced silence
+  — indistinguishable from an audit that never ran. That is the wrong shape for
+  something whose whole job is assurance: "12 checks, nothing wrong" is worth
+  saying out loud, and "0 checks" is worth being able to notice.
+
+  Recorded as the audit runs rather than derived afterwards, so a check added
+  later cannot quietly go unreported.
+*/
+export interface AuditStep {
+  check: string;
+  /** What was examined, in words a human reads once and understands. */
+  label: string;
+  /** How many things this check looked at. */
+  examined: number;
+  problems: number;
+}
+
+/*
   The one date form the generator is asked for. An en dash, a slash, a bare
   year or a spelled-out month all parse worse, and mixing them across entries
   parses worst of all.
@@ -144,89 +164,135 @@ function containsMostOf(haystack: string, needle: string): boolean {
  * than as a flood of false failures.
  */
 export function auditExtraction(resume: Resume, text: string, pages: number): AuditFinding[] {
-  const findings: AuditFinding[] = [...findMarkdownArtifacts(resume), ...findUnsupportedCharacters(resume)];
+  return auditExtractionDetailed(resume, text, pages).findings;
+}
+
+/**
+ * The same audit, reporting every check it ran.
+ *
+ * `auditExtraction` above is the thin wrapper for callers that only care
+ * whether anything is wrong. This one is for the admin panel, where seeing
+ * that the contact fields and the headings and the bullets were all checked is
+ * the difference between trusting the result and assuming it did nothing.
+ */
+export function auditExtractionDetailed(
+  resume: Resume,
+  text: string,
+  pages: number,
+): { findings: AuditFinding[]; steps: AuditStep[] } {
+  const findings: AuditFinding[] = [];
+  const steps: AuditStep[] = [];
+
+  /*
+    Every check goes through here, so a step exists for anything that ran. The
+    count of problems is taken from what the check actually produced rather
+    than passed in separately, which is what stops the two disagreeing.
+  */
+  const record = (check: string, label: string, examined: number, produced: AuditFinding[]) => {
+    findings.push(...produced);
+    steps.push({ check, label, examined, problems: produced.length });
+  };
+
+  const prose = proseFields(resume);
+
+  record("markdown", "Markdown that LaTeX would print literally", prose.length, findMarkdownArtifacts(resume));
+  record("characters", "Characters pdflatex cannot typeset", prose.length, findUnsupportedCharacters(resume));
 
   if (!text.trim()) {
-    findings.push({
-      severity: "warning",
-      check: "extraction",
-      detail: "Couldn't read the text back out of the PDF, so nothing below was verified.",
-    });
-    return findings;
+    record("extraction", "Reading the text back out of the PDF", 1, [
+      {
+        severity: "warning",
+        check: "extraction",
+        detail: "Couldn't read the text back out of the PDF, so nothing below was verified.",
+      },
+    ]);
+    return { findings, steps };
   }
+
+  record("extraction", "Reading the text back out of the PDF", 1, []);
 
   const flat = normalise(text);
   const lines = text.split("\n").map((l) => l.trim());
 
   // Contact details are the fields an ATS populates first.
+  const contact: AuditFinding[] = [];
+  let contactFields = 1; // the name, which is always present
   if (resume.header.email && !flat.includes(normalise(resume.header.email))) {
-    findings.push({ severity: "error", check: "contact", detail: "The email didn't extract." });
+    contact.push({ severity: "error", check: "contact", detail: "The email didn't extract." });
   }
   if (resume.header.phone && !flat.includes(normalise(resume.header.phone))) {
-    findings.push({ severity: "warning", check: "contact", detail: "The phone number didn't extract cleanly." });
+    contact.push({ severity: "warning", check: "contact", detail: "The phone number didn't extract cleanly." });
   }
   if (resume.header.location && !flat.includes(normalise(resume.header.location))) {
-    findings.push({ severity: "warning", check: "contact", detail: "The location didn't extract." });
+    contact.push({ severity: "warning", check: "contact", detail: "The location didn't extract." });
   }
   if (!flat.includes(normalise(resume.header.name))) {
-    findings.push({ severity: "error", check: "contact", detail: "The name didn't extract." });
+    contact.push({ severity: "error", check: "contact", detail: "The name didn't extract." });
   }
+  for (const f of [resume.header.email, resume.header.phone, resume.header.location]) if (f) contactFields++;
+  record("contact", "Contact details an ATS populates first", contactFields, contact);
 
   /*
     Headings must extract exactly. A faked small-caps face, or anything that
     changes size mid-word, makes extractors insert a space — "Summary" comes
     out as "S ummary" and a parser looking for the section misses it.
   */
+  const headings: AuditFinding[] = [];
   for (const heading of HEADINGS) {
     const present = lines.some((l) => l === heading);
     const mangled = lines.some((l) => l.replace(/\s+/g, "") === heading.replace(/\s+/g, ""));
     if (!present && mangled) {
-      findings.push({
+      headings.push({
         severity: "error",
         check: "headings",
         detail: `"${heading}" extracts with broken spacing, so a parser won't match the section.`,
       });
     }
   }
+  record("headings", "Section headings a parser segments on", HEADINGS.length, headings);
 
   // Employment history is what an ATS reads hardest.
+  const roles: AuditFinding[] = [];
   for (const role of resume.experience) {
     if (!flat.includes(normalise(role.company))) {
-      findings.push({ severity: "error", check: "experience", detail: `"${role.company}" didn't extract.` });
+      roles.push({ severity: "error", check: "experience", detail: `"${role.company}" didn't extract.` });
     }
     if (!flat.includes(normalise(role.title))) {
-      findings.push({ severity: "error", check: "experience", detail: `The title "${role.title}" didn't extract.` });
+      roles.push({ severity: "error", check: "experience", detail: `The title "${role.title}" didn't extract.` });
     }
   }
+  record("experience", "Company and title on every role", resume.experience.length * 2, roles);
 
   // Content that silently failed to make it onto the page.
-  for (const { where, text: prose } of proseFields(resume)) {
-    if (!containsMostOf(flat, prose)) {
-      findings.push({
+  const missing: AuditFinding[] = [];
+  for (const { where, text: line } of prose) {
+    if (!containsMostOf(flat, line)) {
+      missing.push({
         severity: "error",
         check: "content",
-        detail: `${where} didn't survive into the PDF: "${prose.slice(0, 60)}…"`,
+        detail: `${where} didn't survive into the PDF: "${line.slice(0, 60)}…"`,
       });
     }
   }
+  record("content", "Every bullet surviving into the PDF", prose.length, missing);
 
   // An escaping bug shows up here rather than as a compile failure.
   const leaked = /\\(textbf|textbackslash|textasciitilde|textasciicircum|%|&|_|#|\$)/.exec(text);
-  if (leaked) {
-    findings.push({
-      severity: "error",
-      check: "escaping",
-      detail: `A LaTeX escape reached the text layer: "${leaked[0]}".`,
-    });
-  }
+  record("escaping", "LaTeX escapes leaking into the text layer", 1, leaked
+    ? [{
+        severity: "error",
+        check: "escaping",
+        detail: `A LaTeX escape reached the text layer: "${leaked[0]}".`,
+      }]
+    : []);
 
-  if (pages > 2) {
-    findings.push({
-      severity: "error",
-      check: "length",
-      detail: `${pages} pages. Cut bullets until it fits two.`,
-    });
-  }
+  record("length", "Page count", 1, pages > 2
+    ? [{
+        severity: "error",
+        check: "length",
+        detail: `${pages} pages. Cut bullets until it fits two.`,
+      }]
+    : []);
 
   /*
     Dates are checked against the one form the prompt asks for rather than
@@ -235,17 +301,19 @@ export function auditExtraction(resume: Resume, text: string, pages: number): Au
     different format — and it reports "2 formats" without saying which entry is
     the odd one out.
   */
+  const dates: AuditFinding[] = [];
   for (const role of resume.experience) {
     if (!DATE_RANGE.test(role.dates.trim())) {
-      findings.push({
+      dates.push({
         severity: "warning",
         check: "dates",
         detail: `"${role.dates}" at ${role.company} isn't "Mon YYYY - Mon YYYY" or "Mon YYYY - Present". Inconsistent dates lower a parser's confidence on the field it reads hardest.`,
       });
     }
   }
+  record("dates", "Date format on every role", resume.experience.length, dates);
 
-  return findings;
+  return { findings, steps };
 }
 
 export function hasErrors(findings: AuditFinding[]): boolean {

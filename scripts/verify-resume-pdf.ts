@@ -21,7 +21,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compileTex } from "../lib/resume/compile";
 import { escapeLatex, renderResume, renderRich, unsupportedCharacters } from "../lib/resume/render";
-import { auditExtraction, findMarkdownArtifacts, findUnsupportedCharacters, hasErrors } from "../lib/resume/audit";
+import {
+  auditExtraction,
+  auditExtractionDetailed,
+  findMarkdownArtifacts,
+  findUnsupportedCharacters,
+  hasErrors,
+} from "../lib/resume/audit";
+import { readNdjson } from "../lib/ndjson";
 import { resumeMetaSchema, resumeSchema } from "../lib/resume/schema";
 import { z } from "zod";
 import type { Resume } from "../lib/resume/schema";
@@ -373,6 +380,8 @@ async function main() {
   }
 
   await remoteContract();
+  await streamContract();
+  auditReporting();
 
   console.log(failures === 0 ? "\nAll resume checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
   process.exit(failures === 0 ? 0 : 1);
@@ -537,6 +546,138 @@ async function remoteContract() {
   check("an unreachable compiler fails", !unreachable.ok);
   check("and is still traced", Boolean(unreachable.trace.requestId));
   check("with a window to search Cloud Logging by", Boolean(unreachable.trace.startedAt));
+}
+
+/*
+  The NDJSON reader, against chunk boundaries that only happen in production.
+
+  Locally a response arrives in one piece and every one of these passes by
+  accident. Over a real connection a chunk can end mid-object or mid-character,
+  and getting it wrong produces a parse error under load and never in
+  development — which is the worst possible distribution of a bug.
+*/
+async function streamContract() {
+  console.log("\n── the NDJSON stream reader ──");
+
+  const encoder = new TextEncoder();
+  const from = (chunks: string[]) =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          for (const c of chunks) controller.enqueue(encoder.encode(c));
+          controller.close();
+        },
+      }),
+    );
+
+  const collect = async (chunks: string[]) => {
+    const out: unknown[] = [];
+    for await (const value of readNdjson<unknown>(from(chunks))) out.push(value);
+    return out;
+  };
+
+  check("whole lines parse", (await collect(['{"a":1}\n{"a":2}\n'])).length === 2);
+
+  // The case that matters: one object split across two chunks.
+  const split = await collect(['{"type":"sta', 'ge","message":"hi"}\n']);
+  check(
+    "an object split across chunks survives",
+    split.length === 1 && (split[0] as { message: string }).message === "hi",
+  );
+
+  check(
+    "a final line with no trailing newline still counts",
+    (await collect(['{"a":1}\n{"a":2}'])).length === 2,
+  );
+
+  check("blank lines are skipped", (await collect(['{"a":1}\n\n\n{"a":2}\n'])).length === 2);
+
+  /*
+    A multi-byte character split down the middle. TextDecoder only handles this
+    with stream: true — without it the character becomes U+FFFD and the JSON
+    silently carries the wrong text.
+  */
+  const bytes = encoder.encode('{"m":"caf\u00e9 \u2014 done"}\n');
+  const rawSplit: Array<{ m: string }> = [];
+  const splitResponse = new Response(
+    new ReadableStream({
+      start(controller) {
+        // Byte 11 lands inside the two-byte é.
+        controller.enqueue(bytes.slice(0, 11));
+        controller.enqueue(bytes.slice(11));
+        controller.close();
+      },
+    }),
+  );
+  for await (const v of readNdjson<{ m: string }>(splitResponse)) rawSplit.push(v);
+  check(
+    "a multi-byte character split across chunks survives",
+    rawSplit.length === 1 && rawSplit[0].m === "café — done",
+    rawSplit[0]?.m,
+  );
+
+  check("an empty body yields nothing", (await collect([])).length === 0);
+}
+
+/*
+  The audit reporting what it ran, not only what it found.
+
+  Findings alone describe failure, so a clean resume produced silence — which
+  reads the same as an audit that never happened, and an audit not happening
+  was a real bug on the save path. These assert the steps exist and that they
+  cannot drift from the findings they summarise.
+*/
+function auditReporting() {
+  console.log("\n── the audit reports what it checked ──");
+
+  const text = [
+    "Anhat Singh",
+    "Jalandhar, India | +91 95010 30147 | anhatsingh2001@gmail.com",
+    "Summary",
+    fixture.summary.text,
+    "Experience",
+    ...fixture.experience.flatMap((e) => [e.company, e.title, ...e.bullets.map((b) => b.text)]),
+    "Projects",
+    ...fixture.projects.flatMap((p) => [p.name, ...p.bullets.map((b) => b.text)]),
+    "Technical Skills",
+    ...fixture.skills.map((s) => `${s.label}: ${s.items}`),
+    "Achievements",
+    ...fixture.achievements.map((a) => a.text),
+    "Education",
+  ].join("\n");
+
+  const clean = auditExtractionDetailed(fixture, text, 1);
+
+  check("a clean audit still reports its checks", clean.steps.length > 0, `${clean.steps.length} steps`);
+  check(
+    "every step names a check and what it examined",
+    clean.steps.every((s) => s.check && s.label && s.examined >= 0),
+  );
+  check(
+    "the steps account for every finding",
+    clean.steps.reduce((n, s) => n + s.problems, 0) === clean.findings.length,
+  );
+  check(
+    "the wrapper returns exactly the detailed findings",
+    JSON.stringify(auditExtraction(fixture, text, 1)) === JSON.stringify(clean.findings),
+  );
+
+  // A document nothing could be read out of: the audit must say so rather than
+  // reporting every check as passed against an empty string.
+  const blank = auditExtractionDetailed(fixture, "", 1);
+  check(
+    "an unreadable PDF is reported, not silently passed",
+    blank.steps.some((s) => s.check === "extraction" && s.problems === 1),
+  );
+  check(
+    "and the checks that could not run are absent rather than fake",
+    !blank.steps.some((s) => s.check === "content"),
+  );
+
+  // A real problem has to show up in the step that owns it.
+  const short = auditExtractionDetailed(fixture, text, 4);
+  const length = short.steps.find((s) => s.check === "length");
+  check("a four-page document fails the length step", length?.problems === 1);
 }
 
 main();

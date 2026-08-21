@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { checkResume, compileAndSaveResume, requestResumeDraft } from "@/app/admin/actions";
-import { CompileLog } from "@/components/admin/compile-log";
+import { requestResumeDraft } from "@/app/admin/actions";
+import { PipelineLog } from "@/components/admin/compile-log";
+import { readNdjson } from "@/lib/ndjson";
 import type { AuditFinding } from "@/lib/resume/audit";
-import type { CompileTrace } from "@/lib/resume/compile";
+import type { PipelineEvent } from "@/lib/resume/pipeline";
 import type { Resume, ResumeMeta } from "@/lib/resume/schema";
 
 /*
@@ -48,8 +49,8 @@ export default function AdminResumePage() {
   const [isPublished, setIsPublished] = useState(true);
   const [savedUrl, setSavedUrl] = useState("");
 
-  /** Every compile from the last click. Cleared when a new one starts. */
-  const [traces, setTraces] = useState<CompileTrace[]>([]);
+  /** Everything the pipeline reported this run, in order. */
+  const [events, setEvents] = useState<PipelineEvent[]>([]);
   /*
     Errors that stopped a save. Distinct from `problem`, which is a failure —
     these are a refusal, and the difference is that this one offers a way past.
@@ -85,35 +86,73 @@ export default function AdminResumePage() {
     automatic rewrite that goes straight to storage is exactly the kind of
     quiet change this flow exists to prevent.
   */
+  /*
+    Drives one pipeline run, appending events as they arrive.
+
+    Both check and save go through here. They are the same transport and the
+    same log; only the terminal event differs, so the caller passes what to do
+    with it rather than this branching on mode.
+  */
+  async function run(body: Record<string, unknown>): Promise<PipelineEvent | null> {
+    setEvents([]);
+    setProblem("");
+    setBlocked([]);
+
+    let last: PipelineEvent | null = null;
+
+    try {
+      const res = await fetch("/api/admin/resume/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      for await (const event of readNdjson<PipelineEvent>(res)) {
+        // Functional update: events arrive faster than React re-renders, and
+        // closing over the previous array would drop the ones in between.
+        setEvents((prev) => [...prev, event]);
+        if (event.type === "checked" || event.type === "saved" || event.type === "failed") last = event;
+      }
+    } catch (err) {
+      /*
+        A dropped connection mid-stream. Reported as an event so it lands in
+        the log with everything else rather than only in the red line — the
+        events already received are the context for what went wrong.
+      */
+      const failure: PipelineEvent = {
+        type: "failed",
+        error: `The connection dropped: ${(err as Error).message}`,
+      };
+      setEvents((prev) => [...prev, failure]);
+      return failure;
+    }
+
+    return last;
+  }
+
   async function check() {
     if (!resume) return;
     setPhase("checking");
-    setProblem("");
-    setBlocked([]);
-    setTraces([]);
 
-    const result = await checkResume({
+    const result = await run({
+      mode: "check",
       resume: applyExclusions(resume),
       jobDescription: jd,
     });
 
-    // Set before the failure branch: when a compile breaks, the log is the
-    // only thing worth showing, so it must survive the early return.
-    setTraces(result.traces);
-
-    if (!result.ok) {
-      setProblem(result.error);
+    if (!result || result.type !== "checked") {
+      setProblem(result?.type === "failed" ? result.error : "The check didn't finish.");
       setPhase("error");
       return;
     }
 
     // Exclusions are baked in by now, so the ticks reset with the new content.
-    setResume(result.resume);
+    setResume(result.result.resume);
     setExcluded(new Set());
-    setFindings(result.findings);
-    setRevised(result.revised);
-    setPages(result.pages);
-    setPreview(result.previewPdf);
+    setFindings(result.result.findings);
+    setRevised(result.result.revised);
+    setPages(result.result.pages);
+    setPreview(result.result.previewPdf);
     setPhase("checked");
   }
 
@@ -141,10 +180,9 @@ export default function AdminResumePage() {
   async function save(override = false) {
     if (!resume || !meta) return;
     setPhase("saving");
-    setProblem("");
-    setBlocked([]);
 
-    const result = await compileAndSaveResume({
+    const result = await run({
+      mode: "save",
       resume: applyExclusions(resume),
       meta,
       jobDescription: jd,
@@ -153,11 +191,13 @@ export default function AdminResumePage() {
       override,
     });
 
-    if (result.trace) setTraces([result.trace]);
-
-    if (!result.ok) {
-      setProblem(result.error);
-      if (result.blockedBy) setBlocked(result.blockedBy);
+    if (!result || result.type !== "saved") {
+      if (result?.type === "failed") {
+        setProblem(result.error);
+        if (result.blockedBy) setBlocked(result.blockedBy);
+      } else {
+        setProblem("The save didn't finish.");
+      }
       setPhase("error");
       return;
     }
@@ -456,7 +496,7 @@ export default function AdminResumePage() {
             </section>
           )}
 
-          <CompileLog traces={traces} />
+          <PipelineLog events={events} running={phase === "checking" || phase === "saving"} />
         </div>
       )}
     </div>

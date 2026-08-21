@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { fetchCompileLogs } from "@/app/admin/actions";
 import type { CompileTrace } from "@/lib/resume/compile";
+import type { PipelineEvent } from "@/lib/resume/pipeline";
+import type { AuditStep } from "@/lib/resume/audit";
 import type { LogEntry } from "@/lib/gcp/logs";
 
 /*
@@ -167,24 +169,160 @@ function TracePanel({ trace, index, total }: { trace: CompileTrace; index: numbe
   );
 }
 
-export function CompileLog({ traces }: { traces: CompileTrace[] }) {
-  if (!traces.length) return null;
+/*
+  The ATS checks, as a list of what ran.
 
-  const total = traces.reduce((sum, t) => sum + t.durationMs, 0);
+  Previously the audit reported only what it found, so a clean resume produced
+  nothing — which reads identically to an audit that never happened. Showing
+  every check with its count is the difference between "no problems" and "no
+  evidence", and the second is what this pipeline was actually doing on the
+  save path until recently.
+*/
+function AuditSteps({ steps, pass }: { steps: AuditStep[]; pass: number }) {
+  const problems = steps.reduce((n, s) => n + s.problems, 0);
 
   return (
-    <details className="rounded-[var(--radius)] border border-hairline bg-surface">
-      <summary className="cursor-pointer px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted hover:text-accent">
-        Compile log
-        <span className="ml-2 normal-case tracking-normal text-[11px]">
-          {traces.length > 1 ? `${traces.length} compiles · ` : ""}
-          {ms(total)}
+    <details className="rounded-[var(--radius)] border border-hairline bg-elevated p-3" open={problems > 0}>
+      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-muted hover:text-accent">
+        ATS checks{pass > 1 ? ` · pass ${pass}` : ""}
+        <span className={`ml-2 normal-case tracking-normal ${problems ? "text-danger" : "text-success"}`}>
+          {problems ? `${problems} problem${problems === 1 ? "" : "s"}` : "all clean"}
         </span>
       </summary>
-      <div className="space-y-3 border-t border-hairline p-4">
-        {traces.map((t, i) => (
-          <TracePanel key={t.requestId} trace={t} index={i} total={traces.length} />
+      <ul className="mt-2 space-y-1">
+        {steps.map((step) => (
+          <li key={step.check} className="flex items-baseline gap-2 text-[11px]">
+            <span
+              aria-hidden="true"
+              className={`font-mono ${step.problems ? "text-danger" : "text-success"}`}
+            >
+              {step.problems ? "✗" : "✓"}
+            </span>
+            <span className="min-w-0 flex-1">{step.label}</span>
+            <span className="shrink-0 font-mono text-[10px] text-muted">
+              {step.problems ? `${step.problems}/${step.examined}` : step.examined}
+            </span>
+          </li>
         ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * Everything the pipeline did, in the order it did it.
+ *
+ * Open while it runs and collapsible afterwards: during, it is the only sign
+ * the half-minute of compiling and model calls is progressing; after, it is
+ * reference material that should not sit on top of the findings.
+ */
+export function PipelineLog({ events, running }: { events: PipelineEvent[]; running: boolean }) {
+  if (!events.length) return null;
+
+  const traces = events.flatMap((e) => (e.type === "compiled" ? [e.trace] : []));
+  const elapsed = traces.reduce((sum, t) => sum + t.durationMs, 0);
+  /*
+    The last stage is the one in flight. Everything before it has been
+    superseded by a later event, which is what makes a plain list readable
+    without tracking completion per stage.
+  */
+  const stages = events.filter((e) => e.type === "stage");
+  const current = running ? stages[stages.length - 1] : null;
+
+  return (
+    <details
+      className="rounded-[var(--radius)] border border-hairline bg-surface"
+      open={running}
+      /*
+        Keyed on running so the browser re-applies `open` when a run starts.
+        Without the key, a panel the user collapsed stays collapsed through the
+        next run and the live log is invisible.
+      */
+      key={running ? "running" : "idle"}
+    >
+      <summary className="cursor-pointer px-4 py-2.5 font-mono text-xs uppercase tracking-widest text-muted hover:text-accent">
+        {running ? (
+          <>
+            <span className="relative mr-2 inline-flex h-1.5 w-1.5" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+            </span>
+            <span className="text-accent">{current?.type === "stage" ? current.message : "Working"}</span>
+          </>
+        ) : (
+          <>
+            Pipeline log
+            <span className="ml-2 normal-case tracking-normal text-[11px]">
+              {traces.length > 1 ? `${traces.length} compiles · ` : ""}
+              {elapsed ? ms(elapsed) : `${events.length} events`}
+            </span>
+          </>
+        )}
+      </summary>
+
+      <div className="space-y-2 border-t border-hairline p-4">
+        {events.map((event, i) => {
+          switch (event.type) {
+            case "stage":
+              return (
+                <p key={i} className="font-mono text-[11px] text-accent">
+                  <span aria-hidden="true" className="mr-1.5">
+                    ↳
+                  </span>
+                  {event.message}
+                  {running && i === events.length - 1 && (
+                    <span aria-hidden="true" className="ml-1 animate-pulse">
+                      ▍
+                    </span>
+                  )}
+                </p>
+              );
+
+            case "note":
+              return (
+                <p key={i} className="pl-4 text-[11px] text-muted">
+                  {event.message}
+                </p>
+              );
+
+            case "fidelity":
+              return (
+                <p key={i} className={`pl-4 text-[11px] ${event.ok ? "text-muted" : "text-warn"}`}>
+                  Fidelity — {event.note}
+                </p>
+              );
+
+            case "audited":
+              return <AuditSteps key={i} steps={event.steps} pass={event.pass} />;
+
+            case "compiled":
+              return (
+                <TracePanel
+                  key={event.trace.requestId}
+                  trace={event.trace}
+                  index={traces.findIndex((t) => t.requestId === event.trace.requestId)}
+                  total={traces.length}
+                />
+              );
+
+            case "failed":
+              return (
+                <p key={i} className="pl-4 text-[11px] text-danger">
+                  {event.error}
+                </p>
+              );
+
+            case "saved":
+              return (
+                <p key={i} className="pl-4 text-[11px] text-success">
+                  Saved as {event.slug}
+                </p>
+              );
+
+            default:
+              return null;
+          }
+        })}
       </div>
     </details>
   );

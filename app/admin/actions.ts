@@ -701,209 +701,12 @@ export async function requestResumeDraft(jobDescription: string): Promise<Resume
   return { ok: true, resume: draft.resume, meta: meta.meta, dropped: draft.dropped };
 }
 
-export type ResumeCheckAction =
-  | {
-      ok: true;
-      resume: Resume;
-      findings: AuditFinding[];
-      revised: boolean;
-      pages: number;
-      /** Data URL, so the draft can be previewed before anything is stored. */
-      previewPdf: string;
-      /*
-        Every compile this click ran — up to two, because a revision round
-        recompiles. Both are returned rather than the last: when a model's
-        revision breaks the build, the difference between the two traces is
-        the whole explanation.
-      */
-      traces: CompileTrace[];
-    }
-  | { ok: false; error: string; traces: CompileTrace[] };
-
-/**
- * Compiles a draft, reads the PDF back, and fixes what is wrong.
- *
- * The order matters. Deterministic checks run first because they are cheap and
- * never disagree with themselves — they catch missing content, mangled
- * headings, leaked escapes. Only then is the model asked to judge fidelity,
- * which is the part no rule can decide.
- *
- * One revision round, not a loop. A second pass that still fails usually means
- * the source data is thin rather than the wording wrong, and a human reading
- * the findings will get further than another attempt.
- *
- * Nothing is written here. The result is a proposal and a preview.
- */
-export async function checkResume(input: {
-  resume: Resume;
-  jobDescription: string;
-}): Promise<ResumeCheckAction> {
-  try {
-    await requireAdmin();
-  } catch {
-    return { ok: false, error: "Not authorised.", traces: [] };
-  }
-
-  const portfolio = await getPortfolio();
-
-  const compiled = await compileTex(renderResume(input.resume));
-  const traces: CompileTrace[] = [compiled.trace];
-  if (!compiled.ok) return { ok: false, error: `LaTeX: ${compiled.error}`, traces };
-
-  let findings = auditExtraction(input.resume, compiled.text, compiled.pages);
-
-  const fidelity = await confirmFidelity(input.resume, compiled.text);
-  if (fidelity.ok) findings = [...findings, ...fidelity.findings];
-
-  // Warnings are for a human to weigh; only errors are worth spending a
-  // revision round and another compile on.
-  if (!hasErrors(findings)) {
-    return {
-      ok: true,
-      resume: input.resume,
-      findings,
-      revised: false,
-      pages: compiled.pages,
-      previewPdf: toDataUrl(compiled.pdf),
-      traces,
-    };
-  }
-
-  const revision = await reviseResume(input.resume, findings, input.jobDescription, portfolio);
-  if (!revision.ok) {
-    return {
-      ok: true,
-      resume: input.resume,
-      findings,
-      revised: false,
-      pages: compiled.pages,
-      previewPdf: toDataUrl(compiled.pdf),
-      traces,
-    };
-  }
-
-  const recompiled = await compileTex(renderResume(revision.resume));
-  traces.push(recompiled.trace);
-  if (!recompiled.ok) {
-    // The revision broke the build, so the original stands — better a document
-    // with known flaws than none at all. Both traces come back, which is what
-    // makes it possible to see what the revision did to break it.
-    return {
-      ok: true,
-      resume: input.resume,
-      findings,
-      revised: false,
-      pages: compiled.pages,
-      previewPdf: toDataUrl(compiled.pdf),
-      traces,
-    };
-  }
-
-  const after = auditExtraction(revision.resume, recompiled.text, recompiled.pages);
-  const afterFidelity = await confirmFidelity(revision.resume, recompiled.text);
-
-  return {
-    ok: true,
-    resume: revision.resume,
-    findings: afterFidelity.ok ? [...after, ...afterFidelity.findings] : after,
-    revised: true,
-    pages: recompiled.pages,
-    previewPdf: toDataUrl(recompiled.pdf),
-    traces,
-  };
-}
-
-/** Base64 data URL, so a preview needs no storage and leaves nothing behind. */
-function toDataUrl(pdf: Uint8Array): string {
-  return `data:application/pdf;base64,${Buffer.from(pdf).toString("base64")}`;
-}
-
-export type ResumeSaveAction =
-  | { ok: true; slug: string; pdfUrl: string; trace: CompileTrace }
-  | {
-      ok: false;
-      error: string;
-      trace?: CompileTrace;
-      /*
-        Set when the save was refused by the audit rather than by a failure.
-        The UI shows these and offers to save anyway; nothing else populates
-        it, so its presence is what distinguishes "this is wrong" from "this
-        broke".
-      */
-      blockedBy?: AuditFinding[];
-    };
-
-/**
- * Renders, compiles, audits, stores the PDF, and saves the row.
- *
- * The audit here is not a duplicate of checkResume's. checkResume audits a
- * draft; this audits the bytes actually being published, and they are not
- * always the same document — bullets can be unticked, or the text edited,
- * after a check passed. Without this, the audit was advisory: everything the
- * ATS pipeline exists to catch could be checked, then edited, then saved.
- *
- * `override` is the deliberate way past it, and it is the caller's to set
- * after showing a human what is wrong.
- */
-export async function compileAndSaveResume(input: {
-  resume: Resume;
-  meta: ResumeMeta;
-  jobDescription: string;
-  isDefault: boolean;
-  isPublished: boolean;
-  override?: boolean;
-}): Promise<ResumeSaveAction> {
-  try {
-    await requireAdmin();
-  } catch {
-    return { ok: false, error: "Not authorised." };
-  }
-
-  if (!input.meta.slug.trim() || !input.meta.label.trim()) {
-    return { ok: false, error: "Give it a label and a slug first." };
-  }
-
-  const compiled = await compileTex(renderResume(input.resume));
-  if (!compiled.ok) {
-    // The first line of a TeX log beginning with "!" is the only useful part of
-    // several thousand; compile.ts pulls it out so this can be acted on. The
-    // trace carries the rest for the panel.
-    return { ok: false, error: `LaTeX: ${compiled.error}`, trace: compiled.trace };
-  }
-
-  /*
-    Deterministic checks only. confirmFidelity costs a model call and belongs
-    to the review step — this is the gate that stops a mechanically broken PDF
-    becoming the resume people download, and it has to be cheap enough to run
-    on every save.
-  */
-  const findings = auditExtraction(input.resume, compiled.text, compiled.pages);
-  if (hasErrors(findings) && !input.override) {
-    return {
-      ok: false,
-      error: "This PDF doesn't read cleanly through an ATS, so it wasn't saved.",
-      trace: compiled.trace,
-      blockedBy: findings.filter((f) => f.severity === "error"),
-    };
-  }
-
-  const upload = await uploadResumePdf(compiled.pdf, input.meta.slug);
-  if (!upload.ok || !upload.url) return { ok: false, error: upload.error ?? "Upload failed." };
-
-  const saved = await saveResume({
-    meta: input.meta,
-    resume: input.resume,
-    pdfUrl: upload.url,
-    jobDescription: input.jobDescription,
-    isDefault: input.isDefault,
-    isPublished: input.isPublished,
-  });
-  if (!saved.ok) return { ok: false, error: saved.error };
-
-  revalidatePath("/admin/resumes");
-  revalidatePath("/");
-  return { ok: true, slug: saved.slug, pdfUrl: upload.url, trace: compiled.trace };
-}
+/*
+  Checking and saving a resume now stream, so they live in lib/resume/pipeline.ts
+  behind app/api/admin/resume/run. A server action returns once, and this work
+  takes half a minute of compiling and model calls with nothing to show for it
+  until the end — which is precisely what the log was added to fix.
+*/
 
 /**
  * Cloud Run's own log entries for one compile.
@@ -912,6 +715,9 @@ export async function compileAndSaveResume(input: {
  * trail already answers most questions without it. Worth reaching for when the
  * container never replied at all — a kill for memory or a timeout at the front
  * door leaves nothing in the response to read.
+ *
+ * Still an action rather than part of the stream, because it is asked for by a
+ * human clicking a button long after the pipeline finished.
  */
 export async function fetchCompileLogs(input: {
   requestId: string | null;
@@ -926,7 +732,6 @@ export async function fetchCompileLogs(input: {
 
   return fetchCloudRunLogs(input);
 }
-
 
 /*
   MCP tokens.
