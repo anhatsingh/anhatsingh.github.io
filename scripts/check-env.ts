@@ -114,6 +114,39 @@ if (!latexUrl) {
 }
 
 /*
+  Cloud Run's own logs, read into the admin panel when a compile misbehaves.
+
+  Entirely optional: without it the compile trail the container returns still
+  shows, and only the platform's side of the story — a container killed for
+  memory, a request that timed out at the door — is missing. So an unset block
+  is silent, and only a half-configured one is worth complaining about, since
+  that is someone who meant to set it up and stopped halfway.
+*/
+const gcpProject = process.env.GCP_PROJECT_ID?.trim();
+const gcpKey = process.env.GCP_SERVICE_ACCOUNT_JSON?.trim();
+
+if (gcpProject || gcpKey) {
+  if (!gcpProject) {
+    warn("GCP_SERVICE_ACCOUNT_JSON set without GCP_PROJECT_ID", "Cloud Run logs won't load without both.");
+  } else if (!gcpKey) {
+    warn("GCP_PROJECT_ID set without GCP_SERVICE_ACCOUNT_JSON", "Cloud Run logs won't load without both.");
+  } else {
+    try {
+      const parsed = JSON.parse(gcpKey) as { type?: string; client_email?: string };
+      if (parsed.type !== "service_account") {
+        bad("GCP_SERVICE_ACCOUNT_JSON isn't a service account key", "Expected a key with \"type\": \"service_account\".");
+      } else {
+        ok("Cloud Run logs", `${parsed.client_email ?? "service account"} → ${gcpProject}`);
+      }
+    } catch {
+      // A key pasted into an env var loses its newlines more often than not,
+      // and the failure otherwise appears as an unexplained empty log panel.
+      bad("GCP_SERVICE_ACCOUNT_JSON isn't valid JSON", "Paste the whole key file, including its braces.");
+    }
+  }
+}
+
+/*
   Web search. Optional: without it the chatbot answers from the database only,
   which is the behaviour it had before and is never wrong — just narrower.
 */

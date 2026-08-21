@@ -33,6 +33,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "ai": "^7.0.58",
+    "google-auth-library": "^11.0.2",
     "jszip": "^3.10.1",
     "mcp-handler": "^2.1.1",
     "mermaid": "^11.16.1",

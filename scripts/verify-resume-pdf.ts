@@ -14,6 +14,8 @@
 */
 
 import { execFileSync } from "node:child_process";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -301,7 +303,7 @@ async function main() {
 
     if (!result.ok) {
       check("fixture compiles", false, result.error);
-      if (result.log) console.log(result.log.split("\n").slice(-25).join("\n"));
+      if (result.trace.texLog) console.log(result.trace.texLog.split("\n").slice(-25).join("\n"));
     } else {
       check("fixture compiles", true, `${(result.pdf.length / 1024).toFixed(0)}KB`);
       check("output is a PDF", new TextDecoder().decode(result.pdf.slice(0, 5)) === "%PDF-");
@@ -370,8 +372,171 @@ async function main() {
     }
   }
 
+  await remoteContract();
+
   console.log(failures === 0 ? "\nAll resume checks passed.\n" : `\n${failures} check(s) FAILED.\n`);
   process.exit(failures === 0 ? 0 : 1);
+}
+
+/*
+  The remote backend, against a stub.
+
+  This is the branch that runs in production — Vercel cannot host a TeX
+  installation, so every real resume is compiled over HTTP — and until now it
+  had no test at all. The local path above is the one that was covered, and it
+  is the one that never runs for a user.
+
+  A stub rather than the real container, because what is being checked here is
+  the contract: that a JSON body is parsed, that an older PDF-only deployment
+  still works, that a 422 keeps its log, and that the trace survives every one
+  of those paths. None of that needs pdflatex, so unlike the tests above these
+  run everywhere.
+*/
+async function remoteContract() {
+  console.log("\n── the remote compiler contract ──");
+
+  const PDF = Buffer.from("%PDF-1.4 stub");
+
+  const serve = (handler: (req: IncomingMessage, res: ServerResponse) => void) =>
+    new Promise<{ url: string; close: () => Promise<void> }>((resolve) => {
+      const server = createServer(handler);
+      server.listen(0, "127.0.0.1", () => {
+        const port = (server.address() as AddressInfo).port;
+        resolve({
+          url: `http://127.0.0.1:${port}`,
+          close: () => new Promise<void>((done) => server.close(() => done())),
+        });
+      });
+    });
+
+  /** Runs one compile against a stub, with LATEX_SERVICE_URL pointed at it. */
+  async function against(handler: (req: IncomingMessage, res: ServerResponse) => void) {
+    const stub = await serve(handler);
+    const previous = process.env.LATEX_SERVICE_URL;
+    process.env.LATEX_SERVICE_URL = stub.url;
+    try {
+      return await compileTex("\\documentclass{article}\\begin{document}hi\\end{document}");
+    } finally {
+      if (previous === undefined) delete process.env.LATEX_SERVICE_URL;
+      else process.env.LATEX_SERVICE_URL = previous;
+      await stub.close();
+    }
+  }
+
+  // The modern service: JSON carrying the PDF, the text and the trail.
+  let seenRequestId: string | undefined;
+  let seenAccept: string | undefined;
+  const json = await against((req, res) => {
+    seenRequestId = req.headers["x-request-id"] as string;
+    seenAccept = req.headers.accept as string;
+    const body = JSON.stringify({
+      pdfBase64: PDF.toString("base64"),
+      text: "Anhat Singh\fpage two",
+      pages: 2,
+      texLog: "Overfull \\hbox badness 10000",
+      stdout: "── pass 1 ──\nThis is pdfTeX",
+      timings: { pass1Ms: 900, pass2Ms: 850, extractMs: 40 },
+      revision: "latex-compiler-00007-abc",
+      instance: "00bf4bf02d",
+    });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(body);
+  });
+
+  check("a JSON response compiles", json.ok);
+  check("it asks for JSON", (seenAccept ?? "").includes("application/json"));
+  check("a request id is sent for correlation", Boolean(seenRequestId));
+  check("the trace reports the remote backend", json.trace.backend === "remote");
+  check("the request id sent is the one traced", json.trace.requestId === seenRequestId);
+  check("the status is recorded", json.trace.status === 200);
+  check("the TeX log survives", json.trace.texLog.includes("Overfull"));
+  check("pdflatex output survives", json.trace.stdout.includes("pdfTeX"));
+  check("timings survive", json.trace.timings?.pass1Ms === 900);
+  check("the revision survives", json.trace.revision === "latex-compiler-00007-abc");
+  check("the instance survives", json.trace.instance === "00bf4bf02d");
+  check("the window is ordered", json.trace.startedAt <= json.trace.finishedAt);
+  if (json.ok) {
+    check("the PDF is decoded from base64", Buffer.from(json.pdf).equals(PDF));
+    check("the extracted text comes back", json.text.includes("Anhat Singh"));
+    check("the page count is taken from the service", json.pages === 2);
+  }
+
+  /*
+    The back-compat branch. A deployment predating the JSON response returns
+    raw bytes, and it has to keep working — that is the whole reason the
+    branch exists in compile.ts.
+  */
+  const raw = await against((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/pdf" });
+    res.end(PDF);
+  });
+  check("a PDF-only deployment still compiles", raw.ok);
+  if (raw.ok) {
+    check("its bytes arrive intact", Buffer.from(raw.pdf).equals(PDF));
+    check("it reports no extracted text rather than failing", raw.text === "");
+  }
+  check("it is still traced", raw.trace.status === 200 && raw.trace.backend === "remote");
+
+  // Identity from headers, for a response that carries no JSON to put it in.
+  const headers = await against((_req, res) => {
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "X-Cloud-Run-Revision": "latex-compiler-00009-zzz",
+      "X-Cloud-Run-Instance": "aa11bb22",
+    });
+    res.end(PDF);
+  });
+  check("the revision is read off the headers", headers.trace.revision === "latex-compiler-00009-zzz");
+  check("the instance is read off the headers", headers.trace.instance === "aa11bb22");
+
+  // A compile failure: 422 with the log as the body.
+  const failed = await against((_req, res) => {
+    res.writeHead(422, { "Content-Type": "text/plain" });
+    res.end("! Undefined control sequence.\n\nl.42 \\badmacro");
+  });
+  check("a 422 is a failure, not a PDF", !failed.ok);
+  check("the 422 status is traced", failed.trace.status === 422);
+  check("the log survives a 422", failed.trace.texLog.includes("Undefined control sequence"));
+  /*
+    Both backends must name the same failure the same way. Reporting
+    "Compiler returned 422" remotely and "Undefined control sequence" locally
+    means the harder environment to investigate gets the worse message.
+  */
+  check(
+    "the TeX error is surfaced, not the HTTP status",
+    !failed.ok && failed.error === "Undefined control sequence.",
+    failed.ok ? "" : failed.error,
+  );
+
+  // Anything else non-2xx — a 401 from the token, a 403 from Cloud Run's door.
+  const denied = await against((_req, res) => {
+    res.writeHead(401, { "Content-Type": "text/plain" });
+    res.end("unauthorised");
+  });
+  check("a 401 fails rather than returning bytes", !denied.ok);
+  check("the 401 status reaches the trace", denied.trace.status === 401);
+  check(
+    "the status is named in the error, so it is diagnosable",
+    !denied.ok && denied.error.includes("401"),
+  );
+
+  /*
+    A connection that goes nowhere. The trace still has to come back — a
+    compile that never reached the service is exactly when someone needs the
+    request id and the time window to go looking in Cloud Logging.
+  */
+  const stub = await serve(() => {});
+  const url = stub.url;
+  await stub.close();
+  const previous = process.env.LATEX_SERVICE_URL;
+  process.env.LATEX_SERVICE_URL = url;
+  const unreachable = await compileTex("\\documentclass{article}\\begin{document}hi\\end{document}");
+  if (previous === undefined) delete process.env.LATEX_SERVICE_URL;
+  else process.env.LATEX_SERVICE_URL = previous;
+
+  check("an unreachable compiler fails", !unreachable.ok);
+  check("and is still traced", Boolean(unreachable.trace.requestId));
+  check("with a window to search Cloud Logging by", Boolean(unreachable.trace.startedAt));
 }
 
 main();

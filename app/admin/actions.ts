@@ -25,7 +25,8 @@ import { proposeTaxonomy } from "@/lib/ai/taxonomy";
 import { confirmFidelity, draftResume, draftResumeMeta, reviseResume } from "@/lib/ai/resume";
 import { auditExtraction, hasErrors, type AuditFinding } from "@/lib/resume/audit";
 import { renderResume } from "@/lib/resume/render";
-import { compileTex } from "@/lib/resume/compile";
+import { compileTex, type CompileTrace } from "@/lib/resume/compile";
+import { fetchCloudRunLogs, type LogQueryResult } from "@/lib/gcp/logs";
 import { saveResume } from "@/lib/resume/store";
 import { issueToken, listTokens, revokeToken, type IssuedToken, type McpToken } from "@/lib/mcp/tokens";
 import { uploadResumePdf } from "@/lib/storage";
@@ -709,8 +710,15 @@ export type ResumeCheckAction =
       pages: number;
       /** Data URL, so the draft can be previewed before anything is stored. */
       previewPdf: string;
+      /*
+        Every compile this click ran — up to two, because a revision round
+        recompiles. Both are returned rather than the last: when a model's
+        revision breaks the build, the difference between the two traces is
+        the whole explanation.
+      */
+      traces: CompileTrace[];
     }
-  | { ok: false; error: string; log?: string };
+  | { ok: false; error: string; traces: CompileTrace[] };
 
 /**
  * Compiles a draft, reads the PDF back, and fixes what is wrong.
@@ -733,13 +741,14 @@ export async function checkResume(input: {
   try {
     await requireAdmin();
   } catch {
-    return { ok: false, error: "Not authorised." };
+    return { ok: false, error: "Not authorised.", traces: [] };
   }
 
   const portfolio = await getPortfolio();
 
   const compiled = await compileTex(renderResume(input.resume));
-  if (!compiled.ok) return { ok: false, error: `LaTeX: ${compiled.error}`, log: compiled.log };
+  const traces: CompileTrace[] = [compiled.trace];
+  if (!compiled.ok) return { ok: false, error: `LaTeX: ${compiled.error}`, traces };
 
   let findings = auditExtraction(input.resume, compiled.text, compiled.pages);
 
@@ -756,6 +765,7 @@ export async function checkResume(input: {
       revised: false,
       pages: compiled.pages,
       previewPdf: toDataUrl(compiled.pdf),
+      traces,
     };
   }
 
@@ -768,13 +778,16 @@ export async function checkResume(input: {
       revised: false,
       pages: compiled.pages,
       previewPdf: toDataUrl(compiled.pdf),
+      traces,
     };
   }
 
   const recompiled = await compileTex(renderResume(revision.resume));
+  traces.push(recompiled.trace);
   if (!recompiled.ok) {
     // The revision broke the build, so the original stands — better a document
-    // with known flaws than none at all.
+    // with known flaws than none at all. Both traces come back, which is what
+    // makes it possible to see what the revision did to break it.
     return {
       ok: true,
       resume: input.resume,
@@ -782,6 +795,7 @@ export async function checkResume(input: {
       revised: false,
       pages: compiled.pages,
       previewPdf: toDataUrl(compiled.pdf),
+      traces,
     };
   }
 
@@ -795,6 +809,7 @@ export async function checkResume(input: {
     revised: true,
     pages: recompiled.pages,
     previewPdf: toDataUrl(recompiled.pdf),
+    traces,
   };
 }
 
@@ -803,15 +818,40 @@ function toDataUrl(pdf: Uint8Array): string {
   return `data:application/pdf;base64,${Buffer.from(pdf).toString("base64")}`;
 }
 
-export type ResumeSaveAction = { ok: true; slug: string; pdfUrl: string } | { ok: false; error: string };
+export type ResumeSaveAction =
+  | { ok: true; slug: string; pdfUrl: string; trace: CompileTrace }
+  | {
+      ok: false;
+      error: string;
+      trace?: CompileTrace;
+      /*
+        Set when the save was refused by the audit rather than by a failure.
+        The UI shows these and offers to save anyway; nothing else populates
+        it, so its presence is what distinguishes "this is wrong" from "this
+        broke".
+      */
+      blockedBy?: AuditFinding[];
+    };
 
-/** Renders, compiles, stores the PDF, and saves the row. */
+/**
+ * Renders, compiles, audits, stores the PDF, and saves the row.
+ *
+ * The audit here is not a duplicate of checkResume's. checkResume audits a
+ * draft; this audits the bytes actually being published, and they are not
+ * always the same document — bullets can be unticked, or the text edited,
+ * after a check passed. Without this, the audit was advisory: everything the
+ * ATS pipeline exists to catch could be checked, then edited, then saved.
+ *
+ * `override` is the deliberate way past it, and it is the caller's to set
+ * after showing a human what is wrong.
+ */
 export async function compileAndSaveResume(input: {
   resume: Resume;
   meta: ResumeMeta;
   jobDescription: string;
   isDefault: boolean;
   isPublished: boolean;
+  override?: boolean;
 }): Promise<ResumeSaveAction> {
   try {
     await requireAdmin();
@@ -826,8 +866,25 @@ export async function compileAndSaveResume(input: {
   const compiled = await compileTex(renderResume(input.resume));
   if (!compiled.ok) {
     // The first line of a TeX log beginning with "!" is the only useful part of
-    // several thousand; compile.ts pulls it out so this can be acted on.
-    return { ok: false, error: `LaTeX: ${compiled.error}` };
+    // several thousand; compile.ts pulls it out so this can be acted on. The
+    // trace carries the rest for the panel.
+    return { ok: false, error: `LaTeX: ${compiled.error}`, trace: compiled.trace };
+  }
+
+  /*
+    Deterministic checks only. confirmFidelity costs a model call and belongs
+    to the review step — this is the gate that stops a mechanically broken PDF
+    becoming the resume people download, and it has to be cheap enough to run
+    on every save.
+  */
+  const findings = auditExtraction(input.resume, compiled.text, compiled.pages);
+  if (hasErrors(findings) && !input.override) {
+    return {
+      ok: false,
+      error: "This PDF doesn't read cleanly through an ATS, so it wasn't saved.",
+      trace: compiled.trace,
+      blockedBy: findings.filter((f) => f.severity === "error"),
+    };
   }
 
   const upload = await uploadResumePdf(compiled.pdf, input.meta.slug);
@@ -845,7 +902,29 @@ export async function compileAndSaveResume(input: {
 
   revalidatePath("/admin/resumes");
   revalidatePath("/");
-  return { ok: true, slug: saved.slug, pdfUrl: upload.url };
+  return { ok: true, slug: saved.slug, pdfUrl: upload.url, trace: compiled.trace };
+}
+
+/**
+ * Cloud Run's own log entries for one compile.
+ *
+ * On demand rather than automatic: it is a billed API call, and the compile
+ * trail already answers most questions without it. Worth reaching for when the
+ * container never replied at all — a kill for memory or a timeout at the front
+ * door leaves nothing in the response to read.
+ */
+export async function fetchCompileLogs(input: {
+  requestId: string | null;
+  since: string;
+  until: string;
+}): Promise<LogQueryResult> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { ok: false, error: "Not authorised." };
+  }
+
+  return fetchCloudRunLogs(input);
 }
 
 

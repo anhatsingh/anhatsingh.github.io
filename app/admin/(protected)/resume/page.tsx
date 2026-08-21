@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { checkResume, compileAndSaveResume, requestResumeDraft } from "@/app/admin/actions";
+import { CompileLog } from "@/components/admin/compile-log";
 import type { AuditFinding } from "@/lib/resume/audit";
+import type { CompileTrace } from "@/lib/resume/compile";
 import type { Resume, ResumeMeta } from "@/lib/resume/schema";
 
 /*
@@ -46,6 +48,14 @@ export default function AdminResumePage() {
   const [isPublished, setIsPublished] = useState(true);
   const [savedUrl, setSavedUrl] = useState("");
 
+  /** Every compile from the last click. Cleared when a new one starts. */
+  const [traces, setTraces] = useState<CompileTrace[]>([]);
+  /*
+    Errors that stopped a save. Distinct from `problem`, which is a failure —
+    these are a refusal, and the difference is that this one offers a way past.
+  */
+  const [blocked, setBlocked] = useState<AuditFinding[]>([]);
+
   async function draft() {
     setPhase("drafting");
     setProblem("");
@@ -79,11 +89,17 @@ export default function AdminResumePage() {
     if (!resume) return;
     setPhase("checking");
     setProblem("");
+    setBlocked([]);
+    setTraces([]);
 
     const result = await checkResume({
       resume: applyExclusions(resume),
       jobDescription: jd,
     });
+
+    // Set before the failure branch: when a compile breaks, the log is the
+    // only thing worth showing, so it must survive the early return.
+    setTraces(result.traces);
 
     if (!result.ok) {
       setProblem(result.error);
@@ -117,10 +133,16 @@ export default function AdminResumePage() {
     };
   }
 
-  async function save() {
+  /*
+    `override` is passed only from the second click, after the refusal has been
+    shown. Making it a parameter rather than state keeps it impossible to save
+    with an override still set from an earlier attempt.
+  */
+  async function save(override = false) {
     if (!resume || !meta) return;
     setPhase("saving");
     setProblem("");
+    setBlocked([]);
 
     const result = await compileAndSaveResume({
       resume: applyExclusions(resume),
@@ -128,10 +150,14 @@ export default function AdminResumePage() {
       jobDescription: jd,
       isDefault,
       isPublished,
+      override,
     });
+
+    if (result.trace) setTraces([result.trace]);
 
     if (!result.ok) {
       setProblem(result.error);
+      if (result.blockedBy) setBlocked(result.blockedBy);
       setPhase("error");
       return;
     }
@@ -189,7 +215,7 @@ export default function AdminResumePage() {
         {phase === "drafting" ? "Drafting…" : "Generate draft"}
       </button>
 
-      {problem && <p className="mt-4 text-sm text-danger">{problem}</p>}
+      {problem && !blocked.length && <p className="mt-4 text-sm text-danger">{problem}</p>}
 
       {phase === "done" && savedUrl && (
         <div className="mt-6 rounded-[var(--radius)] border border-success/40 bg-success/10 p-4">
@@ -384,7 +410,7 @@ export default function AdminResumePage() {
             {/* Saving is only offered once the document has actually been
                 built and read back — there is nothing to judge before that. */}
             <button
-              onClick={save}
+              onClick={() => save()}
               disabled={busy || phase !== "checked"}
               title={phase === "checked" ? undefined : "Run the check first"}
               className="rounded-[var(--radius)] bg-accent px-5 py-2.5 font-mono text-xs uppercase tracking-widest text-accent-ink disabled:opacity-50"
@@ -392,6 +418,45 @@ export default function AdminResumePage() {
               {phase === "saving" ? "Saving…" : "Save this version"}
             </button>
           </div>
+
+          {/*
+            A refusal, not a failure. The audit found things an ATS will get
+            wrong, so nothing was uploaded — but the call is still a human's,
+            because "two pages" or an unusual date format can be deliberate.
+          */}
+          {blocked.length > 0 && (
+            <section className="rounded-[var(--radius)] border border-danger/40 bg-danger/10 p-4">
+              <h3 className="font-mono text-xs uppercase tracking-widest text-danger">
+                Not saved — {blocked.length} problem{blocked.length === 1 ? "" : "s"} an ATS will hit
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                These were measured on the PDF that was just built, not on the draft you checked
+                earlier — so an edit made after the check shows up here.
+              </p>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {blocked.map((f, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-danger" aria-hidden="true" />
+                    <span>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
+                        {f.check}
+                      </span>
+                      <span className="ml-2">{f.detail}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => save(true)}
+                disabled={busy}
+                className="mt-3 font-mono text-[11px] uppercase tracking-widest text-danger hover:underline disabled:opacity-50"
+              >
+                Save it anyway →
+              </button>
+            </section>
+          )}
+
+          <CompileLog traces={traces} />
         </div>
       )}
     </div>
